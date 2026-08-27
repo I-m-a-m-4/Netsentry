@@ -1,10 +1,11 @@
 #[cfg(desktop)]
 use tauri::Manager;
+use tauri::Emitter;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
-use sysinfo::{System, ProcessExt, SystemExt, Pid};
+use sysinfo::{System, Process};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProcessNetworkData {
@@ -13,8 +14,11 @@ pub struct ProcessNetworkData {
     pub exe_path: String,
     pub inbound_rate: f64,  // KB/s
     pub outbound_rate: f64, // KB/s
+    pub cpu_usage: f64,
+    pub memory_usage: u64,  // MB
     pub connections_count: u32,
     pub is_paused: bool,
+    pub sockets: Vec<ConnectionInfo>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -48,13 +52,11 @@ fn run_firewall_command(args: &[&str]) -> Result<String, String> {
 #[tauri::command]
 fn pause_inbound_traffic(exe_path: String, name: String) -> Result<bool, String> {
     let rule_name = format!("NetSentry - Block - {}", name);
-    // Delete any existing rule with same name first
     let _ = run_firewall_command(&[
         "advfirewall", "firewall", "delete", "rule",
         &format!("name={}", rule_name)
     ]);
     
-    // Add new blocking rule
     run_firewall_command(&[
         "advfirewall", "firewall", "add", "rule",
         &format!("name={}", rule_name),
@@ -99,6 +101,30 @@ fn resume_all_traffic() -> Result<bool, String> {
     }
     
     Ok(output.status.success())
+}
+
+#[tauri::command]
+fn kill_process(pid: u32) -> Result<bool, String> {
+    let output = Command::new("taskkill")
+        .args(&["/F", "/PID", &pid.to_string()])
+        .output()
+        .map_err(|e| e.to_string())?;
+        
+    if output.status.success() {
+        Ok(true)
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
+#[tauri::command]
+fn open_file_location(exe_path: String) -> Result<bool, String> {
+    let output = Command::new("explorer")
+        .args(&[&format!("/select,\"{}\"", exe_path)])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+        
+    Ok(true)
 }
 
 // Read netstat connections to map active ports to PIDs
@@ -152,7 +178,9 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       pause_inbound_traffic,
       resume_inbound_traffic,
-      resume_all_traffic
+      resume_all_traffic,
+      kill_process,
+      open_file_location
     ])
     .plugin(tauri_plugin_sql::Builder::default().build())
     .plugin(tauri_plugin_fs::init())
@@ -233,9 +261,9 @@ pub fn run() {
                 let connections = get_active_connections();
                 
                 // Group connections by PID
-                let mut pid_conn_counts = std::collections::HashMap::new();
+                let mut pid_connections: std::collections::HashMap<u32, Vec<ConnectionInfo>> = std::collections::HashMap::new();
                 for conn in &connections {
-                    *pid_conn_counts.entry(conn.pid).or_insert(0) += 1;
+                    pid_connections.entry(conn.pid).or_insert_with(Vec::new).push(conn.clone());
                 }
                 
                 let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
@@ -249,15 +277,19 @@ pub fn run() {
                 // Map system processes and generate real-time metrics
                 for (pid, process) in sys.processes() {
                     let pid_u32 = pid.as_u32();
-                    let conn_count = *pid_conn_counts.get(&pid_u32).unwrap_or(&0);
+                    let process_sockets = pid_connections.get(&pid_u32).cloned().unwrap_or_default();
+                    let conn_count = process_sockets.len() as u32;
                     
                     if conn_count > 0 || process.name().eq_ignore_ascii_case("chrome.exe") || process.name().eq_ignore_ascii_case("msedge.exe") || process.name().eq_ignore_ascii_case("firefox.exe") {
-                        let exe_path = process.exe().to_string_lossy().to_string();
+                        let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                         let is_paused = paused_list.contains(&exe_path);
                         
                         let base_multiplier = if is_paused { 0.0 } else { 1.0 };
                         let inbound_rate = (process.cpu_usage() as f64 * 12.5 + (conn_count as f64 * 3.4)) * base_multiplier;
                         let outbound_rate = (process.cpu_usage() as f64 * 4.2 + (conn_count as f64 * 1.1)) * base_multiplier;
+                        
+                        // Memory usage in MB
+                        let mem_mb = process.memory() / (1024 * 1024);
                         
                         process_data.push(ProcessNetworkData {
                             pid: pid_u32,
@@ -265,8 +297,11 @@ pub fn run() {
                             exe_path,
                             inbound_rate: (inbound_rate * 100.0).round() / 100.0,
                             outbound_rate: (outbound_rate * 100.0).round() / 100.0,
+                            cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
+                            memory_usage: mem_mb,
                             connections_count: conn_count,
                             is_paused,
+                            sockets: process_sockets,
                         });
                     }
                 }
