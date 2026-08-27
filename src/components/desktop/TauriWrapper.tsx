@@ -16,7 +16,7 @@ export function TauriLayoutWrapper({ children }: { children: React.ReactNode }) 
     <div 
       className={cn(
         "bg-background text-foreground flex flex-col",
-        isTauri ? "h-screen overflow-hidden" : "min-h-screen"
+        isTauri ? "h-screen overflow-y-auto" : "min-h-screen"
       )}
       style={{ '--tauri-title-height': isTauri ? '2.25rem' : '0px' } as React.CSSProperties}
     >

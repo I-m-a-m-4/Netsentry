@@ -5,7 +5,7 @@
   "identifier": "com.netsentry.app",
   "build": {
     "frontendDist": "../out",
-    "devUrl": "http://localhost:9007",
+    "devUrl": "http://localhost:9005",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },

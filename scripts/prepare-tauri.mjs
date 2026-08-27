@@ -63,23 +63,4 @@ stubs.forEach(s => {
     console.log(`Created stub: ${s.path}`);
 });
 
-console.log('--- Setting up root page redirect ---');
-const rootPagePath = path.resolve(process.cwd(), 'src/app/page.tsx');
-const redirectContent = `'use client';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-
-export default function Home() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/login');
-  }, [router]);
-  return null;
-}`;
-
-if (fs.existsSync(rootPagePath)) {
-    fs.writeFileSync(rootPagePath, redirectContent);
-    console.log('Root page updated with redirect to /login');
-}
-
 console.log('--- Preparation Complete ---');
