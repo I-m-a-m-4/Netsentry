@@ -1,0 +1,205 @@
+'use client';
+import { Check, Linkedin, Mail, Phone, Send, Twitter, Loader2, Instagram } from "lucide-react";
+import BackToTopButton from '@/components/back-to-top-button';
+import Link from "next/link";
+import React, { useRef, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { sendContactFormEmail } from '@/lib/email';
+import { AppConfig } from "@/lib/config";
+
+export default function MarketingFooter() {
+  const form = useRef<HTMLFormElement>(null);
+  const { toast } = useToast();
+  const [isSending, setIsSending] = useState(false);
+
+  const sendEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.current) return;
+    setIsSending(true);
+
+    sendContactFormEmail(form.current)
+      .then((result) => {
+        toast({ variant: 'success', title: 'Message Sent!', description: 'We will get back to you shortly.' });
+        form.current?.reset();
+      }, (error) => {
+        toast({ variant: 'destructive', title: 'Send Failed', description: error.message || 'Could not send message. Please try again later.' });
+      })
+      .finally(() => {
+        setIsSending(false);
+      });
+  };
+
+  return (
+    <footer id="contact" className="bg-white border-t border-slate-100 w-full relative">
+      {/* Curvy Top Border */}
+      <div className="absolute top-0 left-0 w-full overflow-hidden leading-[0] -translate-y-[calc(100%-2px)]">
+        <svg viewBox="0 0 100 20" preserveAspectRatio="none" className="relative block w-full h-[30px] md:h-[50px] fill-white">
+          <path d="M0,20 L0,11 Q6.25,3 12.5,11 Q18.75,19 25,11 Q31.25,3 37.5,11 Q43.75,19 50,11 Q56.25,3 62.5,11 Q68.75,19 75,11 Q81.25,3 87.5,11 Q93.75,19 100,11 L100,20 Z"></path>
+        </svg>
+      </div>
+
+      <div className="overflow-hidden max-w-7xl mx-auto relative bg-white">
+        <div className="z-10 sm:p-12 md:p-16 pt-12 pr-8 pb-8 pl-8 relative">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 pb-12 border-b border-slate-200">
+            <div className="lg:col-span-4 gap-x-2 gap-y-2">
+              <div className="flex cursor-pointer mb-8 gap-x-2 gap-y-2 items-center">
+                <img src={AppConfig.logoUrl} alt="Pinnacle Academia Logo" className="h-16 w-auto" />
+              </div>
+              <p className="max-w-3xl text-slate-600">Transforming Lives through Education. As a vibrant community of learning enthusiasts, we strive to make education accessible, affordable, and rewarding for all. Join us in shaping the future of education.</p>
+
+              <div className="sm:p-6 md:p-8 border rounded-md mt-6 pt-5 pr-5 pb-5 pl-5 bg-stone-50/50 border-stone-200" id="contact-form-section">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="space-y-4">
+                    <div className="inline-flex gap-2 text-xs ring-1 rounded-full pt-1 pr-2.5 pb-1 pl-2.5 gap-x-2 gap-y-2 items-center text-primary bg-primary/10 ring-primary/20">
+                      <span className="h-1.5 w-1.5 rounded-full animate-pulse bg-primary"></span>
+                      Built for Excellence
+                    </div>
+                    <h4 className="font-semibold tracking-tight text-slate-900">Pinnacle Academia is the premier learning platform.</h4>
+                    <ul className="space-y-2 text-sm text-slate-600">
+                      <li className="flex items-start gap-2">
+                        <Check className="w-4 h-4 mt-0.5 text-primary" />
+                        <span>Expert guidance and personalized tutorial services.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="w-4 h-4 mt-0.5 text-primary" />
+                        <span>Physical and online classes covered comprehensively.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="w-4 h-4 mt-0.5 text-primary" />
+                        <span>Guaranteed local and international exam success.</span>
+                      </li>
+                    </ul>
+                    <div className="flex items-center gap-3 pt-2 text-sm">
+                      <a href="mailto:pinnacleacademia254@gmail.com" className="inline-flex items-center gap-2 transition text-slate-800 hover:text-primary font-medium">pinnacleacademia254@gmail.com</a>
+                    </div>
+                  </div>
+
+                  <form ref={form} onSubmit={sendEmail} className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 gap-x-4 gap-y-4" id="contact-form">
+                    <div className="sm:col-span-1">
+                      <label htmlFor="name" className="block text-xs font-medium mb-1 text-slate-700">Your name</label>
+                      <input id="name" name="from_name" type="text" required placeholder="Jane Doe" className="placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm w-full border rounded pt-2.5 pr-3 pb-2.5 pl-3 text-slate-900 bg-white border-slate-200" />
+                    </div>
+                    <div className="sm:col-span-1">
+                      <label htmlFor="email" className="block text-xs font-medium mb-1 text-slate-700">Email</label>
+                      <input name="from_email" type="email" required placeholder="jane@company.com" className="placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm w-full border rounded pt-2.5 pr-3 pb-2.5 pl-3 text-slate-900 bg-white border-slate-200" id="email" />
+                    </div>
+                    <div className="sm:col-span-1">
+                      <label htmlFor="company" className="block text-xs font-medium mb-1 text-slate-700">Company</label>
+                      <input id="company" name="company" type="text" placeholder="Acme Inc." className="placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm w-full border rounded pt-2.5 pr-3 pb-2.5 pl-3 text-slate-900 bg-white border-slate-200" />
+                    </div>
+                    <div className="sm:col-span-1">
+                      <label htmlFor="project-type" className="block text-xs font-medium mb-1 text-slate-700">Primary Goal</label>
+                      <select id="project-type" name="project_type" className="appearance-none outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm w-full border rounded pt-2.5 pr-3 pb-2.5 pl-3 text-slate-900 bg-white border-slate-200">
+                        <option value="exam-prep">Exam Preparation</option>
+                        <option value="tutorials">Online / Physical Tutorials</option>
+                        <option value="admission">Admission Processing</option>
+                        <option value="other">General Inquiry</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label htmlFor="message" className="block text-xs font-medium mb-1 text-slate-700">How can we help?</label>
+                      <textarea name="message" rows={4} placeholder="A few sentences about your academy goals and current challenges." className="placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm w-full border rounded pt-2.5 pr-3 pb-2.5 pl-3 text-slate-900 bg-white border-slate-200" id="message"></textarea>
+                    </div>
+                    <div className="sm:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex gap-2 text-xs items-center text-slate-600">
+                        <input id="nda" name="nda_request" type="checkbox" className="h-4 w-4 rounded focus:ring-primary/20 bg-white border-slate-300 text-primary" />
+                        <label htmlFor="nda">Please send an NDA</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="submit" disabled={isSending} className="inline-flex transition text-sm font-medium rounded pt-2.5 pr-4 pb-2.5 pl-4 shadow gap-x-2 gap-y-2 items-center hover:bg-primary/95 text-white bg-primary disabled:opacity-50">
+                          {isSending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          <Send className="w-4 h-4" />
+                          {isSending ? 'Sending...' : 'Send request'}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8 pt-12">
+            <div className="">
+              <h4 className="text-xs uppercase tracking-[0.2em] text-primary font-bold">News</h4>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li><Link href="/blog?category=waec-jamb" className="transition text-slate-600 hover:text-primary">Waec/Jamb News</Link></li>
+                <li><Link href="/blog?category=admission" className="transition text-slate-600 hover:text-primary">Admission News</Link></li>
+                <li><Link href="/blog?category=post-utme" className="transition text-slate-600 hover:text-primary">Post-Utme/Screening News</Link></li>
+                <li><Link href="/blog?category=scholarship" className="transition text-slate-600 hover:text-primary">Scholarship and Opportunities</Link></li>
+              </ul>
+            </div>
+            <div className="">
+              <h4 className="text-xs uppercase tracking-[0.2em] text-primary font-bold">Overview</h4>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li><Link href="/our-services" className="transition text-slate-600 hover:text-primary">Our Services</Link></li>
+                <li><a href="#contact" className="transition text-slate-600 hover:text-primary">Get in touch</a></li>
+                <li><Link href="/blog" className="transition text-slate-600 hover:text-primary">News and updates</Link></li>
+                <li><Link href="/study-materials" className="transition text-slate-600 hover:text-primary">Resources</Link></li>
+              </ul>
+            </div>
+            <div className="">
+              <h4 className="text-xs uppercase tracking-[0.2em] text-primary font-bold">Get In Touch</h4>
+              <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                Lagos & Osun state Nigeria.<br />
+                pinnacleacademia254@gmail.com
+              </p>
+            </div>
+            <div className="">
+              <h4 className="uppercase text-xs tracking-[0.2em] text-primary font-bold">Get In Touch</h4>
+              <form id="subscribe" className="mt-3 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                  <input 
+                    type="email" 
+                    name="subscribeEmail" 
+                    id="subscribeEmail"
+                    aria-label="Email address for subscription"
+                    required 
+                    placeholder="Enter your email" 
+                    className="placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-xs w-full border rounded pt-2.5 pr-3 pb-2.5 pl-9 text-slate-900 bg-white border-slate-200" 
+                  />
+                </div>
+                <button type="submit" className="inline-flex gap-2 transition text-xs font-medium rounded pt-2.5 pr-3.5 pb-2.5 pl-3.5 gap-x-2 gap-y-2 items-center hover:bg-primary/95 text-white bg-primary">
+                  Go
+                </button>
+              </form>
+              <div className="mt-4 flex items-center gap-3">
+                <a href="https://share.google/zSJOsFEcwRPpem4A2" target="_blank" rel="noopener noreferrer" aria-label="Google Business" className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition bg-slate-50 border-slate-200 text-slate-600 hover:text-primary hover:bg-slate-100">
+                  <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="w-[16px] h-[16px]" fill="currentColor"><title>Google</title><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.908 3.152-1.896 4.14-1.224 1.224-3.132 2.364-6.944 2.364-6.192 0-11-5.004-11-11.196s4.808-11.196 11-11.196c3.348 0 5.772 1.308 7.5 3.048l2.316-2.316C19.164 1.632 15.768 0 11.48 0 5.136 0 0 5.136 0 11.48s5.136 11.48 11.48 11.48c3.42 0 6.012-1.128 8.028-3.24 2.088-2.088 2.748-4.992 2.748-7.392 0-.708-.06-1.416-.18-2.112h-9.588z"/></svg>
+                </a>
+                <a href="#" aria-label="X" className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition bg-slate-50 border-slate-200 text-slate-600 hover:text-primary hover:bg-slate-100">
+                  <Twitter className="w-[16px] h-[16px]" />
+                </a>
+                <a href="#" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition bg-slate-50 border-slate-200 text-slate-600 hover:text-primary hover:bg-slate-100">
+                  <Instagram className="w-[16px] h-[16px]" />
+                </a>
+                <a href="#" target="_blank" rel="noopener noreferrer" aria-label="TikTok" className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition bg-slate-50 border-slate-200 text-slate-600 hover:text-primary hover:bg-slate-100">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.589 6.686a4.793 4.793 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 0 1-5.201 1.743l-.002-.001.002.001a2.895 2.895 0 0 1 3.183-4.51v-3.5a6.329 6.329 0 0 0-5.394 10.692 6.33 6.33 0 0 0 10.857-4.424V8.687a8.182 8.182 0 0 0 4.773 1.526V6.79a4.831 4.831 0 0 1-1.003-.104z" /></svg>
+                </a>
+                <a href="#" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition bg-slate-50 border-slate-200 text-slate-600 hover:text-primary hover:bg-slate-100">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93 .502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
+                </a>
+                <a href="https://wa.me/2348143606458?text=Hello%2C%20I'm%20interested%20in%20Pinnacle%20Academia.%20I'd%20like%20to%20learn%20more%20about%20your%20tutorial%20services." target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition bg-slate-50 border-slate-200 text-slate-600 hover:text-primary hover:bg-slate-100">
+                  <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="w-[16px] h-[16px]" fill="currentColor"><title>WhatsApp</title><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"></path></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-10 pt-6 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-slate-200">
+            <p className="text-sm text-slate-500">Copyright © 2025 Pinnacle Academia</p>
+            <div className="flex items-center gap-4 text-sm text-slate-500">
+              <Link href="/legal/privacy-policy" className="transition hover:text-primary text-slate-600">Privacy</Link>
+              <span className="hidden sm:block text-slate-200">•</span>
+              <Link href="/legal/terms-of-service" className="transition hover:text-primary text-slate-600">Terms</Link>
+              <span className="hidden sm:block text-slate-200">•</span>
+              <BackToTopButton />
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

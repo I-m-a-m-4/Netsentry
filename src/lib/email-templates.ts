@@ -1,0 +1,4 @@
+
+export const EMAILJS_TEMPLATES = {
+    CONTACT_US: process.env.NEXT_PUBLIC_EMAILJS_CONTACT_TEMPLATE_ID || '',
+};

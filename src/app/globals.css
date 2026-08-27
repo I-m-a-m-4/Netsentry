@@ -1,0 +1,575 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 100% 99%;
+    --foreground: 224 71% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+    --primary: 33 45% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 33 45% 32%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 0 0% 90%; /* Crisp silver for definitive hairline borders */
+    --input: 220 13% 94%;
+    --ring: 33 45% 32%;
+    --radius: 0.5rem;
+
+    --chart-1: 33 45% 32%;
+    --chart-2: 25 95% 65%;
+    --chart-3: 15 80% 45%;
+    --chart-4: 35 90% 60%;
+    --chart-5: 10 85% 50%;
+
+    --sidebar-background: 40 33% 98%;
+    --sidebar-foreground: 224 71% 10%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-accent: 210 40% 92%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-primary: 33 45% 28%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-ring: 33 45% 28%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 4.5%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 33 45% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 12%; /* Keep dark but allow for sharper contrast */
+    --input: 240 3.7% 12%;
+    --ring: 33 45% 32%;
+
+    --sidebar-background: 240 5.9% 5%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 33 45% 32%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 33 45% 32%;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  /* Custom scrollbar to match premium feel - Neutral grey for better integration */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.2); 
+    border-radius: 20px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Force HTML/Body to match background */
+  html, body {
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    transition: opacity ease-in 0.3s;
+    opacity: 1;
+  }
+
+  body[unresolved] {
+    opacity: 0;
+    display: block;
+    overflow: hidden;
+    position: relative;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+ 
+  body.is-desktop {
+     overflow: hidden;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+
+  .pattern-bg {
+    background-color: hsl(var(--background));
+    background-image: radial-gradient(hsl(var(--foreground) / 0.06) 0.5px, transparent 0.5px);
+    background-size: 14px 14px;
+    background-attachment: fixed;
+  }
+
+  .auth-bg {
+    @apply bg-background transition-colors duration-300;
+    background-image: radial-gradient(circle at top, hsla(var(--primary), 0.05), transparent);
+  }
+
+  /* 
+     High-Fidelity Scoped Borders 
+     This ensures the POS and Admin Dashboard maintain the 'Crisp Silver' hairline aesthetic
+     without affecting the softer marketing homepage.
+  */
+  .high-fidelity-shell .border, 
+  .high-fidelity-shell .border-b, 
+  .high-fidelity-shell .border-t, 
+  .high-fidelity-shell .border-l, 
+  .high-fidelity-shell .border-r,
+  .high-fidelity-shell .sidebar-border,
+  .high-fidelity-shell [class*='border-border'] {
+    border-color: hsl(var(--border)) !important; 
+    border-width: 1px;
+    border-style: solid;
+  }
+
+  /* Keep sidebar borders slightly more subtle even in high-fidelity mode */
+  .high-fidelity-shell [class*='sidebar-border'] {
+    border-color: hsl(var(--sidebar-border) / 0.3) !important;
+  }
+
+  .dark .high-fidelity-shell .border,
+  .dark .high-fidelity-shell .border-b,
+  .dark .high-fidelity-shell .border-t,
+  .dark .high-fidelity-shell .border-l,
+  .dark .high-fidelity-shell .border-r,
+  .dark .high-fidelity-shell [class*='border-border'] {
+    border-color: hsl(var(--border) / 0.5) !important; /* Sharper definition in dark mode */
+  }
+
+  .dark .high-fidelity-shell .sidebar-border,
+  .dark .high-fidelity-shell [class*='sidebar-border'] {
+    border-color: hsl(var(--sidebar-border) / 0.2) !important;
+  }
+
+  /* Force dark mode background for shell components */
+  .dark .bg-sidebar,
+  .dark [data-sidebar='sidebar'] {
+    background-color: hsl(var(--sidebar-background)) !important;
+  }
+
+  .dark .bg-background {
+    background-color: hsl(var(--background)) !important;
+  }
+
+  .bg-sidebar,
+  [data-sidebar='sidebar'],
+  .bg-background,
+  header {
+    @apply transition-colors duration-300;
+  }
+
+  .codepen-button {
+    display: block;
+    cursor: pointer;
+    color: #fff;
+    position: relative;
+    text-decoration: none;
+    font-weight: 600;
+    overflow: hidden;
+    padding: 2px;
+    isolation: isolate
+  }
+
+  .codepen-button span {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem 1rem;
+    font-size: 1.1rem;
+    height: 100%
+  }
+
+  .animated-input {
+    @apply bg-white/5 border border-white/20 text-white placeholder:text-gray-400 focus:bg-white/10 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-primary transition-all duration-300;
+  }
+
+  .text-gradient-mask-subtle {
+    background: linear-gradient(to bottom, hsl(var(--foreground)) 70%, hsla(var(--foreground) / 0.4) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .focus-glow {
+    transition: box-shadow 0.3s ease-out, border-color 0.3s ease-out;
+  }
+
+  .focus-glow:focus,
+  .focus-glow:focus-visible {
+    outline: none;
+    border-color: transparent;
+    box-shadow: 0 0 0 4px hsla(var(--primary) / 0.1), 0 0 20px 5px hsla(var(--primary) / 0.2);
+  }
+
+  /* Glow effect for primary buttons on focus/active */
+  .button-glow:focus-visible,
+  .button-glow:active {
+    box-shadow: 0 0 0 4px hsla(var(--primary) / 0.1), 0 0 20px 5px hsla(var(--primary) / 0.2);
+  }
+
+  /* Tauri Window Specific Overrides */
+  .tauri-window {
+    background-color: hsl(var(--background)) !important;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tauri-window main {
+    background-color: hsl(var(--background)) !important;
+    border-radius: 0 !important;
+  }
+
+  .tauri-window header {
+    /* Background handled by component logic */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer utilities {
+  .sidebar-wavy-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='hsl(var(--primary))' fill-opacity='0.1' fill-rule='evenodd'%3E%3Cpath d='M25 24.32V3.5a1.5 1.5 0 0 1 3 0v20.82c4.666 0 8.324-2.825 10.493-7.532C40.66 11.076 42.665 8.5 45.5 8.5c2.835 0 4.84 2.576 6.993 7.288C54.676 20.495 58.334 23.32 63 23.32V44.5c-4.666 0-8.324-2.825-10.493-7.532C50.34 32.256 48.335 29.5 45.5 29.5c-2.835 0-4.84 2.576-6.993 7.288C36.324 41.505 32.666 44.32 28 44.32V24.32zM53 55.68V76.5a1.5 1.5 0 0 1-3 0V55.68c-4.666 0-8.324-2.825-10.493-7.532C37.34 43.436 35.335 40.5 32.5 40.5c-2.835 0-4.84 2.576-6.993 7.288C23.324 52.495 19.666 55.32 15 55.32V34.5c4.666 0 8.324 2.825 10.493 7.532C27.66 46.744 29.665 49.5 32.5 49.5c2.835 0 4.84-2.576 6.993 7.288C41.676 37.505 45.334 34.68 50 34.68V55.68z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .smooth-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media print {
+
+    .no-print,
+    .no-print * {
+      display: none !important;
+    }
+
+    body {
+      background-color: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    @page {
+      margin: 0 !important;
+      padding: 0 !important;
+      size: auto; /* Allow the browser to determine height, but we'll constrain width */
+    }
+
+    .print-receipt {
+      display: block !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      max-width: 80mm !important;
+      margin: 0 !important;
+      padding: 2mm 4mm !important;
+      box-shadow: none !important;
+      border: none !important;
+      background: white !important;
+      color: black !important;
+      page-break-after: avoid;
+    }
+
+    .print-receipt * {
+      color: black !important;
+    }
+
+    .print-receipt .watermark {
+      display: block !important;
+      opacity: 0.08 !important;
+      color: #aaa !important;
+    }
+
+    .print-receipt .text-destructive {
+      color: #dc2626 !important;
+      /* Keep destructive text red for emphasis */
+    }
+  }
+
+  @keyframes whatsapp-pulse {
+    0% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+    }
+
+    70% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 15px rgba(37, 211, 102, 0);
+    }
+
+    100% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+    }
+  }
+
+  .whatsapp-button {
+    @apply fixed bottom-6 right-6 z-50 w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg;
+    animation: whatsapp-pulse 2s infinite;
+    transition: transform 0.2s ease-in-out;
+  }
+
+  .whatsapp-button:hover {
+    transform: scale(1.1);
+    animation-play-state: paused;
+  }
+
+  .whatsapp-button svg {
+    @apply w-8 h-8;
+  }
+}
+
+@keyframes border-shift {
+  to {
+    transform: translateX(-25%)
+  }
+}
+
+/* NProgress styles */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: hsl(var(--primary));
+  position: fixed;
+  z-index: 1031;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+}
+
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0px;
+  width: 100px;
+  height: 100%;
+  box-shadow: 0 0 10px hsl(var(--primary)), 0 0 5px hsl(var(--primary));
+  opacity: 1.0;
+  -webkit-transform: rotate(3deg) translate(0px, -4px);
+  -ms-transform: rotate(3deg) translate(0px, -4px);
+  transform: rotate(3deg) translate(0px, -4px);
+}
+
+/* SAFETY FIX: Prevents Radix UI dialogs from locking the screen 
+  if the component unmounts unexpectedly. 
+*/
+body {
+  pointer-events: auto !important;
+}
+
+/* Ensure the portal container itself doesn't block clicks */
+[data-radix-portal] {
+  pointer-events: all;
+}
+
+@keyframes confetti-fall-left {
+  from {
+    transform: translateY(0) translateX(0) rotate(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(110vh) translateX(-15vw) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes confetti-fall-right {
+  from {
+    transform: translateY(0) translateX(0) rotate(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(110vh) translateX(15vw) rotate(-720deg);
+    opacity: 0;
+  }
+}
+
+
+.confetti-piece {
+  position: absolute;
+  width: 8px;
+  height: 16px;
+  opacity: 0;
+  transform-origin: center center;
+}
+
+@keyframes aura-pulse {
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.aura-background {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 800px;
+  background-image: radial-gradient(circle at center, hsl(var(--primary) / 0.1), transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+  animation: aura-pulse 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.aura-background-component {
+  background: radial-gradient(circle at center, hsla(var(--primary), 0.15) 0%, transparent 70%);
+  filter: blur(80px);
+}
+
+.border-gradient {
+  position: relative;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+}
+
+.border-gradient::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05), transparent 60%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.codepen-button-aura {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(25, 95%, 45%));
+  color: white;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px hsla(var(--primary), 0.3);
+}
+
+.codepen-button-aura:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px hsla(var(--primary), 0.5);
+  filter: brightness(1.1);
+}
+
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee-left {
+  animation: marquee-left 40s linear infinite;
+}
+
+[data-alpha-mask] {
+  mask-attachment: scroll;
+}
+
+.font-jakarta {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.font-geist {
+  font-family: 'Inter', sans-serif; /* Fallback for Geist */
+}
+
+@layer utilities {
+}
+
+@layer components {
+  .home-marq {
+    max-width: 100%;
+  }
+
+  .marquee-container {
+    --gap: 1rem;
+    display: flex;
+    overflow: hidden;
+    gap: var(--gap);
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .marquee {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-around;
+    gap: var(--gap);
+    min-width: 100%;
+    animation: marquee-scroll 30s linear infinite;
+  }
+
+  @keyframes marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+
+  .marquee-container:hover .marquee {
+    animation-play-state: paused;
+  }
+}

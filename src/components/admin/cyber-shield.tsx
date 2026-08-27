@@ -1,0 +1,1370 @@
+'use client';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardFooter,
+} from '@/components/ui/card';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { 
+    ShieldAlert, 
+    ShieldCheck, 
+    Lock, 
+    Zap, 
+    Fingerprint, 
+    Terminal, 
+    AlertCircle,
+    Activity,
+    Shield,
+    XCircle,
+    UserMinus,
+    Search,
+    RefreshCw,
+    Smartphone,
+    CheckCircle2,
+    Eye,
+    Globe,
+    Trash2,
+    Database,
+    Users,
+    Package,
+    Cpu,
+    Radio,
+    ArrowRight,
+    Server,
+    Signal,
+    Crosshair,
+    Radar
+} from 'lucide-react';
+import { deleteBusinessUsersAuth } from '@/actions/admin-actions';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { 
+    multiFactor,
+    PhoneAuthProvider,
+    PhoneMultiFactorGenerator,
+    RecaptchaVerifier
+} from 'firebase/auth';
+import { 
+    getCountFromServer,
+    collectionGroup, 
+    query, 
+    orderBy, 
+    limit, 
+    getDocs,
+    getDoc,
+    collection,
+    doc,
+    updateDoc,
+    addDoc,
+    deleteDoc,
+    writeBatch,
+    where,
+    serverTimestamp
+} from 'firebase/firestore';
+import { format, formatDistanceToNow, subHours, subMinutes } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- Sub-components for Situation Awareness ---
+
+const ScanningEffect = () => (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-5">
+        <motion.div 
+            initial={{ y: "-100%" }}
+            animate={{ y: "200%" }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+            className="h-1/2 w-full bg-gradient-to-b from-transparent via-primary/30 to-transparent"
+        />
+    </div>
+);
+
+const RadarPulse = () => (
+    <div className="relative w-16 h-16 flex items-center justify-center">
+        <motion.div 
+            animate={{ scale: [1, 2], opacity: [0.3, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="absolute inset-0 bg-primary/20 rounded-full"
+        />
+        <div className="relative z-10 p-2 bg-background rounded-full border border-primary/10 shadow-sm">
+            <Radar className="h-6 w-6 text-primary animate-spin-slow" />
+        </div>
+    </div>
+);
+
+const SecurityMetric = ({ label, value, subValue, icon: Icon, colorClass, borderClass, onClick }: any) => (
+    <Card 
+        className={cn("relative overflow-hidden group hover:shadow-md transition-all border-border/50", borderClass)}
+        onClick={onClick}
+    >
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+                {label}
+            </CardTitle>
+            <Icon className={cn("h-4 w-4", colorClass)} />
+        </CardHeader>
+        <CardContent>
+            <div className={cn("text-2xl font-bold", colorClass)}>
+                {value}
+            </div>
+            {subValue && (
+                <p className="text-xs text-muted-foreground mt-1">
+                    {subValue}
+                </p>
+            )}
+        </CardContent>
+    </Card>
+);
+export default function CyberShield({ allBusinesses, allUsers, isLoadingBusinesses }: { allBusinesses: any[] | null, allUsers: any[] | null, isLoadingBusinesses: boolean }) {
+    const { firestore, auth, user: authUser } = useFirebase();
+    const { toast } = useToast();
+    const [isRevoking, setIsRevoking] = useState<string | null>(null);
+    const [searchBusiness, setSearchBusiness] = useState('');
+    const [searchUser, setSearchUser] = useState('');
+
+    // Entity Termination State
+    const [isDestructionModalOpen, setIsDestructionModalOpen] = useState(false);
+    const [destructionEmail, setDestructionEmail] = useState('');
+    const [destructionId, setDestructionId] = useState('');
+    const [targetStats, setTargetStats] = useState<{ subjects: number; students: number; sizeKB: number } | null>(null);
+    const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+    const fetchTargetStats = async (academyId: string) => {
+        if (!firestore) return;
+        setIsLoadingStats(true);
+        setTargetStats(null);
+        try {
+            const collections = ['subjects', 'students', 'admissions', 'purchases', 'expenses', 'inventory_logs'];
+            let totalDocs = 0;
+            let productCount = 0;
+            let customerCount = 0;
+
+            for (const collName of collections) {
+                const q = query(collection(firestore, collName), where("academyId", "==", academyId));
+                const snapshot = await getCountFromServer(q);
+                const count = snapshot.data().count;
+                totalDocs += count;
+                if (collName === 'subjects') productCount = count;
+                if (collName === 'students') customerCount = count;
+            }
+
+            // Rough estimate: 0.8KB per document
+            const sizeKB = Math.max(1, Math.round(totalDocs * 0.8));
+            
+            setTargetStats({
+                subjects: productCount,
+                students: customerCount,
+                sizeKB
+            });
+        } catch (err) {
+            console.error("Footprint scan failed:", err);
+        } finally {
+            setIsLoadingStats(false);
+        }
+    };
+    const [hasConfirmedDestruction, setHasConfirmedDestruction] = useState(false);
+    const [isDestroying, setIsDestroying] = useState(false);
+    const [destructionProgress, setDestructionProgress] = useState(0);
+    const [destructionStatus, setDestructionStatus] = useState('');
+
+    // Individual User Termination State
+    const [isUserDestructionModalOpen, setIsUserDestructionModalOpen] = useState(false);
+    const [targetUserForDestruction, setTargetUserForDestruction] = useState<any>(null);
+    const [isDestroyingUser, setIsDestroyingUser] = useState(false);
+    const [hasConfirmedUserDestruction, setHasConfirmedUserDestruction] = useState(false);
+
+
+    // MFA Enrollment State
+    const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [verificationCode, setVerificationCode] = useState('');
+    const [verificationId, setVerificationId] = useState<string | null>(null);
+    const [mfaStep, setMfaStep] = useState<'phone' | 'code'>('phone');
+    const [isEnrolling, setIsEnrolling] = useState(false);
+    const recaptchaRef = useRef<any>(null);
+
+    // Fetch REAL system state
+    // Users are now passed as props
+
+    const adminCount = useMemo(() => allUsers?.filter(u => u.role === 'admin' || u.role === 'manager').length || 0, [allUsers]);
+
+    const mfaStatus = useMemo(() => {
+        if (!authUser) return { enabled: false, color: 'text-rose-600', bg: 'bg-rose-600' };
+        const enrolled = (authUser as any).multiFactor?.enrolledFactors?.length > 0;
+        return {
+            enabled: enrolled,
+            color: enrolled ? 'text-emerald-600' : 'text-rose-600',
+            bg: enrolled ? 'bg-emerald-600' : 'bg-rose-600',
+            label: enrolled ? 'Secure' : 'Unprotected'
+        };
+    }, [authUser]);
+
+    // Termination logs remain local to CyberShield
+
+    const logsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'terminationLogs'), orderBy('terminatedAt', 'desc'), limit(10)) : null, [firestore]);
+    const { data: terminationLogs } = useCollection<any>(logsQuery);
+
+    const filteredBusinesses = useMemo(() => {
+        if (!allBusinesses) return [];
+        let result = allBusinesses.filter(b => {
+            const searchLower = searchBusiness.trim().toLowerCase();
+            if (!searchLower) return true;
+            return (
+                (b.name || '').toLowerCase().includes(searchLower) || 
+                (b.email || '').toLowerCase().includes(searchLower) ||
+                (b.id || '').toLowerCase().includes(searchLower) ||
+                (b.settings?.email || '').toLowerCase().includes(searchLower)
+            );
+        });
+
+        // Sort by createdAt descending (newest first)
+        return [...result].sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+            return dateB - dateA;
+        });
+    }, [allBusinesses, searchBusiness]);
+
+    const filteredUsers = useMemo(() => {
+        if (!allUsers) return [];
+        let result = allUsers.filter(u => {
+            const searchLower = searchUser.trim().toLowerCase();
+            if (!searchLower) return true;
+            return (
+                (u.name || '').toLowerCase().includes(searchLower) || 
+                (u.email || '').toLowerCase().includes(searchLower) ||
+                (u.id || '').toLowerCase().includes(searchLower)
+            );
+        });
+
+        return result;
+    }, [allUsers, searchUser]);
+
+    const [directLookupId, setDirectLookupId] = useState('');
+    const handleDirectLookup = async () => {
+        const lookupId = directLookupId.trim();
+        if (!lookupId || !allBusinesses) return;
+        
+        // 1. Try to find by academy fields directly (ID, Email, Settings Email)
+        let target = allBusinesses.find(b => 
+            b.id === lookupId || 
+            (b.email || '').toLowerCase() === lookupId.toLowerCase() ||
+            (b.settings?.email || '').toLowerCase() === lookupId.toLowerCase()
+        );
+
+        // 2. Fallback: Find by Owner Email (searching across users)
+        if (!target && allUsers) {
+            const ownerMatch = allUsers.find(u => (u.email || '').toLowerCase() === lookupId.toLowerCase());
+            if (ownerMatch && ownerMatch.academyId) {
+                target = allBusinesses.find(b => b.id === ownerMatch.academyId);
+            }
+        }
+
+        if (target) {
+            setDestructionEmail(target.email || target.settings?.email || lookupId);
+            setDestructionId(target.id);
+            setIsDestructionModalOpen(true);
+            fetchTargetStats(target.id);
+            setDirectLookupId('');
+        } else {
+            toast({ variant: 'destructive', title: "Lookup Failed", description: "No entity or owner found with that identifier." });
+        }
+    };
+
+    const handleSendCode = async () => {
+        if (!auth || !authUser || !phoneNumber) return;
+        setIsEnrolling(true);
+        try {
+            if (!recaptchaRef.current) {
+                recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-admin-container', {
+                    'size': 'invisible'
+                });
+            }
+            const session = await multiFactor(authUser).getSession();
+            const phoneInfoOptions = { phoneNumber, session };
+            const phoneAuthProvider = new PhoneAuthProvider(auth);
+            const vId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaRef.current);
+            setVerificationId(vId);
+            setMfaStep('code');
+            toast({ title: "Verification Initiated", description: "SMS gateway triggered." });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: "Shield Breach", description: error.message });
+        } finally {
+            setIsEnrolling(false);
+        }
+    };
+
+    const handleVerifyAndEnroll = async () => {
+        if (!authUser || !verificationId || !verificationCode) return;
+        setIsEnrolling(true);
+        try {
+            const cred = PhoneAuthProvider.credential(verificationId, verificationCode);
+            const assertion = PhoneMultiFactorGenerator.assertion(cred);
+            await multiFactor(authUser).enroll(assertion, "Primary Hardware Node");
+            setIsMfaModalOpen(false);
+            toast({ title: "Lockdown Protocol Active", description: "Account tethered to hardware factor." });
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: "Core Rejection", description: "Verification signature invalid." });
+        } finally {
+            setIsEnrolling(false);
+        }
+    };
+
+    const handleDeleteLog = async (logId: string) => {
+        if (!firestore || !window.confirm('Are you sure you want to PERMANENTLY remove this record from the archive?')) return;
+        try {
+            await deleteDoc(doc(firestore, 'terminationLogs', logId));
+            toast({ title: "Log Purged", description: "Termination record has been removed from the archive." });
+        } catch (err) {
+            toast({ variant: "destructive", title: "Action Failed", description: "Failed to remove the log record." });
+        }
+    };
+
+    const handleHardKill = async (userId: string, userName: string) => {
+        if (!firestore || !window.confirm(`TERMINATE access for ${userName}? This will sever all active neural links.`)) return;
+        setIsRevoking(userId);
+        try {
+            const userRef = doc(firestore, 'users', userId);
+            await updateDoc(userRef, { 
+                status: 'suspended',
+                suspendedAt: serverTimestamp(),
+                suspendedBy: 'SOC_PRIME'
+            });
+            toast({ title: "Target Neutered", description: "System access revoked. Node offline.", className: "bg-red-600 text-white border-none" });
+        } catch (err) {
+            toast({ variant: "destructive", title: "Kill Command Failed", description: "Security override insufficient." });
+        } finally {
+            setIsRevoking(null);
+        }
+    };
+
+    const handleEntityTermination = async () => {
+        if (!firestore || !authUser) return;
+        
+        const targetEmail = (destructionEmail || "").trim();
+        
+        if (!hasConfirmedDestruction) {
+            toast({ variant: 'destructive', title: "Confirmation Required", description: "Please acknowledge the destructive nature of this action." });
+            return;
+        }
+
+        if (!destructionId) {
+            toast({ variant: 'destructive', title: "Target Missing", description: "No entity selected for termination." });
+            return;
+        }
+
+        setIsDestroying(true);
+        setDestructionProgress(5);
+        setDestructionStatus('Locating entity in grid...');
+
+        try {
+            // 1. Target the academy instance directly
+            const businessRef = doc(firestore, 'businessInstances', destructionId);
+            const businessSnap = await getDoc(businessRef);
+
+            if (!businessSnap.exists()) {
+                throw new Error("Entity not found in current grid. Node ID may be invalid.");
+            }
+
+            const academyId = businessSnap.id;
+            const businessData = businessSnap.data();
+
+            setDestructionProgress(15);
+            setDestructionStatus(`Target Locked: ${businessData.name || 'Unnamed'}. Initializing wipe...`);
+
+            // Collections to purge
+            const collectionsToPurge = [
+                'subjects',
+                'admissions',
+                'students',
+                'purchases',
+                'expenses',
+                'suppliers',
+                'inventory_logs',
+                'notifications', // Top level notifications if any
+            ];
+
+            let completedSteps = 0;
+            const totalSteps = collectionsToPurge.length + 4; // + users + sub-academy + audit + final
+
+            // 1. Purge standard top-level collections
+            for (const collName of collectionsToPurge) {
+                setDestructionStatus(`Purging ${collName} nodes...`);
+                const collRef = collection(firestore, collName);
+                const q = query(collRef, where("academyId", "==", academyId));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    const chunks = [];
+                    for (let i = 0; i < snap.docs.length; i += 450) {
+                        chunks.push(snap.docs.slice(i, i + 450));
+                    }
+                    for (const chunk of chunks) {
+                        const batch = writeBatch(firestore);
+                        chunk.forEach(d => batch.delete(d.ref));
+                        await batch.commit();
+                    }
+                }
+                completedSteps++;
+                setDestructionProgress(15 + (completedSteps / totalSteps) * 80);
+            }
+
+            // 2. Purge Users and their subcollections
+            setDestructionStatus('Purging user identities and sub-nodes...');
+            const usersRef = collection(firestore, 'users');
+            const usersQuery = query(usersRef, where("academyId", "==", academyId));
+            const usersSnap = await getDocs(usersQuery);
+
+            if (!usersSnap.empty) {
+                const uids = usersSnap.docs.map(d => d.id);
+                setDestructionStatus('Deauthorizing user identities (Auth Cleanup)...');
+                try {
+                    await deleteBusinessUsersAuth(uids);
+                } catch (authErr) {
+                    console.error("Auth deauthorization partial failure:", authErr);
+                }
+
+                for (const userDoc of usersSnap.docs) {
+                    const userId = userDoc.id;
+                    // Purge user notifications
+                    const userNotifsRef = collection(firestore, 'users', userId, 'notifications');
+                    const notifsSnap = await getDocs(userNotifsRef);
+                    if (!notifsSnap.empty) {
+                        const batch = writeBatch(firestore);
+                        notifsSnap.forEach(d => batch.delete(d.ref));
+                        await batch.commit();
+                    }
+                    // Delete user doc
+                    await deleteDoc(userDoc.ref);
+                }
+            }
+            completedSteps++;
+            setDestructionProgress(15 + (completedSteps / totalSteps) * 80);
+
+            // 3. Purge Business Subcollections (Stats, OnlineOrders, AuditLogs)
+            setDestructionStatus('Sanitizing academy sub-architectures...');
+            const subCollections = ['stats', 'mentorshipBookings', 'activityLogs', 'expenses', 'suppliers'];
+            for (const sub of subCollections) {
+                const subRef = collection(firestore, 'businessInstances', academyId, sub);
+                const subSnap = await getDocs(subRef);
+                if (!subSnap.empty) {
+                    const chunks = [];
+                    for (let i = 0; i < subSnap.docs.length; i += 450) {
+                        chunks.push(subSnap.docs.slice(i, i + 450));
+                    }
+                    for (const chunk of chunks) {
+                        const batch = writeBatch(firestore);
+                        chunk.forEach(d => batch.delete(d.ref));
+                        await batch.commit();
+                    }
+                }
+            }
+            completedSteps++;
+            setDestructionProgress(15 + (completedSteps / totalSteps) * 80);
+
+            // Finally, delete the academy document
+            setDestructionStatus('Finalizing sanitization...');
+            await deleteDoc(doc(firestore, 'businessInstances', academyId));
+            
+            setDestructionProgress(95);
+            setDestructionStatus('Recording termination in permanent logs...');
+            try {
+                await addDoc(collection(firestore, 'terminationLogs'), {
+                    academyId: academyId,
+                    name: businessData.name || 'Unnamed',
+                    email: businessData.email || destructionEmail || "N/A",
+                    terminatedAt: serverTimestamp(),
+                    terminatedBy: authUser?.email,
+                    stats: targetStats || { subjects: 0, students: 0, sizeKB: 0 }
+                });
+            } catch (logErr) {
+                console.error("Failed to write termination log:", logErr);
+            }
+
+            setDestructionProgress(100);
+            setDestructionStatus('Entity Terminated');
+
+            toast({ 
+                title: "Destruction Complete", 
+                description: "Academy and all associated nodes have been scrubbed from the grid.",
+                className: "bg-black text-emerald-500 border-emerald-500/50 font-mono"
+            });
+
+            // Log the destruction to a special global log if possible
+            try {
+                await updateDoc(doc(firestore, 'system_stats', 'global'), {
+                    lastDestruction: serverTimestamp(),
+                    lastDestroyedEmail: destructionEmail
+                });
+            } catch (e) {
+                // Ignore if system_stats doesn't exist or permissions fail
+            }
+
+            setTimeout(() => {
+                setIsDestructionModalOpen(false);
+                setDestructionEmail('');
+                setDestructionId('');
+                setHasConfirmedDestruction(false);
+                setIsDestroying(false);
+                setDestructionProgress(0);
+            }, 2000);
+
+        } catch (error: any) {
+            console.error("Termination failed:", error);
+            toast({ 
+                variant: 'destructive', 
+                title: "Termination Aborted", 
+                description: error.message || "Unknown error during purge." 
+            });
+            setIsDestroying(false);
+            setDestructionProgress(0);
+        }
+    };
+
+    const handleUserTermination = async () => {
+        if (!firestore || !authUser || !targetUserForDestruction) return;
+        
+        if (!hasConfirmedUserDestruction) {
+            toast({ variant: 'destructive', title: "Confirmation Required", description: "Please acknowledge the destructive nature of this action." });
+            return;
+        }
+
+        setIsDestroyingUser(true);
+        setDestructionProgress(20);
+        setDestructionStatus('Deauthorizing user identity (Auth Cleanup)...');
+
+        try {
+            const userId = targetUserForDestruction.id;
+            
+            try {
+                await deleteBusinessUsersAuth([userId]);
+            } catch (authErr) {
+                console.error("Auth deauthorization partial failure:", authErr);
+            }
+
+            setDestructionProgress(50);
+            setDestructionStatus('Purging user sub-nodes...');
+
+            // Purge user notifications
+            const userNotifsRef = collection(firestore, 'users', userId, 'notifications');
+            const notifsSnap = await getDocs(userNotifsRef);
+            if (!notifsSnap.empty) {
+                const batch = writeBatch(firestore);
+                notifsSnap.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            }
+
+            setDestructionProgress(80);
+            setDestructionStatus('Removing user document...');
+            
+            // Delete user doc
+            const userRef = doc(firestore, 'users', userId);
+            await deleteDoc(userRef);
+
+            setDestructionProgress(95);
+            setDestructionStatus('Recording termination in permanent logs...');
+            try {
+                await addDoc(collection(firestore, 'terminationLogs'), {
+                    academyId: targetUserForDestruction.academyId || 'N/A',
+                    name: targetUserForDestruction.name || 'Unnamed',
+                    email: targetUserForDestruction.email || "N/A",
+                    terminatedAt: serverTimestamp(),
+                    terminatedBy: authUser?.email,
+                    stats: { subjects: 0, students: 0, sizeKB: 1 },
+                    type: 'user'
+                });
+            } catch (logErr) {
+                console.error("Failed to write termination log:", logErr);
+            }
+
+            setDestructionProgress(100);
+            setDestructionStatus('Entity Terminated');
+
+            toast({ 
+                title: "Destruction Complete", 
+                description: "User account has been scrubbed from the grid.",
+                className: "bg-black text-emerald-500 border-emerald-500/50 font-mono"
+            });
+
+            setTimeout(() => {
+                setIsUserDestructionModalOpen(false);
+                setTargetUserForDestruction(null);
+                setHasConfirmedUserDestruction(false);
+                setIsDestroyingUser(false);
+                setDestructionProgress(0);
+            }, 2000);
+
+        } catch (error: any) {
+            console.error("User termination failed:", error);
+            toast({ 
+                variant: 'destructive', 
+                title: "Termination Aborted", 
+                description: error.message || "Unknown error during purge." 
+            });
+            setIsDestroyingUser(false);
+            setDestructionProgress(0);
+        }
+    };
+
+    const securityMatrix = useMemo(() => {
+        const suspiciousCount = allUsers?.filter(u => u.status === 'suspended').length || 0;
+        
+        if (suspiciousCount > 3) return { level: 'CRITICAL', score: 28, color: 'text-rose-600', from: 'from-rose-600', variant: 'destructive' as const };
+        if (suspiciousCount > 0) return { level: 'CAUTION', score: 62, color: 'text-amber-600', from: 'from-amber-600', variant: 'outline' as const };
+        return { level: 'OPTIMAL', score: 94, color: 'text-emerald-600', from: 'from-emerald-600', variant: 'default' as const };
+    }, [allUsers]);
+
+    return (
+        <div className="space-y-6 relative overflow-hidden">
+            {/* Subtle Grid Background */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
+            
+            <div id="recaptcha-admin-container"></div>
+            
+            {/* Top Bar - Security Overview Header */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 relative z-10 border-b pb-6">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <h1 className="text-base font-bold tracking-tight text-foreground/90">Cyber Shield Security</h1>
+                    </div>
+                    <p className="text-[11px] font-medium text-muted-foreground">
+                        Platform Security Monitoring & Management Hub | {allBusinesses?.length || 0} Entities Tracked
+                    </p>
+                </div>
+                
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[9px] font-bold text-muted-foreground mb-1">Link Integrity</span>
+                        <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className={cn("h-3 w-1 rounded-sm", i <= 4 ? "bg-emerald-500/40" : "bg-muted")} />
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex flex-col items-end border-l pl-6">
+                        <span className="text-[9px] font-bold text-muted-foreground mb-1">Network Uptime</span>
+                        <span className="text-xs font-bold font-mono">99.9%</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Situational Display */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative z-10">
+                
+                {/* Health Core */}
+                <Card className="lg:col-span-1 border-border/50 relative overflow-hidden flex flex-col items-center justify-center p-8 bg-white/50 backdrop-blur-sm">
+                    <ScanningEffect />
+                    <RadarPulse />
+                    <div className="mt-6 text-center">
+                        <p className="text-[10px] font-bold text-muted-foreground mb-1">System Health</p>
+                        <div className={cn("text-5xl font-bold tracking-tighter", securityMatrix.color)}>
+                            {securityMatrix.score}%
+                        </div>
+                        <Badge variant="secondary" className="mt-3 font-bold text-[10px] tracking-tight">
+                            {securityMatrix.level}
+                        </Badge>
+                    </div>
+                    <div className="w-full space-y-2 mt-8">
+                        <div className="flex justify-between text-[9px] font-bold text-muted-foreground">
+                            <span>Threat Density</span>
+                            <span>Low</span>
+                        </div>
+                        <Progress value={24} className="h-1 bg-muted" indicatorClassName="bg-primary" />
+                    </div>
+                </Card>
+
+                {/* Surveillance Metrics Grid */}
+                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <SecurityMetric 
+                        label="Surface Nodes" 
+                        value={`${adminCount} Admins`}
+                        subValue="Verified entry protocols active"
+                        icon={Cpu}
+                        colorClass="text-blue-600"
+                    />
+                    <SecurityMetric 
+                        label="Encryption" 
+                        value="AES-256"
+                        subValue="End-to-end verified"
+                        icon={Lock}
+                        colorClass="text-purple-600"
+                    />
+                    <SecurityMetric 
+                        label="Identity State" 
+                        value={mfaStatus.label}
+                        subValue={mfaStatus.enabled ? "Secure Link: Active" : "Action Required"}
+                        icon={Fingerprint}
+                        colorClass={mfaStatus.color}
+                        borderClass={!mfaStatus.enabled ? "border-rose-500/20 shadow-rose-100 shadow-sm animate-pulse cursor-pointer" : ""}
+                        onClick={() => !mfaStatus.enabled && setIsMfaModalOpen(true)}
+                    />
+                    
+                    {/* Active Network Monitor */}
+                    <Card className="md:col-span-3 border-border/50 p-4 bg-white/50 backdrop-blur-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Radio className="h-3 w-3 text-emerald-500 animate-pulse" />
+                                <span className="text-[10px] font-bold text-muted-foreground">Active Network Status</span>
+                            </div>
+                            <p className="text-[11px] font-black text-primary/80 uppercase">
+                                pinnacle-academia.com - Certified Result
+                            </p>
+                        </div>
+                        <div className="h-28 overflow-hidden relative">
+                             <div className="space-y-1.5">
+                                {allBusinesses?.slice(0, 4).map((b, i) => (
+                                    <div key={i} className="flex items-center gap-4 text-[11px] border-l-2 border-primary/20 pl-4 py-1.5 hover:bg-muted/50 transition-colors cursor-default">
+                                        <span className={cn("font-bold min-w-[60px] font-mono", i === 0 ? "text-primary" : "text-muted-foreground")}>
+                                            Online
+                                        </span>
+                                        <span className="text-foreground font-bold">{b.name}</span>
+                                        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30" />
+                                        <span className="text-muted-foreground/50 truncate max-w-[200px]">{b.email}</span>
+                                        <span className="text-[9px] font-bold ml-auto bg-muted px-2 py-0.5 rounded text-muted-foreground">{b.id.slice(0, 8)}</span>
+                                    </div>
+                                ))}
+                             </div>
+                             <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background/80 to-transparent" />
+                        </div>
+                    </Card>
+                </div>
+            </div>
+
+            {/* Direct Entity Lookup (Internal Tool) */}
+            <Card className="border-emerald-500/20 bg-emerald-50/10 backdrop-blur-sm border-dashed mb-6">
+                <CardContent className="p-4 flex flex-col md:flex-row items-center gap-4">
+                    <div className="flex items-center gap-2 text-emerald-700">
+                        <Terminal className="h-4 w-4" />
+                        <span className="text-xs font-bold uppercase tracking-tight">Direct Entity Terminal</span>
+                    </div>
+                    <div className="flex-1 flex gap-2 w-full">
+                        <Input 
+                            placeholder="Enter Academy ID or Owner Email (e.g. bim.ex4@gmail.com)..." 
+                            value={directLookupId}
+                            onChange={(e) => setDirectLookupId(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleDirectLookup()}
+                            className="h-9 text-xs font-mono bg-white/50"
+                        />
+                        <Button size="sm" onClick={handleDirectLookup} className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700">
+                            Lock Target
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="h-9 border-emerald-500/20 hover:bg-emerald-100 text-emerald-700 shrink-0"
+                            onClick={() => window.location.reload()}
+                            title="Hard Refresh Sync"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Business Intelligence Unit */}
+            <Card className="border-primary/20 bg-white/40 backdrop-blur-md shadow-xl overflow-hidden relative z-10 group/biu">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-right from-transparent via-primary/20 to-transparent" />
+                
+                <CardHeader className="bg-muted/30 border-b p-6 relative">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <CardTitle className="text-sm flex items-center gap-2 font-bold tracking-tighter text-primary">
+                                <Server className="h-4 w-4 animate-pulse" />
+                                Academy Intelligence Unit
+                            </CardTitle>
+                            <CardDescription className="text-xs font-medium text-muted-foreground opacity-70">
+                            Entity Management & Security Verification
+                        </CardDescription>
+                        </div>
+                        <div className="relative w-full md:w-80 group">
+                            <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-lg blur opacity-25 group-focus-within:opacity-100 transition duration-1000" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input 
+                                placeholder="Search entities by name or email..." 
+                                value={searchBusiness}
+                                onChange={(e) => setSearchBusiness(e.target.value)}
+                                className="relative pl-9 h-10 text-xs bg-white/80 border-border/50 focus:bg-white transition-all font-bold placeholder:text-muted-foreground/40"
+                            />
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader className="bg-muted/10">
+                                <TableRow className="hover:bg-transparent border-border/50">
+                                        <TableHead className="text-xs font-medium">Entity Name</TableHead>
+                                        <TableHead className="text-xs font-medium">Email Address</TableHead>
+                                        <TableHead className="text-xs font-medium">Communication Link</TableHead>
+                                        <TableHead className="text-xs font-medium">Node ID</TableHead>
+                                        <TableHead className="text-xs font-medium text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingBusinesses ? (
+                                    [...Array(6)].map((_, i) => (
+                                        <TableRow key={i} className="border-border/50"><TableCell colSpan={5}><div className="h-10 w-full bg-muted/20 animate-pulse rounded" /></TableCell></TableRow>
+                                    ))
+                                ) : filteredBusinesses.length === 0 ? (
+                                    <TableRow className="border-border/50">
+                                        <TableCell colSpan={5} className="h-48 text-center">
+                                            <div className="flex flex-col items-center justify-center space-y-3 opacity-50">
+                                                <div className="p-3 bg-muted rounded-full">
+                                                    <Server className="h-6 w-6 text-muted-foreground" />
+                                                </div>
+                                                <p className="text-[10px] font-bold text-muted-foreground">
+                                                    No entities detected in this sector
+                                                </p>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    filteredBusinesses.map((academy) => (
+                                        <TableRow key={academy.id} className="hover:bg-muted/5 border-border/50 group transition-colors">
+                                            <TableCell className="font-bold text-[11px] tracking-tight text-foreground/80 py-4">
+                                                {academy.name || 'Unnamed Entity'}
+                                            </TableCell>
+                                            <TableCell className="text-[11px] font-medium text-muted-foreground">
+                                                {academy.email || 'N/A'}
+                                            </TableCell>
+                                            <TableCell className="text-[11px] font-medium text-muted-foreground/60">
+                                                {academy.settings?.phone || 'N/A'}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-[9px] text-muted-foreground/40">
+                                                {academy.id}
+                                            </TableCell>
+                                            <TableCell className="text-right px-6">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="h-8 text-[9px] font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-600/20 hover:border-rose-600 transition-all rounded-md"
+                                                    onClick={() => {
+                                                        setDestructionEmail(academy.email || "");
+                                                        setDestructionId(academy.id);
+                                                        setIsDestructionModalOpen(true);
+                                                        fetchTargetStats(academy.id);
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-3 w-3 mr-2" />
+                                                    Prepare Termination
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+                <CardFooter className="bg-muted/20 border-t py-3 p-6 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                            <Server className="h-3 w-3 text-muted-foreground/40" />
+                            <span className="text-[9px] font-bold text-muted-foreground">Administrative Infrastructure</span>
+                        </div>
+                        <div className="h-3 w-px bg-border/50" />
+                        <span className="text-[9px] font-bold text-muted-foreground/60">
+                            {filteredBusinesses.length} Nodes Identified
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+                        <span className="text-[9px] font-bold text-primary">Direct Link Active</span>
+                    </div>
+                </CardFooter>
+            </Card>
+
+            {/* User Intelligence Unit */}
+            <Card className="border-blue-500/20 bg-white/40 backdrop-blur-md shadow-xl overflow-hidden relative z-10 group/uiu mt-8">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-right from-transparent via-blue-500/20 to-transparent" />
+                
+                <CardHeader className="bg-muted/30 border-b p-6 relative">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <CardTitle className="text-sm flex items-center gap-2 font-bold tracking-tighter text-blue-600">
+                                <Users className="h-4 w-4 animate-pulse" />
+                                User Intelligence Unit
+                            </CardTitle>
+                            <CardDescription className="text-xs font-medium text-muted-foreground opacity-70">
+                            Individual User Management & Security Verification
+                        </CardDescription>
+                        </div>
+                        <div className="relative w-full md:w-80 group">
+                            <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-lg blur opacity-25 group-focus-within:opacity-100 transition duration-1000" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input 
+                                placeholder="Search users by name or email..." 
+                                value={searchUser}
+                                onChange={(e) => setSearchUser(e.target.value)}
+                                className="relative pl-9 h-10 text-xs bg-white/80 border-border/50 focus:bg-white transition-all font-bold placeholder:text-muted-foreground/40"
+                            />
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto max-h-[400px]">
+                        <Table>
+                            <TableHeader className="bg-muted/10">
+                                <TableRow className="hover:bg-transparent border-border/50">
+                                        <TableHead className="text-xs font-medium">User Name</TableHead>
+                                        <TableHead className="text-xs font-medium">Email Address</TableHead>
+                                        <TableHead className="text-xs font-medium">Role / Status</TableHead>
+                                        <TableHead className="text-xs font-medium">Node ID</TableHead>
+                                        <TableHead className="text-xs font-medium text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {!filteredUsers || filteredUsers.length === 0 ? (
+                                    <TableRow className="border-border/50">
+                                        <TableCell colSpan={5} className="h-48 text-center">
+                                            <div className="flex flex-col items-center justify-center space-y-3 opacity-50">
+                                                <div className="p-3 bg-muted rounded-full">
+                                                    <Users className="h-6 w-6 text-muted-foreground" />
+                                                </div>
+                                                <p className="text-[10px] font-bold text-muted-foreground">
+                                                    No users detected matching criteria
+                                                </p>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    filteredUsers.map((user) => (
+                                        <TableRow key={user.id} className="hover:bg-muted/5 border-border/50 group transition-colors">
+                                            <TableCell className="font-bold text-[11px] tracking-tight text-foreground/80 py-4">
+                                                {user.name || 'Unnamed User'}
+                                            </TableCell>
+                                            <TableCell className="text-[11px] font-medium text-muted-foreground">
+                                                {user.email || 'N/A'}
+                                            </TableCell>
+                                            <TableCell className="text-[11px] font-medium text-muted-foreground/60">
+                                                <span className="capitalize">{user.role || 'student'}</span>
+                                                {' / '}
+                                                <Badge variant={user.status === 'suspended' ? 'destructive' : 'secondary'} className="text-[9px] uppercase tracking-tighter">
+                                                    {user.status || 'active'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="font-mono text-[9px] text-muted-foreground/40">
+                                                {user.id}
+                                            </TableCell>
+                                            <TableCell className="text-right px-6">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="h-8 text-[9px] font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-600/20 hover:border-rose-600 transition-all rounded-md"
+                                                    onClick={() => {
+                                                        setTargetUserForDestruction(user);
+                                                        setIsUserDestructionModalOpen(true);
+                                                    }}
+                                                >
+                                                    <UserMinus className="h-3 w-3 mr-2" />
+                                                    Delete User
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+                <CardFooter className="bg-muted/20 border-t py-3 p-6 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                            <Users className="h-3 w-3 text-muted-foreground/40" />
+                            <span className="text-[9px] font-bold text-muted-foreground">User Infrastructure</span>
+                        </div>
+                        <div className="h-3 w-px bg-border/50" />
+                        <span className="text-[9px] font-bold text-muted-foreground/60">
+                            {filteredUsers.length} Users Identified
+                        </span>
+                    </div>
+                </CardFooter>
+            </Card>
+
+            {/* Terminated Entities Log */}
+            <Card className="border-rose-500/10 bg-white/40 backdrop-blur-md shadow-lg overflow-hidden mt-8">
+                <CardHeader className="bg-rose-50/30 border-b p-4">
+                    <CardTitle className="text-xs flex items-center gap-2 font-bold text-rose-600 uppercase tracking-widest">
+                        <Trash2 className="h-3 w-3" />
+                        Termination Archive
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="hover:bg-transparent border-border/50">
+                                    <TableHead className="text-[10px] font-bold">Purged Entity</TableHead>
+                                    <TableHead className="text-[10px] font-bold">Email Signature</TableHead>
+                                    <TableHead className="text-[10px] font-bold">Termination Date</TableHead>
+                                    <TableHead className="text-[10px] font-bold">Scrubbed Data</TableHead>
+                                    <TableHead className="text-[10px] font-bold text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {!terminationLogs || terminationLogs.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-20 text-center text-[10px] text-muted-foreground font-bold italic">
+                                            No recent purges recorded in this sector
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    terminationLogs.map((log: any) => (
+                                        <TableRow key={log.id} className="border-border/50 group hover:bg-rose-50/30 transition-colors">
+                                            <TableCell className="text-[10px] font-bold text-rose-950/70">{log.name}</TableCell>
+                                            <TableCell className="text-[10px] font-medium text-muted-foreground/60">{log.email}</TableCell>
+                                            <TableCell className="text-[10px] font-mono text-muted-foreground/40">
+                                                {log.terminatedAt?.toDate ? format(log.terminatedAt.toDate(), 'MMM dd, HH:mm') : 'Pending...'}
+                                            </TableCell>
+                                            <TableCell className="text-[10px] font-bold text-rose-600/50">
+                                                {log.stats?.subjects}P / {log.stats?.students}C
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-6 w-6 text-muted-foreground hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"
+                                                    onClick={() => handleDeleteLog(log.id)}
+                                                >
+                                                    <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Termination Confirmation Dialog */}
+            <Dialog open={isDestructionModalOpen} onOpenChange={(open) => !isDestroying && setIsDestructionModalOpen(open)}>
+                <DialogContent className="sm:max-w-[500px] border-rose-500/50 bg-background shadow-2xl shadow-rose-500/10">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3 text-rose-600 text-xl font-bold tracking-tighter">
+                            <ShieldAlert className="h-6 w-6 animate-pulse" />
+                            Confirm Entity Termination
+                        </DialogTitle>
+                        <DialogDescription className="text-xs font-bold text-muted-foreground mt-2 border-b pb-4">
+                            You are about to permanently delete an academy and all its data.
+                        </DialogDescription>
+                        
+                        {targetStats && (
+                            <div className="grid grid-cols-3 gap-2 mt-4">
+                                <div className="bg-rose-50/50 border border-rose-100 rounded p-2 text-center">
+                                    <Package className="h-3 w-3 text-rose-500 mx-auto mb-1" />
+                                    <p className="text-[9px] font-bold text-rose-900">{targetStats.subjects}</p>
+                                    <p className="text-[8px] text-rose-600 uppercase font-bold">Subjects</p>
+                                </div>
+                                <div className="bg-rose-50/50 border border-rose-100 rounded p-2 text-center">
+                                    <Users className="h-3 w-3 text-rose-500 mx-auto mb-1" />
+                                    <p className="text-[9px] font-bold text-rose-900">{targetStats.students}</p>
+                                    <p className="text-[8px] text-rose-600 uppercase font-bold">Students</p>
+                                </div>
+                                <div className="bg-rose-50/50 border border-rose-100 rounded p-2 text-center">
+                                    <Database className="h-3 w-3 text-rose-500 mx-auto mb-1" />
+                                    <p className="text-[9px] font-bold text-rose-900">{targetStats.sizeKB > 1024 ? `${(targetStats.sizeKB/1024).toFixed(1)}MB` : `${targetStats.sizeKB}KB`}</p>
+                                    <p className="text-[8px] text-rose-600 uppercase font-bold">Data Size</p>
+                                </div>
+                            </div>
+                        )}
+                        {isLoadingStats && (
+                            <div className="flex items-center justify-center gap-2 mt-4 py-2 border border-dashed border-rose-200 rounded">
+                                <RefreshCw className="h-3 w-3 text-rose-500 animate-spin" />
+                                <span className="text-[9px] font-bold text-rose-500 uppercase tracking-widest">Scanning Entity Footprint...</span>
+                            </div>
+                        )}
+                    </DialogHeader>
+
+                    {isDestroying ? (
+                        <div className="py-12 flex flex-col items-center justify-center space-y-6">
+                            <div className="relative w-24 h-24">
+                                <motion.div 
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    className="absolute inset-0 border-4 border-rose-500/20 border-t-rose-600 rounded-full"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <Trash2 className="h-10 w-10 text-rose-600" />
+                                </div>
+                            </div>
+                            <div className="w-full max-w-xs space-y-2">
+                                <Progress value={destructionProgress} className="h-2 bg-rose-500/10" indicatorClassName="bg-rose-600" />
+                                <p className="text-[10px] font-bold font-mono text-center text-rose-600 animate-pulse">
+                                    {destructionStatus}
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-6 py-4">
+                            <div className="p-4 bg-rose-50 border border-rose-100 rounded-lg flex gap-3 items-start">
+                                <AlertCircle className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-rose-700 tracking-tight">Destructive Action Warning</p>
+                                    <p className="text-[11px] text-rose-600 leading-relaxed font-medium">
+                                        This will purge the academy record and ALL related data across the platform. All session tokens will be invalidated immediately.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+
+
+
+                                <div className="flex items-center space-x-2 pt-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id="confirm" 
+                                        checked={hasConfirmedDestruction}
+                                        onChange={(e) => setHasConfirmedDestruction(e.target.checked)}
+                                        className="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                                    />
+                                    <label htmlFor="confirm" className="text-[11px] font-bold text-muted-foreground leading-none">
+                                        I confirm that I am authorized to permanently purge this entity and all its data.
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="border-t pt-4">
+                        <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setIsDestructionModalOpen(false)}
+                            disabled={isDestroying}
+                            className="font-bold text-[10px]"
+                        >
+                            Abort Protocol
+                        </Button>
+                        {!isDestroying && (
+                            <Button 
+                                variant="destructive" 
+                                size="sm"
+                                disabled={!hasConfirmedDestruction}
+                                onClick={handleEntityTermination}
+                                className="bg-rose-600 hover:bg-rose-700 font-bold text-[10px] px-8 shadow-lg shadow-rose-500/20"
+                            >
+                                <Zap className="h-3.5 w-3.5 mr-2" />
+                                Execute Termination
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* User Termination Confirmation Dialog */}
+            <Dialog open={isUserDestructionModalOpen} onOpenChange={(open) => !isDestroyingUser && setIsUserDestructionModalOpen(open)}>
+                <DialogContent className="sm:max-w-[500px] border-rose-500/50 bg-background shadow-2xl shadow-rose-500/10">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3 text-rose-600 text-xl font-bold tracking-tighter">
+                            <UserMinus className="h-6 w-6 animate-pulse" />
+                            Confirm User Deletion
+                        </DialogTitle>
+                        <DialogDescription className="text-xs font-bold text-muted-foreground mt-2 border-b pb-4">
+                            You are about to permanently delete a user account and their personal data.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {isDestroyingUser ? (
+                        <div className="py-12 flex flex-col items-center justify-center space-y-6">
+                            <div className="relative w-24 h-24">
+                                <motion.div 
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    className="absolute inset-0 border-4 border-rose-500/20 border-t-rose-600 rounded-full"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <UserMinus className="h-10 w-10 text-rose-600" />
+                                </div>
+                            </div>
+                            <div className="w-full max-w-xs space-y-2">
+                                <Progress value={destructionProgress} className="h-2 bg-rose-500/10" indicatorClassName="bg-rose-600" />
+                                <p className="text-[10px] font-bold font-mono text-center text-rose-600 animate-pulse">
+                                    {destructionStatus}
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-6 py-4">
+                            <div className="p-4 bg-rose-50 border border-rose-100 rounded-lg flex gap-3 items-start">
+                                <AlertCircle className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-rose-700 tracking-tight">Destructive Action Warning</p>
+                                    <p className="text-[11px] text-rose-600 leading-relaxed font-medium">
+                                        This will purge the user record and authentication credentials. They will lose access immediately.
+                                    </p>
+                                    {targetUserForDestruction && (
+                                        <div className="mt-2 text-[10px] font-mono text-rose-800 bg-rose-100 p-2 rounded">
+                                            Target: {targetUserForDestruction.email} ({targetUserForDestruction.name})
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center space-x-2 pt-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id="confirm-user" 
+                                        checked={hasConfirmedUserDestruction}
+                                        onChange={(e) => setHasConfirmedUserDestruction(e.target.checked)}
+                                        className="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                                    />
+                                    <label htmlFor="confirm-user" className="text-[11px] font-bold text-muted-foreground leading-none">
+                                        I confirm that I am authorized to permanently purge this user.
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="border-t pt-4">
+                        <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setIsUserDestructionModalOpen(false)}
+                            disabled={isDestroyingUser}
+                            className="font-bold text-[10px]"
+                        >
+                            Abort Protocol
+                        </Button>
+                        {!isDestroyingUser && (
+                            <Button 
+                                variant="destructive" 
+                                size="sm"
+                                disabled={!hasConfirmedUserDestruction}
+                                onClick={handleUserTermination}
+                                className="bg-rose-600 hover:bg-rose-700 font-bold text-[10px] px-8 shadow-lg shadow-rose-500/20"
+                            >
+                                <Zap className="h-3.5 w-3.5 mr-2" />
+                                Execute Termination
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* MFA Enrollment Overlay */}
+            <AnimatePresence>
+                {isMfaModalOpen && (
+                    <Dialog open={isMfaModalOpen} onOpenChange={setIsMfaModalOpen}>
+                        <DialogContent className="sm:max-w-[400px] overflow-hidden p-0 border-border/50">
+                            <div className="p-6">
+                                <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-3 text-xl font-bold tracking-tight">
+                                        <div className="p-2 bg-primary/10 rounded-lg">
+                                            <Lock className="h-5 w-5 text-primary" />
+                                        </div>
+                                        Secure Identity Link
+                                    </DialogTitle>
+                                    <DialogDescription className="text-muted-foreground text-xs font-medium mt-2">
+                                        Protect your admin account with hardware verification.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                
+                                <div className="space-y-6 py-8">
+                                    {mfaStep === 'phone' ? (
+                                        <div className="space-y-3">
+                                            <Label htmlFor="phone" className="text-[10px] font-bold text-muted-foreground">Admin Phone Number</Label>
+                                            <div className="relative">
+                                                <Input 
+                                                    id="phone" 
+                                                    placeholder="+234..." 
+                                                    value={phoneNumber} 
+                                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                                    className="h-12 font-bold text-lg focus:ring-primary transition-all"
+                                                />
+                                                <Smartphone className="absolute right-3 top-3 h-6 w-6 text-muted-foreground/20" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <motion.div 
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="text-center"
+                                        >
+                                            <div className="flex justify-center mb-6">
+                                                <div className="bg-muted p-4 rounded-full border relative">
+                                                    <Radio className="h-8 w-8 text-primary" />
+                                                </div>
+                                            </div>
+                                            <Label className="text-[10px] font-bold text-primary">Verification Required</Label>
+                                            <p className="text-xs text-muted-foreground mt-2 font-medium">Enter the 6-digit code sent to your device</p>
+                                            <Input 
+                                                className="mt-6 text-center text-4xl font-bold h-20 focus:ring-emerald-500" 
+                                                maxLength={6} 
+                                                autoFocus
+                                                value={verificationCode}
+                                                onChange={(e) => setVerificationCode(e.target.value)}
+                                            />
+                                        </motion.div>
+                                    )}
+                                </div>
+
+                                <DialogFooter className="flex-col sm:flex-row gap-3">
+                                    <Button 
+                                        variant="ghost" 
+                                        onClick={() => setIsMfaModalOpen(false)} 
+                                        disabled={isEnrolling}
+                                        className="font-bold text-[10px]"
+                                    >
+                                        Abort
+                                    </Button>
+                                    {mfaStep === 'phone' ? (
+                                        <Button 
+                                            onClick={handleSendCode} 
+                                            disabled={isEnrolling || !phoneNumber}
+                                            className="flex-1 bg-primary font-bold text-[11px] h-12 shadow-md"
+                                        >
+                                            {isEnrolling ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Signal className="h-4 w-4 mr-2" />}
+                                            Link Account
+                                        </Button>
+                                    ) : (
+                                        <Button 
+                                            onClick={handleVerifyAndEnroll} 
+                                            disabled={isEnrolling || verificationCode.length < 6}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-500 font-bold text-[11px] h-12 shadow-md text-white border-none"
+                                        >
+                                            {isEnrolling ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Crosshair className="h-4 w-4 mr-2" />}
+                                            Confirm Identity
+                                        </Button>
+                                    )}
+                                </DialogFooter>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
