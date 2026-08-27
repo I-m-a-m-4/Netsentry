@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.pinnacleacademia.app",
+    "sha256_cert_fingerprints": ["76:DD:44:63:C1:DB:24:90:E5:CB:9A:00:A5:C1:40:0A:50:0D:A1:5C:CC:6E:12:44:CF:83:9C:01:56:BF:5B:2A"]
+  }
+}]
