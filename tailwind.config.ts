@@ -12,38 +12,21 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['"Plus Jakarta Sans"', 'sans-serif'],
-        headline: ['"Plus Jakarta Sans"', 'sans-serif'],
-        display: ['"Plus Jakarta Sans"', 'sans-serif'],
+        sans: ['"DM Sans"', '"Plus Jakarta Sans"', 'sans-serif'],
+        body: ['"DM Sans"', '"Plus Jakarta Sans"', 'sans-serif'],
+        jakarta: ['"Plus Jakarta Sans"', '"DM Sans"', 'sans-serif'],
+        headline: ['"Bricolage Grotesque"', 'sans-serif'],
+        display: ['"Bricolage Grotesque"', 'sans-serif'],
+        bricolage: ['"Bricolage Grotesque"', 'sans-serif'],
+        serif: ['"Instrument Serif"', 'serif'],
         code: ['"Source Code Pro"', 'monospace'],
-        'dm-sans': ['"DM Sans"', 'sans-serif'],
-        'instrument-serif': ['"Instrument Serif"', 'serif'],
-        'bricolage': ['"Bricolage Grotesque"', 'sans-serif'],
       },
       colors: {
-        orange: {
-          50: '#FAF3EA',
-          100: '#F5E7D5',
-          200: '#EAD0B0',
-          300: '#DFB98B',
-          400: '#D5A266',
-          500: '#D3B38C',
-          600: '#C29F75',
-          700: '#A17F5B',
-          800: '#806041',
-          900: '#604328',
-          950: '#402914',
-          DEFAULT: '#d3b38c',
-        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
         },
         primary: {
           DEFAULT: 'hsl(var(--primary))',
@@ -61,10 +44,6 @@ export default {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
         },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--primary))',
@@ -74,16 +53,6 @@ export default {
           '3': 'hsl(var(--chart-3))',
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
-        },
-        sidebar: {
-          DEFAULT: 'hsl(var(--sidebar-background))',
-          foreground: 'hsl(var(--sidebar-foreground))',
-          primary: 'hsl(var(--sidebar-primary))',
-          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-          accent: 'hsl(var(--sidebar-accent))',
-          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-          border: 'hsl(var(--sidebar-border))',
-          ring: 'hsl(var(--sidebar-ring))',
         },
       },
       borderRadius: {

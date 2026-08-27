@@ -250,37 +250,42 @@ export default function NetSentryDashboard() {
 
   if (!isClient) return null;
 
-  // Theme configuration (Exclusive Orange accents)
+  // Theme configuration (Zeneva Orange theme values)
   const isDark = theme === 'dark';
-  const bgClass = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
-  const borderClass = isDark ? "border-slate-800/80" : "border-slate-200";
-  const cardClass = isDark ? "bg-slate-900/40 backdrop-blur-xl border border-slate-800/80" : "bg-white border border-slate-200 shadow-sm";
+  const bgClass = isDark ? "bg-slate-950 text-slate-100" : "bg-[#FFFBF9] text-slate-900";
+  const borderClass = isDark ? "border-slate-800/80" : "border-slate-200/80";
+  const cardClass = "bg-card/40 border-[0.5px] border-border/40 rounded-2xl shadow-sm backdrop-blur-sm p-6 hover:shadow-md transition-shadow duration-200";
   const headerBgClass = isDark ? "bg-slate-950/60" : "bg-white/80";
   const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
-  const tableHeaderBg = isDark ? "bg-slate-950/40" : "bg-slate-100";
-  const tableRowHover = isDark ? "hover:bg-slate-900/20" : "hover:bg-slate-50";
+  const tableHeaderBg = isDark ? "bg-slate-950/40" : "bg-[#FFFBF9]";
+  const tableRowHover = isDark ? "hover:bg-slate-900/20" : "hover:bg-orange-50/20";
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${bgClass}`}>
-      {/* Background Neon Orange Glows */}
-      {isDark && (
+      {/* Background Glows */}
+      {isDark ? (
         <>
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
+        </>
+      ) : (
+        <>
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
         </>
       )}
 
       {/* Header */}
       <header className={`sticky top-0 z-50 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between transition-colors duration-200 ${headerBgClass} ${borderClass}`}>
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-tr from-orange-500 to-amber-500 rounded-xl shadow-md">
-            <Shield className="w-6 h-6 text-slate-950" />
+          <div className="p-2 bg-primary rounded-xl shadow-md">
+            <Shield className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
+            <h1 className="font-bricolage text-xl font-black tracking-tight text-primary">
               NetSentry
             </h1>
-            <p className="text-[10px] text-orange-500 tracking-widest uppercase font-semibold">
+            <p className="text-[10px] text-primary tracking-widest uppercase font-semibold">
               Windows Security & Bandwidth Monitor
             </p>
           </div>
@@ -288,12 +293,12 @@ export default function NetSentryDashboard() {
 
         <div className="flex items-center space-x-4">
           {/* Navigation Tabs */}
-          <div className={`flex items-center border rounded-xl p-1 ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+          <div className={`flex items-center border rounded-xl p-1 ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <button 
               onClick={() => setCurrentTab('monitor')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                 currentTab === 'monitor' 
-                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm' 
+                  ? 'bg-primary text-white shadow-sm' 
                   : textMutedClass
               }`}
             >
@@ -303,7 +308,7 @@ export default function NetSentryDashboard() {
               onClick={() => setCurrentTab('logs')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                 currentTab === 'logs' 
-                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm' 
+                  ? 'bg-primary text-white shadow-sm' 
                   : textMutedClass
               }`}
             >
@@ -316,17 +321,17 @@ export default function NetSentryDashboard() {
             onClick={toggleTheme}
             className={`p-2 rounded-lg border transition-all cursor-pointer ${
               isDark 
-                ? 'bg-slate-900 border-slate-800 text-orange-400 hover:bg-slate-850' 
-                : 'bg-white border-slate-200 text-orange-600 hover:bg-slate-100 shadow-sm'
+                ? 'bg-slate-900 border-slate-800 text-primary hover:bg-slate-850' 
+                : 'bg-white border-slate-200 text-primary hover:bg-slate-100 shadow-sm'
             }`}
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
           <div className={`flex items-center space-x-2 text-xs border rounded-full px-3 py-1.5 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
           }`}>
-            <span className={`w-2 h-2 rounded-full ${tauriStatus === 'connected' ? 'bg-orange-500 animate-pulse' : 'bg-amber-500'}`} />
+            <span className={`w-2 h-2 rounded-full ${tauriStatus === 'connected' ? 'bg-primary animate-pulse' : 'bg-orange-400'}`} />
             <span className={textMutedClass}>
               {tauriStatus === 'connected' ? 'Tauri Service Active' : 'Web Sandbox'}
             </span>
@@ -335,7 +340,7 @@ export default function NetSentryDashboard() {
           <button 
             onClick={handleResumeAll}
             disabled={actionLoading !== null || tauriStatus !== 'connected'}
-            className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 to-amber-600 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-md cursor-pointer"
+            className="flex items-center space-x-2 bg-primary hover:bg-primary/90 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-md cursor-pointer transition-all"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset Firewall Rules</span>
@@ -348,13 +353,13 @@ export default function NetSentryDashboard() {
         
         {/* Sandbox Warning */}
         {tauriStatus === 'disconnected' && (
-          <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-start space-x-3">
-              <div className="p-2 bg-orange-500/20 text-orange-500 rounded-xl mt-0.5 md:mt-0">
+              <div className="p-2 bg-primary/10 text-primary rounded-xl mt-0.5 md:mt-0">
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-orange-500">Local Telemetry Unavailable</h3>
+                <h3 className="font-bricolage text-sm font-bold text-primary">Local Telemetry Offline</h3>
                 <p className={`text-xs mt-1 ${textMutedClass}`}>
                   NetSentry requires process-level socket tracing and administrative capabilities to manage firewall rules and monitor network traffic. These components cannot run inside standard web browsers.
                 </p>
@@ -368,83 +373,89 @@ export default function NetSentryDashboard() {
             {/* Session Stats + Data Limit Alerts */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Data Quota Widget */}
-              <div className={`${cardClass} p-5 flex flex-col justify-between`}>
+              <div className={cardClass}>
                 <div className="flex items-center justify-between">
                   <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Bandwidth Quota</p>
-                  <TrendingUp className="w-4 h-4 text-orange-500" />
+                  <TrendingUp className="w-4 h-4 text-primary" />
                 </div>
                 <div className="mt-3">
                   <div className="flex justify-between items-end mb-1">
-                    <span className="text-2xl font-extrabold text-orange-500">{accumulatedUsage.toFixed(1)} <span className="text-xs">MB</span></span>
+                    <span className="text-2xl font-extrabold text-primary">{accumulatedUsage.toFixed(1)} <span className="text-xs">MB</span></span>
                     <span className={`text-xs font-semibold ${textMutedClass}`}>Limit: {quotaLimit} MB</span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-2">
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
                     <div 
-                      className={`h-2 rounded-full transition-all duration-350 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-orange-500'}`}
+                      className={`h-2 rounded-full transition-all duration-350 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
                       style={{ width: `${Math.min((accumulatedUsage / quotaLimit) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 border-slate-800/40">
+                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 border-border/40">
                   <span className={`text-[10px] uppercase font-bold ${textMutedClass}`}>Adjust limit (MB):</span>
                   <input 
                     type="number"
                     value={quotaLimit}
                     onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
-                    className={`w-20 px-2 py-1 text-xs text-center border rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-slate-100 border-slate-200 text-slate-900'
+                    className={`w-20 px-2 py-1 text-xs text-center border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900 shadow-sm'
                     }`}
                   />
                 </div>
               </div>
 
-              <div className={`${cardClass} p-5 flex items-center justify-between`}>
-                <div>
-                  <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Total Inbound</p>
-                  <h3 className="text-3xl font-extrabold text-orange-500 mt-1">
-                    {overallStats.inbound > 1024 
-                      ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
-                      : `${overallStats.inbound} KB/s`}
-                  </h3>
-                </div>
-                <div className={`p-3 rounded-xl ${isDark ? 'bg-orange-950/40 border border-orange-850/30' : 'bg-orange-50 border border-orange-100'}`}>
-                  <ArrowDown className="w-6 h-6 text-orange-500" />
-                </div>
-              </div>
-
-              <div className={`${cardClass} p-5 flex items-center justify-between`}>
-                <div>
-                  <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Total Outbound</p>
-                  <h3 className="text-3xl font-extrabold text-amber-500 mt-1">
-                    {overallStats.outbound > 1024 
-                      ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
-                      : `${overallStats.outbound} KB/s`}
-                  </h3>
-                </div>
-                <div className={`p-3 rounded-xl ${isDark ? 'bg-amber-950/40 border border-amber-850/30' : 'bg-amber-50 border border-amber-100'}`}>
-                  <ArrowUp className="w-6 h-6 text-amber-500" />
+              <div className={cardClass}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Total Inbound</p>
+                    <h3 className="text-3xl font-extrabold text-primary mt-1">
+                      {overallStats.inbound > 1024 
+                        ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
+                        : `${overallStats.inbound} KB/s`}
+                    </h3>
+                  </div>
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-primary/10 border border-primary/20' : 'bg-primary/5 border border-primary/10'}`}>
+                    <ArrowDown className="w-6 h-6 text-primary" />
+                  </div>
                 </div>
               </div>
 
-              <div className={`${cardClass} p-5 flex items-center justify-between`}>
-                <div>
-                  <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Active Sockets</p>
-                  <h3 className="text-3xl font-extrabold text-orange-455 mt-1">
-                    {overallStats.totalConnections}
-                  </h3>
+              <div className={cardClass}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Total Outbound</p>
+                    <h3 className="text-3xl font-extrabold text-primary mt-1">
+                      {overallStats.outbound > 1024 
+                        ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
+                        : `${overallStats.outbound} KB/s`}
+                    </h3>
+                  </div>
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-primary/10 border border-primary/20' : 'bg-primary/5 border border-primary/10'}`}>
+                    <ArrowUp className="w-6 h-6 text-primary" />
+                  </div>
                 </div>
-                <div className={`p-3 rounded-xl ${isDark ? 'bg-orange-950/40 border border-orange-800/30' : 'bg-orange-50 border border-orange-200'}`}>
-                  <Network className="w-6 h-6 text-orange-500" />
+              </div>
+
+              <div className={cardClass}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Active Sockets</p>
+                    <h3 className="text-3xl font-extrabold text-primary mt-1">
+                      {overallStats.totalConnections}
+                    </h3>
+                  </div>
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-primary/10 border border-primary/20' : 'bg-primary/5 border border-primary/10'}`}>
+                    <Network className="w-6 h-6 text-primary" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Recharts Area Chart */}
-            <div className={`${cardClass} p-6`}>
+            <div className={cardClass}>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-lg font-bold flex items-center space-x-2">
-                    <Activity className="w-5 h-5 text-orange-500 animate-pulse" />
+                  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
+                    <Activity className="w-5 h-5 text-primary animate-pulse" />
                     <span>Real-Time Traffic Telemetry</span>
                   </h2>
                   <p className={`text-xs ${textMutedClass}`}>Session telemetry of network throughput</p>
@@ -456,12 +467,12 @@ export default function NetSentryDashboard() {
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorInbound" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="rgb(240, 101, 36)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="rgb(240, 101, 36)" stopOpacity={0}/>
                         </linearGradient>
                         <linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="rgb(245, 158, 11)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="rgb(245, 158, 11)" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="time" stroke={isDark ? "#475569" : "#94a3b8"} fontSize={10} tickLine={false} />
@@ -474,13 +485,13 @@ export default function NetSentryDashboard() {
                           color: isDark ? '#f8fafc' : '#0f172a' 
                         }}
                       />
-                      <Area type="monotone" dataKey="inbound" name="Inbound Rate (KB/s)" stroke="#f97316" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
-                      <Area type="monotone" dataKey="outbound" name="Outbound Rate (KB/s)" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
+                      <Area type="monotone" dataKey="inbound" name="Inbound Rate (KB/s)" stroke="rgb(240, 101, 36)" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
+                      <Area type="monotone" dataKey="outbound" name="Outbound Rate (KB/s)" stroke="rgb(245, 158, 11)" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center text-xs text-slate-400 py-10 space-y-3">
-                    <Network className="w-10 h-10 text-slate-300 stroke-[1.5]" />
+                    <Network className="w-10 h-10 text-slate-350 stroke-[1.5]" />
                     <span className="text-center font-medium max-w-sm">
                       {tauriStatus === 'connected' 
                         ? 'Awaiting live traffic signals from the Tauri service...' 
@@ -492,11 +503,11 @@ export default function NetSentryDashboard() {
             </div>
 
             {/* Controller Table */}
-            <div className={`${cardClass} overflow-hidden`}>
+            <div className="bg-card/40 border-[0.5px] border-border/40 rounded-2xl shadow-sm backdrop-blur-sm overflow-hidden hover:shadow-md transition-shadow duration-200">
               <div className={`p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 ${borderClass}`}>
                 <div>
-                  <h2 className="text-lg font-bold flex items-center space-x-2">
-                    <Terminal className="w-5 h-5 text-orange-500" />
+                  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
+                    <Terminal className="w-5 h-5 text-primary" />
                     <span>Process Network & System Controller</span>
                   </h2>
                   <p className={`text-xs ${textMutedClass}`}>Enable/disable inbound firewall block rules dynamically</p>
@@ -514,8 +525,8 @@ export default function NetSentryDashboard() {
                     placeholder="Filter by name or PID..."
                     className={`w-full border focus:ring-1 rounded-xl pl-9 pr-4 py-2 text-sm outline-none transition-all ${
                       isDark 
-                        ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-orange-500 focus:ring-orange-500 focus:bg-slate-950 placeholder-slate-500' 
-                        : 'bg-white border-slate-200 text-slate-900 focus:border-orange-500 focus:ring-orange-500 focus:bg-white placeholder-slate-400'
+                        ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-primary focus:ring-primary focus:bg-slate-950 placeholder-slate-500' 
+                        : 'bg-white border-slate-200 text-slate-900 focus:border-primary focus:ring-primary focus:bg-white placeholder-slate-400'
                     }`}
                   />
                 </div>
@@ -546,18 +557,18 @@ export default function NetSentryDashboard() {
                         return (
                           <tr 
                             key={key} 
-                            className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isSuspicious ? 'bg-orange-500/5' : ''}`}
+                            className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isSuspicious ? 'bg-orange-550/5' : ''}`}
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center space-x-3">
                                 <span className={`w-2.5 h-2.5 rounded-full ${
-                                  proc.is_paused ? 'bg-red-500 animate-pulse' : isSuspicious ? 'bg-orange-500 animate-bounce' : 'bg-emerald-500'
+                                  proc.is_paused ? 'bg-red-500 animate-pulse' : isSuspicious ? 'bg-primary animate-bounce' : 'bg-emerald-500'
                                 }`} />
                                 <div>
                                   <div className="flex items-center space-x-1.5">
                                     <span className="font-bold text-sm">{proc.name}</span>
                                     {isSuspicious && (
-                                      <span className="bg-orange-500/10 border border-orange-500/30 text-orange-500 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase">
+                                      <span className="bg-primary/10 border border-primary/30 text-primary text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase">
                                         Suspicious
                                       </span>
                                     )}
@@ -571,12 +582,12 @@ export default function NetSentryDashboard() {
                             <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.pid}</td>
                             <td className="px-6 py-4 font-mono text-xs font-semibold">{proc.cpu_usage.toFixed(1)}%</td>
                             <td className="px-6 py-4 font-mono text-xs font-semibold">{proc.memory_usage} MB</td>
-                            <td className="px-6 py-4 font-mono text-sm text-orange-500 font-semibold">
+                            <td className="px-6 py-4 font-mono text-sm text-primary font-semibold">
                               {proc.inbound_rate > 1024 
                                 ? `${(proc.inbound_rate / 1024).toFixed(1)} MB/s` 
                                 : `${proc.inbound_rate.toFixed(1)} KB/s`}
                             </td>
-                            <td className="px-6 py-4 font-mono text-sm text-amber-500 font-semibold">
+                            <td className="px-6 py-4 font-mono text-sm text-primary font-semibold">
                               {proc.outbound_rate > 1024 
                                 ? `${(proc.outbound_rate / 1024).toFixed(1)} MB/s` 
                                 : `${proc.outbound_rate.toFixed(1)} KB/s`}
@@ -592,7 +603,7 @@ export default function NetSentryDashboard() {
                                   }`}
                                   title="Open File Location"
                                 >
-                                  <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-orange-500" />
+                                  <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
                                 </button>
 
                                 {/* Connections Inspector */}
@@ -603,7 +614,7 @@ export default function NetSentryDashboard() {
                                   }`}
                                   title="Inspect Active Sockets"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-orange-500" />
+                                  <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
                                 </button>
 
                                 {/* Force Kill */}
@@ -658,11 +669,11 @@ export default function NetSentryDashboard() {
           </>
         ) : (
           /* Logs Panel */
-          <div className={`${cardClass} p-6 space-y-4`}>
-            <div className="flex items-center justify-between border-b border-slate-800/40 pb-4">
+          <div className="bg-card/40 border-[0.5px] border-border/40 rounded-2xl shadow-sm backdrop-blur-sm p-6 hover:shadow-md transition-shadow duration-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-4">
               <div>
-                <h2 className="text-lg font-bold flex items-center space-x-2">
-                  <Terminal className="w-5 h-5 text-orange-500" />
+                <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
+                  <Terminal className="w-5 h-5 text-primary" />
                   <span>Security & Activity Audit Logs</span>
                 </h2>
                 <p className={`text-xs ${textMutedClass}`}>Real-time activity audit history</p>
@@ -686,8 +697,8 @@ export default function NetSentryDashboard() {
                       log.type === 'alert' 
                         ? 'bg-red-500/10 border-red-500/20 text-red-400' 
                         : log.type === 'warning'
-                          ? 'bg-orange-500/10 border-orange-500/20 text-orange-400'
-                          : isDark ? 'bg-slate-900/40 border-slate-850 text-slate-300' : 'bg-slate-100/60 border-slate-200 text-slate-700'
+                          ? 'bg-primary/10 border-primary/20 text-primary'
+                          : isDark ? 'bg-slate-900/40 border-slate-855 text-slate-300' : 'bg-slate-100/60 border-slate-200 text-slate-700'
                     }`}
                   >
                     <span className="text-[10px] text-slate-500 mt-0.5">[{log.timestamp}]</span>
@@ -711,8 +722,8 @@ export default function NetSentryDashboard() {
           }`}>
             <div className={`px-6 py-4 border-b flex items-center justify-between ${borderClass}`}>
               <div>
-                <h3 className="text-base font-bold flex items-center space-x-2">
-                  <Eye className="w-5 h-5 text-orange-500" />
+                <h3 className="font-bricolage text-base font-bold flex items-center space-x-2">
+                  <Eye className="w-5 h-5 text-primary" />
                   <span>Sockets Inspector: {selectedProcess.name}</span>
                 </h3>
                 <p className={`text-xs ${textMutedClass}`}>PID: {selectedProcess.pid} | Path: {selectedProcess.exe_path || 'System'}</p>
@@ -741,10 +752,10 @@ export default function NetSentryDashboard() {
                   {selectedProcess.sockets && selectedProcess.sockets.length > 0 ? (
                     selectedProcess.sockets.map((sock, i) => (
                       <tr key={i} className="hover:bg-slate-900/10">
-                        <td className="py-3 font-semibold text-orange-500">{sock.protocol}</td>
+                        <td className="py-3 font-semibold text-primary">{sock.protocol}</td>
                         <td className="py-3 font-mono">{sock.local_address}</td>
                         <td className="py-3 font-mono">{sock.foreign_address}</td>
-                        <td className="py-3 text-right font-mono text-slate-400">{sock.state}</td>
+                        <td className="py-3 text-right font-mono text-slate-450">{sock.state}</td>
                       </tr>
                     ))
                   ) : (
@@ -761,7 +772,7 @@ export default function NetSentryDashboard() {
             <div className={`px-6 py-4 border-t flex justify-end bg-slate-950/20 ${borderClass}`}>
               <button
                 onClick={() => setIsInspectorOpen(false)}
-                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-semibold cursor-pointer transition-all"
               >
                 Close Inspector
               </button>
