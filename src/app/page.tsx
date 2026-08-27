@@ -371,81 +371,100 @@ export default function NetSentryDashboard() {
         {currentTab === 'monitor' ? (
           <>
             {/* Session Stats + Data Limit Alerts */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Session Stats + Data Limit Alerts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-zinc-950 p-6 rounded-3xl border border-white/5">
               {/* Data Quota Widget */}
-              <div className={cardClass}>
+              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex flex-col justify-between">
+                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <div className="flex items-center justify-between">
-                  <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Bandwidth Quota</p>
-                  <TrendingUp className="w-4 h-4 text-primary" />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl border bg-primary/10 text-primary border-primary/20">
+                      <TrendingUp className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Bandwidth Quota</p>
+                      <p className="text-xs font-semibold text-zinc-350 leading-tight mt-0.5">Limit: {quotaLimit} MB</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-base font-black text-white font-sans">{accumulatedUsage.toFixed(1)} MB</p>
+                  </div>
                 </div>
                 <div className="mt-3">
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-2xl font-extrabold text-primary">{accumulatedUsage.toFixed(1)} <span className="text-xs">MB</span></span>
-                    <span className={`text-xs font-semibold ${textMutedClass}`}>Limit: {quotaLimit} MB</span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
+                  <div className="w-full bg-slate-800 rounded-full h-1.5">
                     <div 
-                      className={`h-2 rounded-full transition-all duration-350 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
+                      className={`h-1.5 rounded-full transition-all duration-350 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
                       style={{ width: `${Math.min((accumulatedUsage / quotaLimit) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 border-border/40">
-                  <span className={`text-[10px] uppercase font-bold ${textMutedClass}`}>Adjust limit (MB):</span>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2 border-white/5">
+                  <span className="text-[9px] uppercase font-bold text-zinc-500">Adjust (MB):</span>
                   <input 
                     type="number"
                     value={quotaLimit}
                     onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
-                    className={`w-20 px-2 py-1 text-xs text-center border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900 shadow-sm'
-                    }`}
+                    className="w-16 px-1.5 py-0.5 text-[10px] text-center border border-white/10 rounded bg-black/40 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                   />
                 </div>
               </div>
 
-              <div className={cardClass}>
-                <div className="flex justify-between items-start">
+              {/* Total Inbound */}
+              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex items-center justify-between">
+                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                    <ArrowDown className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Total Inbound</p>
-                    <h3 className="text-3xl font-extrabold text-primary mt-1">
-                      {overallStats.inbound > 1024 
-                        ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
-                        : `${overallStats.inbound} KB/s`}
-                    </h3>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Total Inbound</p>
+                    <p className="text-xs font-semibold text-zinc-350 leading-tight mt-0.5">Download Flow</p>
                   </div>
-                  <div className={`p-3 rounded-xl ${isDark ? 'bg-primary/10 border border-primary/20' : 'bg-primary/5 border border-primary/10'}`}>
-                    <ArrowDown className="w-6 h-6 text-primary" />
-                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-black text-white font-sans">
+                    {overallStats.inbound > 1024 
+                      ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
+                      : `${overallStats.inbound} KB/s`}
+                  </p>
                 </div>
               </div>
 
-              <div className={cardClass}>
-                <div className="flex justify-between items-start">
+              {/* Total Outbound */}
+              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex items-center justify-between">
+                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl border bg-orange-500/10 text-orange-400 border-orange-500/20">
+                    <ArrowUp className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Total Outbound</p>
-                    <h3 className="text-3xl font-extrabold text-primary mt-1">
-                      {overallStats.outbound > 1024 
-                        ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
-                        : `${overallStats.outbound} KB/s`}
-                    </h3>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Total Outbound</p>
+                    <p className="text-xs font-semibold text-zinc-355 leading-tight mt-0.5">Upload Flow</p>
                   </div>
-                  <div className={`p-3 rounded-xl ${isDark ? 'bg-primary/10 border border-primary/20' : 'bg-primary/5 border border-primary/10'}`}>
-                    <ArrowUp className="w-6 h-6 text-primary" />
-                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-black text-white font-sans">
+                    {overallStats.outbound > 1024 
+                      ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
+                      : `${overallStats.outbound} KB/s`}
+                  </p>
                 </div>
               </div>
 
-              <div className={cardClass}>
-                <div className="flex justify-between items-start">
+              {/* Active Sockets */}
+              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex items-center justify-between">
+                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl border bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
+                    <Network className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className={`text-xs font-medium uppercase tracking-wider ${textMutedClass}`}>Active Sockets</p>
-                    <h3 className="text-3xl font-extrabold text-primary mt-1">
-                      {overallStats.totalConnections}
-                    </h3>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Active Sockets</p>
+                    <p className="text-xs font-semibold text-zinc-350 leading-tight mt-0.5">Open Ports</p>
                   </div>
-                  <div className={`p-3 rounded-xl ${isDark ? 'bg-primary/10 border border-primary/20' : 'bg-primary/5 border border-primary/10'}`}>
-                    <Network className="w-6 h-6 text-primary" />
-                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-black text-white font-sans">{overallStats.totalConnections}</p>
                 </div>
               </div>
             </div>
