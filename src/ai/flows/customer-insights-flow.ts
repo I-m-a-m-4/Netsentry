@@ -1,0 +1,1 @@
+export const getCustomerInsights = async () => ({ summary: "AI Insights disabled in desktop build", productSuggestions: [], engagementTactics: [] });

@@ -1,0 +1,1 @@
+export const businessAnalysis = async () => ({ summary: "Tactical analysis is optimized for the cloud node.", metrics: {}, recommendations: [] });
