@@ -65,7 +65,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'NetSentry v__VERSION__'
-          releaseBody: 'NetSentry Release v__VERSION__. Includes Windows (MSI & EXE) and macOS (DMG & APP) installers.'
+          releaseBody: 'NetSentry Release v__VERSION__. Includes Windows (MSI & EXE), macOS (DMG & APP), and Android (APK & AAB).'
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
@@ -79,6 +79,7 @@ jobs:
 
   release-android:
     name: Build Android (APK & AAB)
+    needs: [release-desktop]
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -122,7 +123,7 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0.0" --locked || true
 
-      - name: Build Android APK
+      - name: Build Android Packages
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
         run: |
@@ -130,7 +131,7 @@ jobs:
           npx tauri android build --apk || true
           npx tauri android build --aab || true
 
-      - name: Upload Android Artifacts
+      - name: Upload Android Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: netsentry-android-bundle
@@ -138,3 +139,13 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: warn
+
+      - name: Attach Android Binaries to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
