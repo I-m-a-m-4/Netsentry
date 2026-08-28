@@ -12,7 +12,7 @@ fn main() {
       };
 
       eprintln!("\n**************************************************");
-      eprintln!("PINNACLE ACADEMIA FATAL PANIC OCCURRED!");
+      eprintln!("NETSENTRY FATAL PANIC OCCURRED!");
       eprintln!("Error: {}", message);
       if let Some(loc) = panic_info.location() {
           eprintln!("At: {}:{}:{}", loc.file(), loc.line(), loc.column());
@@ -25,5 +25,5 @@ fn main() {
       let _ = std::io::stdin().read_line(&mut input);
   }));
 
-  app_lib::run();
+  netsentry_lib::run();
 }

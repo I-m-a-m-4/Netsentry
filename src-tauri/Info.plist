@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>NSCameraUsageDescription</key>
-    <string>Pinnacle Academia needs access to your camera to scan barcodes and profile details.</string>
+    <string>NetSentry requires camera access for device security diagnostics.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Pinnacle Academia needs access to your microphone for voice support.</string>
+    <string>NetSentry requires microphone access for audio diagnostics.</string>
 </dict>
 </plist>
