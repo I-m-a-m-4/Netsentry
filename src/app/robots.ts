@@ -1,12 +1,14 @@
 import { MetadataRoute } from 'next';
 
+export const dynamic = 'force-static';
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/api/', '/admin/', '/admin-sheun/', '/(app)/dashboard/'],
+      disallow: ['/api/', '/admin/'],
     },
-    sitemap: 'https://zeneva.space/sitemap.xml',
+    sitemap: 'https://netsentry.io/sitemap.xml',
   };
 }
