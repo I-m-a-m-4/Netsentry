@@ -12,12 +12,12 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"DM Sans"', '"Plus Jakarta Sans"', 'sans-serif'],
-        body: ['"DM Sans"', '"Plus Jakarta Sans"', 'sans-serif'],
-        jakarta: ['"Plus Jakarta Sans"', '"DM Sans"', 'sans-serif'],
-        headline: ['"Bricolage Grotesque"', 'sans-serif'],
-        display: ['"Bricolage Grotesque"', 'sans-serif'],
-        bricolage: ['"Bricolage Grotesque"', 'sans-serif'],
+        sans: ['var(--font-sans)', '"DM Sans"', '"Plus Jakarta Sans"', 'sans-serif'],
+        body: ['var(--font-sans)', '"DM Sans"', '"Plus Jakarta Sans"', 'sans-serif'],
+        jakarta: ['var(--font-jakarta)', '"Plus Jakarta Sans"', 'sans-serif'],
+        headline: ['var(--font-bricolage)', '"Bricolage Grotesque"', 'sans-serif'],
+        display: ['var(--font-bricolage)', '"Bricolage Grotesque"', 'sans-serif'],
+        bricolage: ['var(--font-bricolage)', '"Bricolage Grotesque"', 'sans-serif'],
         serif: ['"Instrument Serif"', 'serif'],
         code: ['"Source Code Pro"', 'monospace'],
       },

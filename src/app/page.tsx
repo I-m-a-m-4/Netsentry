@@ -21,7 +21,9 @@ import {
   Eye,
   X,
   TrendingUp,
-  Monitor
+  Monitor,
+  Coffee,
+  Heart
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -31,6 +33,8 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import { Badge } from '@/components/ui/badge';
+import DonateModal from '@/components/donate/donate-modal';
 
 interface ConnectionInfo {
   protocol: string;
@@ -71,6 +75,7 @@ export default function NetSentryDashboard() {
   // States
   const [selectedProcess, setSelectedProcess] = useState<ProcessNetworkData | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isDonateOpen, setIsDonateOpen] = useState(false);
   const [quotaLimit, setQuotaLimit] = useState<number>(1000); // MB
   const [accumulatedUsage, setAccumulatedUsage] = useState<number>(0); // MB
   const [securityLogs, setSecurityLogs] = useState<LogEntry[]>([
@@ -252,13 +257,14 @@ export default function NetSentryDashboard() {
 
   // Theme configuration (Zeneva Orange theme values)
   const isDark = theme === 'dark';
-  const bgClass = isDark ? "bg-slate-950 text-slate-100" : "bg-[#FFFBF9] text-slate-900";
-  const borderClass = isDark ? "border-slate-800/80" : "border-slate-200/80";
-  const cardClass = "bg-card/40 border-[0.5px] border-border/40 rounded-2xl shadow-sm backdrop-blur-sm p-6 hover:shadow-md transition-shadow duration-200";
-  const headerBgClass = isDark ? "bg-slate-950/60" : "bg-white/80";
-  const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
-  const tableHeaderBg = isDark ? "bg-slate-950/40" : "bg-[#FFFBF9]";
-  const tableRowHover = isDark ? "hover:bg-slate-900/20" : "hover:bg-orange-50/20";
+  const bgClass = "bg-background text-foreground";
+  const borderClass = "border-border";
+  const cardClass = "bg-card border border-border/70 rounded-2xl shadow-sm p-6 hover:shadow-md transition-all duration-200";
+  const cardClassNoPadding = "bg-card border border-border/70 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-all duration-200";
+  const headerBgClass = "bg-background/80 border-border";
+  const textMutedClass = "text-muted-foreground";
+  const tableHeaderBg = "bg-muted/40";
+  const tableRowHover = "hover:bg-muted/30";
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${bgClass}`}>
@@ -316,6 +322,16 @@ export default function NetSentryDashboard() {
             </button>
           </div>
 
+          {/* Buy Us a Coffee Button */}
+          <button 
+            onClick={() => setIsDonateOpen(true)}
+            className="flex items-center space-x-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer transition-all shadow-sm active:scale-95"
+            title="Support NetSentry Development"
+          >
+            <Coffee className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Buy Us a Coffee</span>
+          </button>
+
           {/* Theme Toggle Button */}
           <button 
             onClick={toggleTheme}
@@ -349,7 +365,7 @@ export default function NetSentryDashboard() {
       </header>
 
       {/* Main Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+      <main className="flex-1 w-full p-6 space-y-6">
         
         {/* Sandbox Warning */}
         {tauriStatus === 'disconnected' && (
@@ -370,147 +386,227 @@ export default function NetSentryDashboard() {
 
         {currentTab === 'monitor' ? (
           <>
-            {/* Session Stats + Data Limit Alerts */}
-            {/* Session Stats + Data Limit Alerts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-zinc-950 p-6 rounded-3xl border border-white/5">
-              {/* Data Quota Widget */}
-              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex flex-col justify-between">
-                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl border bg-primary/10 text-primary border-primary/20">
-                      <TrendingUp className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Bandwidth Quota</p>
-                      <p className="text-xs font-semibold text-zinc-350 leading-tight mt-0.5">Limit: {quotaLimit} MB</p>
-                    </div>
+            {/* Platform Overview Command Container */}
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-primary/10 text-primary border border-primary/20 rounded-xl">
+                    <Shield className="w-5 h-5" />
                   </div>
-                  <div className="text-right">
-                    <p className="text-base font-black text-white font-sans">{accumulatedUsage.toFixed(1)} MB</p>
+                  <div>
+                    <h2 className="font-bricolage text-lg font-bold text-foreground">
+                      Network Overview Command
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Real-time telemetry, session quota tracking, and socket inspection
+                    </p>
                   </div>
                 </div>
-                <div className="mt-3">
-                  <div className="w-full bg-slate-800 rounded-full h-1.5">
-                    <div 
-                      className={`h-1.5 rounded-full transition-all duration-350 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
-                      style={{ width: `${Math.min((accumulatedUsage / quotaLimit) * 100, 100)}%` }}
+
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-primary/40 text-primary text-xs px-2.5 py-1">
+                    {tauriStatus === 'connected' ? '● Engine Active' : '○ Web Mode'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Row 1: Primary Telemetry & Data Usage Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Card 1: Total Data Consumed */}
+                <div className="p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-semibold">Total Data Used</span>
+                    <Activity className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-foreground">
+                      {accumulatedUsage >= 1024 
+                        ? `${(accumulatedUsage / 1024).toFixed(2)} GB` 
+                        : `${accumulatedUsage.toFixed(1)} MB`}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Session bandwidth consumed
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>Quota Usage</span>
+                      <span className="font-semibold">{Math.min(Math.round((accumulatedUsage / quotaLimit) * 100), 100)}%</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
+                        style={{ width: `${Math.min((accumulatedUsage / quotaLimit) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Quota Limit Control */}
+                <div className="p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-semibold">Bandwidth Quota</span>
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-foreground">
+                      {quotaLimit} MB
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {Math.max(0, quotaLimit - accumulatedUsage).toFixed(1)} MB buffer remaining
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Set Limit:</span>
+                    <input 
+                      type="number"
+                      value={quotaLimit}
+                      onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
+                      className="w-20 px-2 py-0.5 text-xs text-center border border-border rounded-lg bg-background text-foreground outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono"
                     />
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2 border-white/5">
-                  <span className="text-[9px] uppercase font-bold text-zinc-500">Adjust (MB):</span>
-                  <input 
-                    type="number"
-                    value={quotaLimit}
-                    onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
-                    className="w-16 px-1.5 py-0.5 text-[10px] text-center border border-white/10 rounded bg-black/40 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                  />
+
+                {/* Card 3: Download Flow */}
+                <div className="p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-semibold">Inbound Download</span>
+                    <ArrowDown className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-emerald-500">
+                      {overallStats.inbound > 1024 
+                        ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
+                        : `${overallStats.inbound} KB/s`}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Live incoming packet stream
+                    </p>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
+                    Calculated across all active sockets
+                  </div>
+                </div>
+
+                {/* Card 4: Upload Flow */}
+                <div className="p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="text-xs font-semibold">Outbound Upload</span>
+                    <ArrowUp className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-primary">
+                      {overallStats.outbound > 1024 
+                        ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
+                        : `${overallStats.outbound} KB/s`}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Live outgoing packet stream
+                    </p>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
+                    Telemetry updated every 1,000ms
+                  </div>
                 </div>
               </div>
 
-              {/* Total Inbound */}
-              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex items-center justify-between">
-                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                    <ArrowDown className="h-4 w-4" />
+              {/* Row 2: Secondary Metric Stack */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                <div className="p-3.5 rounded-xl border border-border bg-muted/10 space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span>Active Sockets</span>
+                    <Network className="w-3.5 h-3.5" />
                   </div>
-                  <div>
-                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Total Inbound</p>
-                    <p className="text-xs font-semibold text-zinc-350 leading-tight mt-0.5">Download Flow</p>
-                  </div>
+                  <div className="text-xl font-bold text-foreground">{overallStats.totalConnections}</div>
+                  <p className="text-[10px] text-muted-foreground">Open TCP/UDP ports</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-base font-black text-white font-sans">
-                    {overallStats.inbound > 1024 
-                      ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
-                      : `${overallStats.inbound} KB/s`}
-                  </p>
-                </div>
-              </div>
 
-              {/* Total Outbound */}
-              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex items-center justify-between">
-                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl border bg-orange-500/10 text-orange-400 border-orange-500/20">
-                    <ArrowUp className="h-4 w-4" />
+                <div className="p-3.5 rounded-xl border border-border bg-muted/10 space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span>Processes Tracked</span>
+                    <Terminal className="w-3.5 h-3.5" />
                   </div>
-                  <div>
-                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Total Outbound</p>
-                    <p className="text-xs font-semibold text-zinc-355 leading-tight mt-0.5">Upload Flow</p>
-                  </div>
+                  <div className="text-xl font-bold text-foreground">{processes.length}</div>
+                  <p className="text-[10px] text-muted-foreground">System application handles</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-base font-black text-white font-sans">
-                    {overallStats.outbound > 1024 
-                      ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
-                      : `${overallStats.outbound} KB/s`}
-                  </p>
-                </div>
-              </div>
 
-              {/* Active Sockets */}
-              <div className="relative group overflow-hidden select-none p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.03] hover:border-white/10 transition-all duration-300 active:scale-[0.99] flex items-center justify-between">
-                <div className="absolute -left-12 -bottom-12 w-24 h-24 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl border bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
-                    <Network className="h-4 w-4" />
+                <div className="p-3.5 rounded-xl border border-border bg-muted/10 space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span>Paused Inbound Rules</span>
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                   </div>
-                  <div>
-                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Active Sockets</p>
-                    <p className="text-xs font-semibold text-zinc-350 leading-tight mt-0.5">Open Ports</p>
+                  <div className="text-xl font-bold text-amber-500">
+                    {processes.filter(p => p.is_paused).length}
                   </div>
+                  <p className="text-[10px] text-muted-foreground">Firewall-blocked programs</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-base font-black text-white font-sans">{overallStats.totalConnections}</p>
+
+                <div className="p-3.5 rounded-xl border border-border bg-muted/10 space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span>Audit Events</span>
+                    <Eye className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-xl font-bold text-foreground">{securityLogs.length}</div>
+                  <p className="text-[10px] text-muted-foreground">Logged telemetry signals</p>
                 </div>
               </div>
             </div>
 
-            {/* Recharts Area Chart */}
+            {/* Real-Time Traffic Telemetry Area Chart */}
             <div className={cardClass}>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-border/60 pb-4">
                 <div>
                   <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
                     <Activity className="w-5 h-5 text-primary animate-pulse" />
                     <span>Real-Time Traffic Telemetry</span>
                   </h2>
-                  <p className={`text-xs ${textMutedClass}`}>Session telemetry of network throughput</p>
+                  <p className="text-xs text-muted-foreground">Live throughput telemetry and bandwidth volume</p>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+                    <span className="text-muted-foreground">Inbound: <strong className="text-foreground">{overallStats.inbound} KB/s</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <span className="text-muted-foreground">Outbound: <strong className="text-foreground">{overallStats.outbound} KB/s</strong></span>
+                  </div>
                 </div>
               </div>
-              <div className="h-60 w-full">
+
+              <div className="h-64 w-full">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorInbound" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="rgb(240, 101, 36)" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="rgb(240, 101, 36)" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                         </linearGradient>
                         <linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="rgb(245, 158, 11)" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="rgb(245, 158, 11)" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="time" stroke={isDark ? "#475569" : "#94a3b8"} fontSize={10} tickLine={false} />
-                      <YAxis stroke={isDark ? "#475569" : "#94a3b8"} fontSize={10} tickLine={false} label={{ value: 'KB/s', angle: -90, position: 'insideLeft', fill: isDark ? '#475569' : '#94a3b8' }} />
+                      <XAxis dataKey="time" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} />
+                      <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} label={{ value: 'KB/s', angle: -90, position: 'insideLeft', fill: 'currentColor' }} />
                       <Tooltip 
                         contentStyle={{ 
-                          backgroundColor: isDark ? '#0f172a' : '#ffffff', 
-                          borderColor: isDark ? '#334155' : '#e2e8f0', 
-                          borderRadius: '8px', 
-                          color: isDark ? '#f8fafc' : '#0f172a' 
+                          backgroundColor: 'hsl(var(--card))', 
+                          borderColor: 'hsl(var(--border))', 
+                          borderRadius: '12px', 
+                          color: 'hsl(var(--foreground))',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         }}
                       />
-                      <Area type="monotone" dataKey="inbound" name="Inbound Rate (KB/s)" stroke="rgb(240, 101, 36)" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
-                      <Area type="monotone" dataKey="outbound" name="Outbound Rate (KB/s)" stroke="rgb(245, 158, 11)" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
+                      <Area type="monotone" dataKey="inbound" name="Inbound Rate (KB/s)" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
+                      <Area type="monotone" dataKey="outbound" name="Outbound Rate (KB/s)" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full w-full flex flex-col items-center justify-center text-xs text-slate-400 py-10 space-y-3">
-                    <Network className="w-10 h-10 text-slate-350 stroke-[1.5]" />
+                  <div className="h-full w-full flex flex-col items-center justify-center text-xs text-muted-foreground py-10 space-y-3">
+                    <Network className="w-10 h-10 text-muted-foreground/40 stroke-[1.5]" />
                     <span className="text-center font-medium max-w-sm">
                       {tauriStatus === 'connected' 
                         ? 'Awaiting live traffic signals from the Tauri service...' 
@@ -522,7 +618,7 @@ export default function NetSentryDashboard() {
             </div>
 
             {/* Controller Table */}
-            <div className="bg-card/40 border-[0.5px] border-border/40 rounded-2xl shadow-sm backdrop-blur-sm overflow-hidden hover:shadow-md transition-shadow duration-200">
+            <div className={cardClassNoPadding}>
               <div className={`p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 ${borderClass}`}>
                 <div>
                   <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
@@ -688,7 +784,7 @@ export default function NetSentryDashboard() {
           </>
         ) : (
           /* Logs Panel */
-          <div className="bg-card/40 border-[0.5px] border-border/40 rounded-2xl shadow-sm backdrop-blur-sm p-6 hover:shadow-md transition-shadow duration-200 space-y-4">
+          <div className={`${cardClass} space-y-4`}>
             <div className="flex items-center justify-between border-b border-border/40 pb-4">
               <div>
                 <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
@@ -803,6 +899,9 @@ export default function NetSentryDashboard() {
       <footer className={`mt-auto border-t px-6 py-6 text-center text-xs ${borderClass} ${textMutedClass} ${isDark ? 'bg-slate-950' : 'bg-white shadow-inner'}`}>
         <p>© 2026 NetSentry. All rights reserved. Administrator privileges required for firewall adjustments.</p>
       </footer>
+
+      {/* Buy Me a Coffee / Donation Modal */}
+      <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} />
     </div>
   );
 }

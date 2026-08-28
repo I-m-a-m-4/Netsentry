@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Instrument+Serif:ital@0;1&family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,22 +12,22 @@
     --card-foreground: 224 71% 4%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 71% 4%;
-    --primary: 33 45% 32%;
+    --primary: 22 90% 55%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 33 45% 32%;
+    --accent: 22 90% 55%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 0 0% 90%; /* Crisp silver for definitive hairline borders */
     --input: 220 13% 94%;
-    --ring: 33 45% 32%;
+    --ring: 22 90% 55%;
     --radius: 0.5rem;
 
-    --chart-1: 33 45% 32%;
+    --chart-1: 22 90% 55%;
     --chart-2: 25 95% 65%;
     --chart-3: 15 80% 45%;
     --chart-4: 35 90% 60%;
@@ -36,46 +38,46 @@
     --sidebar-border: 214.3 31.8% 91.4%;
     --sidebar-accent: 210 40% 92%;
     --sidebar-accent-foreground: 222.2 47.4% 11.2%;
-    --sidebar-primary: 33 45% 28%;
+    --sidebar-primary: 22 90% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-ring: 33 45% 28%;
+    --sidebar-ring: 22 90% 48%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
+    --background: 0 0% 2%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 4.5%;
+    --card: 0 0% 4%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    --popover: 0 0% 2%;
     --popover-foreground: 0 0% 98%;
-    --primary: 33 45% 32%;
+    --primary: 22 90% 55%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 0 0% 9%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 9%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 12%; /* Keep dark but allow for sharper contrast */
-    --input: 240 3.7% 12%;
-    --ring: 33 45% 32%;
+    --border: 0 0% 12%; /* Elegant thin dark border */
+    --input: 0 0% 12%;
+    --ring: 22 90% 55%;
 
-    --sidebar-background: 240 5.9% 5%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 33 45% 32%;
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 0 0% 95.9%;
+    --sidebar-primary: 22 90% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 33 45% 32%;
+    --sidebar-accent: 0 0% 9%;
+    --sidebar-accent-foreground: 0 0% 95.9%;
+    --sidebar-border: 0 0% 8%;
+    --sidebar-ring: 22 90% 55%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --chart-1: 22 90% 55%;
+    --chart-2: 30 90% 65%;
+    --chart-3: 40 80% 60%;
+    --chart-4: 280 80% 60%;
+    --chart-5: 340 80% 60%;
   }
 }
 

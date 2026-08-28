@@ -3,7 +3,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 import { secureStorage } from '@/lib/secure-storage';
 
@@ -94,14 +94,18 @@ export const FirebaseProvider = ({ children, firebaseApp, firestore, auth }: Fir
             isCached: true,
           };
           secureStorage.setItem('zeneva_auth_session', sessionData);
+          setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
         } else {
           secureStorage.removeItem('zeneva_auth_session');
+          // Automatically sign in anonymously so users don't need manual registration/login
+          signInAnonymously(auth).catch((err) => {
+            console.warn("Anonymous sign-in error:", err?.message || err);
+            setUserAuthState({ user: null, isUserLoading: false, userError: err });
+          });
         }
-        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        // If we have a cached user, we might want to keep it if it's a network error
         setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
       }
     );
