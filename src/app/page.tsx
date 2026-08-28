@@ -291,8 +291,8 @@ export default function NetSentryDashboard() {
             <h1 className="font-bricolage text-xl font-black tracking-tight text-primary">
               NetSentry
             </h1>
-            <p className="text-[10px] text-primary tracking-widest uppercase font-semibold">
-              Windows Security & Bandwidth Monitor
+            <p className="text-[10px] text-muted-foreground tracking-wider uppercase font-semibold">
+              Data Saver & Windows Bandwidth Monitor
             </p>
           </div>
         </div>
@@ -667,21 +667,27 @@ export default function NetSentryDashboard() {
                         const key = `proc-${proc.pid}`;
                         const isToggleLoading = actionLoading === `pause-${proc.pid}-${proc.exe_path}`;
                         const isKillLoading = actionLoading === `kill-${proc.pid}`;
+                        const isHighestDrain = proc.inbound_rate > 50 && proc.inbound_rate === Math.max(...processes.map(p => p.inbound_rate));
                         const isSuspicious = proc.connections_count > 25 && proc.cpu_usage > 50 && proc.name !== 'chrome.exe' && proc.name !== 'msedge.exe' && proc.name !== 'firefox.exe';
 
                         return (
                           <tr 
                             key={key} 
-                            className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isSuspicious ? 'bg-orange-550/5' : ''}`}
+                            className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isHighestDrain ? 'bg-amber-500/5' : ''}`}
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center space-x-3">
                                 <span className={`w-2.5 h-2.5 rounded-full ${
-                                  proc.is_paused ? 'bg-red-500 animate-pulse' : isSuspicious ? 'bg-primary animate-bounce' : 'bg-emerald-500'
+                                  proc.is_paused ? 'bg-red-500 animate-pulse' : isHighestDrain ? 'bg-amber-500 animate-ping' : isSuspicious ? 'bg-primary animate-bounce' : 'bg-emerald-500'
                                 }`} />
                                 <div>
-                                  <div className="flex items-center space-x-1.5">
+                                  <div className="flex items-center space-x-1.5 flex-wrap gap-1">
                                     <span className="font-bold text-sm">{proc.name}</span>
+                                    {isHighestDrain && (
+                                      <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase flex items-center gap-0.5">
+                                        🔥 Data Drain
+                                      </span>
+                                    )}
                                     {isSuspicious && (
                                       <span className="bg-primary/10 border border-primary/30 text-primary text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase">
                                         Suspicious
@@ -753,6 +759,7 @@ export default function NetSentryDashboard() {
                                       ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
                                       : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
                                   } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                  title={proc.is_paused ? 'Resume Inbound Data Flow' : 'Pause Inbound Data Flow'}
                                 >
                                   {isToggleLoading ? (
                                     <RefreshCw className="w-3 h-3 animate-spin" />
@@ -761,7 +768,7 @@ export default function NetSentryDashboard() {
                                   ) : (
                                     <Pause className="w-3 h-3" />
                                   )}
-                                  <span>{proc.is_paused ? 'Resume' : 'Block'}</span>
+                                  <span>{proc.is_paused ? 'Resume Data' : 'Pause Data'}</span>
                                 </button>
                               </div>
                             </td>
