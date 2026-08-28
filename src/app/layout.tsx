@@ -12,6 +12,8 @@ const dmSans = DM_Sans({
   weight: ['400', '500', '600', '700', '800'],
   variable: '--font-sans',
   display: 'swap',
+  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+  adjustFontFallback: false,
 });
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -19,6 +21,8 @@ const plusJakarta = Plus_Jakarta_Sans({
   weight: ['400', '500', '600', '700', '800'],
   variable: '--font-jakarta',
   display: 'swap',
+  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+  adjustFontFallback: false,
 });
 
 const bricolage = Bricolage_Grotesque({
@@ -26,6 +30,8 @@ const bricolage = Bricolage_Grotesque({
   weight: ['400', '600', '700', '800'],
   variable: '--font-bricolage',
   display: 'swap',
+  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+  adjustFontFallback: false,
 });
 
 export const metadata: Metadata = {
