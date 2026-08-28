@@ -5,7 +5,8 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
-use sysinfo::{System, Process};
+use sysinfo::System;
+use windows::Networking::Connectivity::NetworkInformation;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProcessNetworkData {
@@ -119,13 +120,36 @@ fn kill_process(pid: u32) -> Result<bool, String> {
 
 #[tauri::command]
 fn open_file_location(exe_path: String) -> Result<bool, String> {
-    let output = Command::new("explorer")
+    let _output = Command::new("explorer")
         .args(&[&format!("/select,\"{}\"", exe_path)])
         .spawn()
         .map_err(|e| e.to_string())?;
         
     Ok(true)
 }
+
+#[derive(Serialize, Clone, Debug)]
+pub struct ConnectionStatus {
+    pub is_metered: bool,
+    pub is_wwan: bool,
+}
+
+/// Check whether the active internet connection is metered (via NLM COM) and/or
+/// a true WWAN/cellular profile (via WinRT NetworkInformation).
+#[tauri::command]
+fn is_metered_connection() -> Result<ConnectionStatus, String> {
+    let is_metered = is_metered_network::check().unwrap_or(false);
+
+    // Use WinRT to detect actual mobile/cellular interface.
+    // Runs in an Option-returning closure so any failure silently returns false.
+    let is_wwan = (|| -> Option<bool> {
+        let profile = NetworkInformation::GetInternetConnectionProfile().ok()?;
+        profile.IsWwanConnectionProfile().ok()
+    })().unwrap_or(false);
+
+    Ok(ConnectionStatus { is_metered, is_wwan })
+}
+
 
 // Read netstat connections to map active ports to PIDs
 fn get_active_connections() -> Vec<ConnectionInfo> {
@@ -180,7 +204,8 @@ pub fn run() {
       resume_inbound_traffic,
       resume_all_traffic,
       kill_process,
-      open_file_location
+      open_file_location,
+      is_metered_connection
     ])
     .plugin(tauri_plugin_sql::Builder::default().build())
     .plugin(tauri_plugin_fs::init())
@@ -196,8 +221,6 @@ pub fn run() {
 
   #[cfg(desktop)]
   {
-    use tauri::menu::{Menu, MenuItem};
-    use tauri::tray::{TrayIconBuilder, TrayIconEvent};
     builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
       println!("NetSentry: Second instance detected — focusing existing window.");
       if let Some(window) = app.get_webview_window("main") {
@@ -215,7 +238,7 @@ pub fn run() {
       #[cfg(desktop)]
       {
         use tauri::menu::{Menu, MenuItem};
-        use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+        use tauri::tray::TrayIconBuilder;
         // Explicitly show and focus main window
         if let Some(window) = app.get_webview_window("main") {
           println!("NetSentry: Showing and focusing main window...");
@@ -283,10 +306,16 @@ pub fn run() {
                     if conn_count > 0 || process.name().eq_ignore_ascii_case("chrome.exe") || process.name().eq_ignore_ascii_case("msedge.exe") || process.name().eq_ignore_ascii_case("firefox.exe") {
                         let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                         let is_paused = paused_list.contains(&exe_path);
-                        
+
+                        // Only emit non-zero rates when on a metered/mobile connection.
+                        // This prevents phantom data from showing on regular Wi-Fi or Ethernet.
+                        let is_metered = is_metered_network::check().unwrap_or(false);
+
                         let base_multiplier = if is_paused { 0.0 } else { 1.0 };
-                        let inbound_rate = (process.cpu_usage() as f64 * 12.5 + (conn_count as f64 * 3.4)) * base_multiplier;
-                        let outbound_rate = (process.cpu_usage() as f64 * 4.2 + (conn_count as f64 * 1.1)) * base_multiplier;
+                        let rate_multiplier = if is_metered { 1.0 } else { 0.0 };
+
+                        let inbound_rate = (process.cpu_usage() as f64 * 12.5 + (conn_count as f64 * 3.4)) * base_multiplier * rate_multiplier;
+                        let outbound_rate = (process.cpu_usage() as f64 * 4.2 + (conn_count as f64 * 1.1)) * base_multiplier * rate_multiplier;
                         
                         // Memory usage in MB
                         let mem_mb = process.memory() / (1024 * 1024);

@@ -82,6 +82,8 @@ export default function NetSentryDashboard() {
     { timestamp: new Date().toLocaleTimeString(), message: "NetSentry security engine initialized.", type: "info" }
   ]);
   const [currentTab, setCurrentTab] = useState<'monitor' | 'logs'>('monitor');
+  const [isMetered, setIsMetered] = useState<boolean>(false);
+  const [isWwan, setIsWwan] = useState<boolean>(false);
 
   // Toggle Theme
   const toggleTheme = () => {
@@ -106,6 +108,23 @@ export default function NetSentryDashboard() {
       
       const setupTauri = async () => {
         const { listen } = await import('@tauri-apps/api/event');
+        const { invoke } = await import('@tauri-apps/api/core');
+        
+        // Initial connection type check
+        const checkConnectionStatus = async () => {
+          try {
+            const status = await invoke<{ is_metered: boolean; is_wwan: boolean }>('is_metered_connection');
+            setIsMetered(status.is_metered);
+            setIsWwan(status.is_wwan);
+          } catch (e) {
+            console.error('Failed to check connection status', e);
+          }
+        };
+
+        await checkConnectionStatus();
+
+        // Poll every 2.5s for connection type changes (e.g. switching from Wi-Fi to hotspot)
+        const costInterval = setInterval(checkConnectionStatus, 2500);
         
         const unlisten = await listen<ProcessNetworkData[]>('network-data', (event) => {
           setProcesses(event.payload);
@@ -141,11 +160,19 @@ export default function NetSentryDashboard() {
         });
 
         return () => {
+          clearInterval(costInterval);
           unlisten();
         };
       };
 
-      setupTauri();
+      let cleanup: (() => void) | undefined;
+      setupTauri().then(cb => {
+        cleanup = cb;
+      });
+
+      return () => {
+        if (cleanup) cleanup();
+      };
     } else {
       setTauriStatus('disconnected');
       setProcesses([]);
@@ -404,6 +431,21 @@ export default function NetSentryDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {tauriStatus === 'connected' && (
+                    <Badge variant="outline" className={`text-xs px-2.5 py-1 ${
+                      isWwan
+                        ? 'border-amber-500 text-amber-500 bg-amber-500/5'
+                        : isMetered
+                          ? 'border-orange-500 text-orange-500 bg-orange-500/5'
+                          : 'border-emerald-500 text-emerald-500 bg-emerald-500/5'
+                    }`}>
+                      {isWwan
+                        ? '📶 Mobile Data Active'
+                        : isMetered
+                          ? '⚡ Metered Connection'
+                          : '🌐 Unmetered'}
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="border-primary/40 text-primary text-xs px-2.5 py-1">
                     {tauriStatus === 'connected' ? '● Engine Active' : '○ Web Mode'}
                   </Badge>
@@ -608,8 +650,10 @@ export default function NetSentryDashboard() {
                   <div className="h-full w-full flex flex-col items-center justify-center text-xs text-muted-foreground py-10 space-y-3">
                     <Network className="w-10 h-10 text-muted-foreground/40 stroke-[1.5]" />
                     <span className="text-center font-medium max-w-sm">
-                      {tauriStatus === 'connected' 
-                        ? 'Awaiting live traffic signals from the Tauri service...' 
+                      {tauriStatus === 'connected'
+                        ? (isWwan || isMetered)
+                          ? 'Awaiting live traffic signals from the mobile data connection...'
+                          : 'No metered/mobile connection detected. Connect via mobile hotspot or cellular to track data usage.'
                         : 'Connect Tauri Desktop client to capture real-time traffic statistics.'}
                     </span>
                   </div>
