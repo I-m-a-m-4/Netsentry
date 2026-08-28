@@ -1,58 +1,23 @@
 import fs from 'fs';
 import path from 'path';
 
+// Only strip API routes that cannot be exported to static HTML in Tauri
 const pathsToDelete = [
   'src/app/api',
-  'src/app/robots.ts',
-  'src/app/sitemap.ts',
-  'src/app/industries',
-  'src/app/blog',
-  'src/app/store',
-  'src/app/admin-sheun',
-  'firestore.rules',
-  'firestore.indexes.json',
-  'firebase.json',
-  'src/firebase/admin.ts',
-  'src/lib/server'
 ];
 
-const foldersToClear = [
-  'src/actions',
-  'src/ai'
-];
-
-console.log('--- Preparing Tauri Build: Stripping non-static components ---');
+console.log('--- Preparing Tauri Build: Stripping dynamic server routes ---');
 
 pathsToDelete.forEach(p => {
   const fullPath = path.resolve(process.cwd(), p);
   if (fs.existsSync(fullPath)) {
-    console.log(`Deleting: ${p}`);
+    console.log(`Temporarily stripping: ${p}`);
     fs.rmSync(fullPath, { recursive: true, force: true });
   }
 });
 
-foldersToClear.forEach(p => {
-  const fullPath = path.resolve(process.cwd(), p);
-  if (fs.existsSync(fullPath)) {
-    console.log(`Clearing folder for stubbing: ${p}`);
-    fs.readdirSync(fullPath).forEach(file => {
-        const filePath = path.join(fullPath, file);
-        fs.rmSync(filePath, { recursive: true, force: true });
-    });
-  }
-});
-
-// Specific stubs for core app dependencies to satisfy imports
+// Specific stubs for core app dependencies to satisfy imports in desktop builds
 const stubs = [
-    { path: 'src/ai/genkit.ts', content: 'export const ai = {}; export const getAI = () => ({});' },
-    { path: 'src/ai/flows/customer-insights-flow.ts', content: 'export const getCustomerInsights = async () => ({ summary: "AI Insights disabled in desktop build", productSuggestions: [], engagementTactics: [] });' },
-    { path: 'src/ai/flows/business-analysis-flow.ts', content: 'export const businessAnalysis = async () => ({ summary: "Tactical analysis is optimized for the cloud node.", metrics: {}, recommendations: [] });' },
-    { path: 'src/ai/flows/academy-analysis-flow.ts', content: 'export const academyAnalysis = async () => ({ summary: "Academy analysis is optimized for the cloud node.", metrics: {}, recommendations: [] });' },
-    { path: 'src/ai/flows/product-troubleshoot-flow.ts', content: 'export const productTroubleshoot = async () => ({ solution: "Please connect to the command center via mobile or web for deeper diagnostics.", steps: [], confidence: 0 });' },
-    { path: 'src/ai/flows/subject-troubleshoot-flow.ts', content: 'export const subjectTroubleshoot = async () => ({ solution: "Please connect to the command center via mobile or web for deeper diagnostics.", steps: [], confidence: 0 });' },
-    { path: 'src/ai/flows/support-chat-flow.ts', content: 'export const zenevaSupportChat = async () => ({ response: "Direct support stream is available via the web terminal.", citations: [], suggestedActions: [] });' },
-    { path: 'src/ai/flows/audit-log-analysis-flow.ts', content: 'export const analyzeAuditLogs = async () => ({ summary: "Security audit stream is encrypted for server-side processing only.", anomalies: [], riskScore: 0 });' },
-    { path: 'src/ai/flows/visual-count-flow.ts', content: 'export const visualCount = async () => ({ count: 0, confidence: 0, details: "Hardware-accelerated visual counting requires active telemetry link." });' },
     { path: 'src/actions/admin-actions.ts', content: 'export const deleteBusinessUsersAuth = async () => ({ success: true }); export default {};' }
 ];
 
