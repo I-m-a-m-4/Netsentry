@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "NetSentry",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "identifier": "com.netsentry.app",
   "build": {
     "frontendDist": "../out",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "NetSentry v0.1.0",
+        "title": "NetSentry v0.0.1",
         "width": 1024,
         "height": 768,
         "resizable": true,

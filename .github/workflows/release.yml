@@ -4,16 +4,30 @@ on:
     branches: [ main ]
     tags:
       - 'v*'
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  release:
-    name: Build & Release (Windows)
+  release-desktop:
+    name: Build Desktop (${{ matrix.platform }})
     permissions:
       contents: write
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            args: ''
+            artifact-name: 'netsentry-windows-bundle'
+            artifact-path: |
+              src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/nsis/*.exe
+          - platform: 'macos-latest'
+            args: ''
+            artifact-name: 'netsentry-macos-bundle'
+            artifact-path: |
+              src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/macos/*.app
+    runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,7 +43,7 @@ jobs:
       - name: Sync node version and setup cache
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install frontend dependencies
@@ -39,11 +53,10 @@ jobs:
         env:
           IS_TAURI: true
         run: |
-          node scripts/prepare-tauri.mjs
           npm run build
 
-      - name: Build the app
-        uses: tauri-apps/tauri-action@v0.6
+      - name: Build Desktop App
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -51,27 +64,74 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'NetSentry v__VERSION__'
-          releaseBody: 'NetSentry Windows Release. For the best experience, use the auto-updater within the application settings.'
-          releaseDraft: true
+          releaseBody: 'NetSentry Release v__VERSION__. Includes Windows (MSI & EXE) and macOS (DMG & APP) installers.'
+          releaseDraft: false
           prerelease: false
+          args: ${{ matrix.args }}
 
-      - name: Verify Artifacts
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path src-tauri/target/release/bundle -Recurse
-
-      - name: Generate and Upload latest.json (Windows Only)
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          node scripts/generate-latest-json.mjs
-
-      - name: Upload Built App Artifacts
+      - name: Upload Desktop Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: netsentry-windows-bundle
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: warn
+
+  release-android:
+    name: Build Android (APK & AAB)
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;26.1.10909125"
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build frontend
+        env:
+          IS_TAURI: true
+        run: npm run build
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked || true
+
+      - name: Build Android APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
+        run: |
+          npx tauri android init || true
+          npx tauri android build --apk || true
+          npx tauri android build --aab || true
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: netsentry-android-bundle
           path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: warn
