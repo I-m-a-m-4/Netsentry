@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/api/', '/admin/'],
     },
-    sitemap: 'https://netsentry.io/sitemap.xml',
+    sitemap: 'https://netsentry-psi.vercel.app/sitemap.xml',
   };
 }
