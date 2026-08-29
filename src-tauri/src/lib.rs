@@ -3,10 +3,12 @@ use tauri::Manager;
 use tauri::Emitter;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 use sysinfo::{System, Networks};
 use windows::Networking::Connectivity::NetworkInformation;
+use rusqlite::{Connection, params};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProcessNetworkData {
@@ -34,6 +36,66 @@ pub struct ConnectionInfo {
 // Track active firewall block rules by program path
 lazy_static::lazy_static! {
     static ref PAUSED_PROCESSES: Arc<Mutex<std::collections::HashSet<String>>> = Arc::new(Mutex::new(std::collections::HashSet::new()));
+    static ref ANALYTICS_DB: Mutex<Option<Connection>> = Mutex::new(None);
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct DailyTotal {
+    pub date: String,
+    pub total_inbound_mb: f64,
+    pub total_outbound_mb: f64,
+}
+
+fn init_analytics_db(db_path: PathBuf) {
+    match Connection::open(&db_path) {
+        Ok(conn) => {
+            let _ = conn.execute_batch("
+                CREATE TABLE IF NOT EXISTS daily_totals (
+                    date TEXT PRIMARY KEY,
+                    total_inbound_mb REAL NOT NULL DEFAULT 0.0,
+                    total_outbound_mb REAL NOT NULL DEFAULT 0.0
+                );
+                CREATE TABLE IF NOT EXISTS hourly_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp INTEGER NOT NULL,
+                    total_inbound_kb REAL NOT NULL,
+                    total_outbound_kb REAL NOT NULL
+                );
+            ");
+            if let Ok(mut db) = ANALYTICS_DB.lock() {
+                *db = Some(conn);
+            }
+            println!("NetSentry: Analytics DB initialised at {:?}", db_path);
+        }
+        Err(e) => println!("NetSentry: Failed to open analytics DB: {}", e),
+    }
+}
+
+fn record_usage_to_db(inbound_kb: f64, outbound_kb: f64) {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let now_ts = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            let inbound_mb = inbound_kb / 1024.0;
+            let outbound_mb = outbound_kb / 1024.0;
+            // Upsert today's running total (SQLite resolves 'localtime' server-side)
+            let _ = conn.execute(
+                "INSERT INTO daily_totals (date, total_inbound_mb, total_outbound_mb)
+                 VALUES (date('now', 'localtime'), ?1, ?2)
+                 ON CONFLICT(date) DO UPDATE SET
+                   total_inbound_mb = total_inbound_mb + excluded.total_inbound_mb,
+                   total_outbound_mb = total_outbound_mb + excluded.total_outbound_mb",
+                params![inbound_mb, outbound_mb],
+            );
+            // Insert fine-grained snapshot
+            let _ = conn.execute(
+                "INSERT INTO hourly_snapshots (timestamp, total_inbound_kb, total_outbound_kb) VALUES (?1, ?2, ?3)",
+                params![now_ts, inbound_kb, outbound_kb],
+            );
+        }
+    }
 }
 
 // Helper to create a process command without spawning a console window on Windows
@@ -161,6 +223,75 @@ fn is_metered_connection() -> Result<ConnectionStatus, String> {
     Ok(ConnectionStatus { is_metered, is_wwan })
 }
 
+#[tauri::command]
+fn get_daily_totals(days: u32) -> Vec<DailyTotal> {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let limit = days.max(1).min(90) as i64;
+            let mut stmt = match conn.prepare(
+                "SELECT date, total_inbound_mb, total_outbound_mb FROM daily_totals ORDER BY date DESC LIMIT ?1"
+            ) {
+                Ok(s) => s,
+                Err(_) => return vec![],
+            };
+            let rows = match stmt.query_map(params![limit], |row| {
+                Ok(DailyTotal {
+                    date: row.get(0)?,
+                    total_inbound_mb: row.get(1)?,
+                    total_outbound_mb: row.get(2)?,
+                })
+            }) {
+                Ok(iter) => iter,
+                Err(_) => return vec![],
+            };
+            return rows.filter_map(|r| r.ok()).collect();
+        }
+    }
+    vec![]
+}
+
+#[tauri::command]
+fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String> {
+    // Clean up any existing data saver rules first
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
+    // Add blanket outbound block rule
+    run_firewall_command(&[
+        "advfirewall", "firewall", "add", "rule",
+        "name=NetSentry-DataSaver-BlockAll",
+        "dir=out",
+        "action=block",
+        "enable=yes",
+    ])?;
+    // Add per-app allow rules for whitelisted executables
+    for exe_path in &allowed_exe_paths {
+        let fname = std::path::Path::new(exe_path)
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| exe_path.clone());
+        let rule_name = format!("NetSentry-DataSaver-Allow-{}", fname);
+        let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_name)]);
+        let _ = run_firewall_command(&[
+            "advfirewall", "firewall", "add", "rule",
+            &format!("name={}", rule_name),
+            "dir=out",
+            "action=allow",
+            &format!("program={}", exe_path),
+            "enable=yes",
+        ]);
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+fn disable_data_saver_mode() -> Result<bool, String> {
+    // Remove the blanket outbound block rule
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
+    // Remove all per-app allow rules we created
+    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-Allow-*' } | Remove-NetFirewallRule";
+    let _ = create_cmd("powershell").args(&["-Command", ps_cmd]).output();
+    Ok(true)
+}
+
 
 // Read netstat connections to map active ports to PIDs
 fn get_active_connections() -> Vec<ConnectionInfo> {
@@ -216,7 +347,10 @@ pub fn run() {
       resume_all_traffic,
       kill_process,
       open_file_location,
-      is_metered_connection
+      is_metered_connection,
+      get_daily_totals,
+      enable_data_saver_mode,
+      disable_data_saver_mode
     ])
     .plugin(tauri_plugin_sql::Builder::default().build())
     .plugin(tauri_plugin_fs::init())
@@ -292,6 +426,12 @@ pub fn run() {
             .build(app);
         }
 
+        // Initialise analytics SQLite DB
+        let db_path = app.path().app_data_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join("netsentry.db");
+        init_analytics_db(db_path);
+
         // Start background event loop for streaming process network data
         let app_handle = app.handle().clone();
         std::thread::spawn(move || {
@@ -302,6 +442,7 @@ pub fn run() {
             for (name, network) in &networks {
                 prev_net_data.insert(name.clone(), (network.received(), network.transmitted()));
             }
+            let mut tick_count: u64 = 0;
 
             loop {
                 sys.refresh_all();
@@ -431,7 +572,13 @@ pub fn run() {
                 
                 // Stream metrics via Tauri event
                 let _ = app_handle.emit("network-data", process_data);
-                
+
+                // Persist bandwidth totals to SQLite every 60 seconds
+                tick_count += 1;
+                if tick_count % 60 == 0 {
+                    record_usage_to_db(total_system_inbound, total_system_outbound);
+                }
+
                 std::thread::sleep(Duration::from_millis(1000));
             }
         });

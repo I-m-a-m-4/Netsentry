@@ -30,11 +30,17 @@ import {
   MessageSquare,
   Music,
   Code,
-  Cloud
+  Cloud,
+  BarChart2,
+  ShieldOff,
+  Zap
 } from 'lucide-react';
 import { 
   AreaChart, 
   Area, 
+  BarChart,
+  Bar,
+  Cell,
   XAxis, 
   YAxis, 
   Tooltip, 
@@ -70,6 +76,12 @@ interface LogEntry {
   type: 'info' | 'warning' | 'alert';
 }
 
+interface DailyTotal {
+  date: string;
+  total_inbound_mb: number;
+  total_outbound_mb: number;
+}
+
 const getProcessIcon = (name: string) => {
   const n = name.toLowerCase();
   if (n.includes('chrome') || n.includes('msedge') || n.includes('firefox') || n.includes('brave') || n.includes('opera')) return <Globe className="w-4 h-4" />;
@@ -99,13 +111,64 @@ export default function NetSentryDashboard() {
   const [securityLogs, setSecurityLogs] = useState<LogEntry[]>([
     { timestamp: new Date().toLocaleTimeString(), message: "NetSentry security engine initialized.", type: "info" }
   ]);
-  const [currentTab, setCurrentTab] = useState<'monitor' | 'logs'>('monitor');
+  const [currentTab, setCurrentTab] = useState<'monitor' | 'logs' | 'analytics'>('monitor');
   const [isMetered, setIsMetered] = useState<boolean>(false);
   const [isWwan, setIsWwan] = useState<boolean>(false);
+  const [isDataSaverMode, setIsDataSaverMode] = useState<boolean>(false);
+  const [dataSaverLoading, setDataSaverLoading] = useState<boolean>(false);
+  const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+  // Default whitelist: common browsers + system
+  const [allowedApps, setAllowedApps] = useState<string>(
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe'
+  );
 
   // Toggle Theme
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  const loadDailyTotals = async () => {
+    if (tauriStatus !== 'connected') return;
+    setAnalyticsLoading(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const totals = await invoke<DailyTotal[]>('get_daily_totals', { days: 30 });
+      setDailyTotals(totals.reverse()); // ascending for chart
+    } catch (e) {
+      console.error('Failed to load analytics', e);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const handleEnableDataSaver = async () => {
+    setDataSaverLoading(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const paths = allowedApps.split('\n').map(s => s.trim()).filter(Boolean);
+      await invoke('enable_data_saver_mode', { allowedExePaths: paths });
+      setIsDataSaverMode(true);
+      addLog(`Data Saver Mode ENABLED. Whitelisted ${paths.length} app(s).`, 'warning');
+    } catch (e) {
+      alert(`Failed to enable Data Saver Mode: ${e}`);
+    } finally {
+      setDataSaverLoading(false);
+    }
+  };
+
+  const handleDisableDataSaver = async () => {
+    setDataSaverLoading(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('disable_data_saver_mode');
+      setIsDataSaverMode(false);
+      addLog('Data Saver Mode DISABLED. Normal outbound traffic restored.', 'info');
+    } catch (e) {
+      alert(`Failed to disable Data Saver Mode: ${e}`);
+    } finally {
+      setDataSaverLoading(false);
+    }
   };
 
   const addLog = (message: string, type: 'info' | 'warning' | 'alert' = 'info') => {
@@ -357,7 +420,7 @@ export default function NetSentryDashboard() {
               Monitor Dashboard
             </button>
             <button 
-              onClick={() => setCurrentTab('logs')}
+              onClick={() => { setCurrentTab('logs'); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                 currentTab === 'logs' 
                   ? 'bg-primary text-white shadow-sm' 
@@ -365,6 +428,16 @@ export default function NetSentryDashboard() {
               }`}
             >
               Security Logs ({securityLogs.length})
+            </button>
+            <button 
+              onClick={() => { setCurrentTab('analytics'); loadDailyTotals(); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                currentTab === 'analytics' 
+                  ? 'bg-primary text-white shadow-sm' 
+                  : textMutedClass
+              }`}
+            >
+              Analytics
             </button>
           </div>
 
@@ -897,6 +970,155 @@ export default function NetSentryDashboard() {
                 ))
               ) : (
                 <div className="text-center text-slate-500 py-10">No log entries recorded in this session.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {currentTab === 'analytics' && (
+          <div className="space-y-6">
+            {/* Data Saver Mode Card */}
+            <div className={`bg-card border rounded-2xl p-6 shadow-sm ${isDataSaverMode ? 'border-amber-500/40 bg-amber-500/5' : 'border-border'}`}>
+              <div className="flex flex-col md:flex-row md:items-start gap-6">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl border ${isDataSaverMode ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-primary/10 border-primary/20 text-primary'}`}>
+                      {isDataSaverMode ? <ShieldOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <h2 className="font-bricolage text-lg font-bold">Data Saver Mode</h2>
+                      <p className="text-xs text-muted-foreground">Block all outbound traffic except whitelisted apps via Windows Firewall</p>
+                    </div>
+                    {isDataSaverMode && (
+                      <span className="ml-auto text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 animate-pulse">
+                        🔒 ACTIVE
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pt-2 space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Whitelisted Executables (one per line)</label>
+                    <textarea
+                      value={allowedApps}
+                      onChange={e => setAllowedApps(e.target.value)}
+                      disabled={isDataSaverMode}
+                      rows={4}
+                      placeholder={`C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe`}
+                      className={`w-full font-mono text-xs p-3 rounded-xl border bg-background resize-none outline-none focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isDark ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'
+                      }`}
+                    />
+                    <p className="text-[10px] text-muted-foreground">⚠️ Requires Administrator privileges. Blocking all outbound will stop background updates, cloud sync, etc.</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 md:w-48">
+                  {!isDataSaverMode ? (
+                    <button
+                      onClick={handleEnableDataSaver}
+                      disabled={dataSaverLoading || tauriStatus !== 'connected'}
+                      className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold px-5 py-3 rounded-xl shadow-lg transition-all active:scale-95"
+                    >
+                      {dataSaverLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Enable Data Saver
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleDisableDataSaver}
+                      disabled={dataSaverLoading || tauriStatus !== 'connected'}
+                      className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold px-5 py-3 rounded-xl shadow-lg transition-all active:scale-95"
+                    >
+                      {dataSaverLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldOff className="w-4 h-4" />}
+                      Disable Data Saver
+                    </button>
+                  )}
+                  <button
+                    onClick={loadDailyTotals}
+                    disabled={analyticsLoading || tauriStatus !== 'connected'}
+                    className={`flex items-center justify-center gap-2 border text-xs font-semibold px-4 py-2 rounded-xl transition-all disabled:opacity-50 ${
+                      isDark ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${analyticsLoading ? 'animate-spin' : ''}`} />
+                    Refresh Analytics
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Historical Usage Chart */}
+            <div className={`bg-card border border-border rounded-2xl p-6 shadow-sm`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-border/60 pb-4">
+                <div>
+                  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
+                    <BarChart2 className="w-5 h-5 text-primary" />
+                    <span>Historical Bandwidth Usage</span>
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Daily inbound + outbound totals (last 30 days, stored locally)</p>
+                </div>
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+                    <span className="text-muted-foreground">Inbound (MB)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <span className="text-muted-foreground">Outbound (MB)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-72 w-full">
+                {analyticsLoading ? (
+                  <div className="h-full flex items-center justify-center">
+                    <RefreshCw className="w-8 h-8 text-primary/40 animate-spin" />
+                  </div>
+                ) : dailyTotals.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dailyTotals} barGap={4}>
+                      <XAxis dataKey="date" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} tickFormatter={v => v.slice(5)} />
+                      <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} label={{ value: 'MB', angle: -90, position: 'insideLeft', fill: 'currentColor' }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px', color: 'hsl(var(--foreground))' }}
+                        formatter={(value: number, name: string) => [`${value.toFixed(2)} MB`, name === 'total_inbound_mb' ? 'Inbound' : 'Outbound']}
+                      />
+                      <Bar dataKey="total_inbound_mb" name="Inbound" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="total_outbound_mb" name="Outbound" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center space-y-3 text-muted-foreground">
+                    <BarChart2 className="w-10 h-10 text-muted-foreground/30" />
+                    <p className="text-sm font-medium">No historical data yet</p>
+                    <p className="text-xs text-center max-w-xs">Usage is saved every 60 seconds. Come back after the app has been running for a minute, or click Refresh Analytics.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary table */}
+              {dailyTotals.length > 0 && (
+                <div className="mt-6 border-t border-border/60 pt-4">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className={`text-muted-foreground uppercase tracking-wider font-semibold border-b border-border/50`}>
+                        <th className="py-2 text-left">Date</th>
+                        <th className="py-2 text-right">Inbound</th>
+                        <th className="py-2 text-right">Outbound</th>
+                        <th className="py-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {[...dailyTotals].reverse().slice(0, 10).map(row => (
+                        <tr key={row.date} className="hover:bg-muted/20 transition-colors">
+                          <td className="py-2.5 font-mono">{row.date}</td>
+                          <td className="py-2.5 text-right font-mono text-primary">{row.total_inbound_mb.toFixed(2)} MB</td>
+                          <td className="py-2.5 text-right font-mono text-amber-500">{row.total_outbound_mb.toFixed(2)} MB</td>
+                          <td className="py-2.5 text-right font-mono font-bold">{(row.total_inbound_mb + row.total_outbound_mb).toFixed(2)} MB</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
