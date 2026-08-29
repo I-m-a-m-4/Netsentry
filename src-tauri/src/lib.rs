@@ -440,7 +440,7 @@ pub fn run() {
             let mut prev_net_data: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new();
             // Prime prev_net_data with initial values so the very first delta is 0, not a huge spike
             for (name, network) in &networks {
-                prev_net_data.insert(name.clone(), (network.received(), network.transmitted()));
+                prev_net_data.insert(name.clone(), (network.total_received(), network.total_transmitted()));
             }
             let mut tick_count: u64 = 0;
 
@@ -489,8 +489,8 @@ pub fn run() {
                         continue;
                     }
                     
-                    let current_rx = network.received();
-                    let current_tx = network.transmitted();
+                    let current_rx = network.total_received();
+                    let current_tx = network.total_transmitted();
                     
                     if let Some(&(prev_rx, prev_tx)) = prev_net_data.get(name) {
                         if current_rx >= prev_rx {
