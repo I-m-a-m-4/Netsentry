@@ -5,7 +5,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
-use sysinfo::System;
+use sysinfo::{System, Networks};
 use windows::Networking::Connectivity::NetworkInformation;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -279,8 +279,12 @@ pub fn run() {
         let app_handle = app.handle().clone();
         std::thread::spawn(move || {
             let mut sys = System::new_all();
+            let mut networks = Networks::new_with_refreshed_list();
+            let mut prev_net_data: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new();
+
             loop {
                 sys.refresh_all();
+                networks.refresh_list();
                 let connections = get_active_connections();
                 
                 // Group connections by PID
@@ -289,15 +293,48 @@ pub fn run() {
                     pid_connections.entry(conn.pid).or_insert_with(Vec::new).push(conn.clone());
                 }
                 
+                // Calculate physical network adapter delta bytes
+                let mut total_rx_delta = 0u64;
+                let mut total_tx_delta = 0u64;
+                
+                for (name, network) in &networks {
+                    let name_lower = name.to_lowercase();
+                    if name_lower.contains("loopback") || name_lower == "lo" {
+                        continue;
+                    }
+                    
+                    let current_rx = network.received();
+                    let current_tx = network.transmitted();
+                    
+                    if let Some(&(prev_rx, prev_tx)) = prev_net_data.get(name) {
+                        if current_rx >= prev_rx {
+                            total_rx_delta += current_rx - prev_rx;
+                        }
+                        if current_tx >= prev_tx {
+                            total_tx_delta += current_tx - prev_tx;
+                        }
+                    }
+                    
+                    prev_net_data.insert(name.clone(), (current_rx, current_tx));
+                }
+                
+                let is_metered = is_metered_network::check().unwrap_or(false);
+                let rate_multiplier = if is_metered { 1.0 } else { 0.0 };
+                
+                // Real system throughput in KB/s
+                let total_system_inbound = (total_rx_delta as f64 / 1024.0) * rate_multiplier;
+                let total_system_outbound = (total_tx_delta as f64 / 1024.0) * rate_multiplier;
+
                 let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
                     paused.clone()
                 } else {
                     std::collections::HashSet::new()
                 };
 
-                let mut process_data = Vec::new();
+                let mut candidates = Vec::new();
+                let mut total_weight = 0.0;
                 
-                // Map system processes and generate real-time metrics
+                // Group candidate processes and calculate their weights
                 for (pid, process) in sys.processes() {
                     let pid_u32 = pid.as_u32();
                     let process_sockets = pid_connections.get(&pid_u32).cloned().unwrap_or_default();
@@ -306,33 +343,41 @@ pub fn run() {
                     if conn_count > 0 || process.name().eq_ignore_ascii_case("chrome.exe") || process.name().eq_ignore_ascii_case("msedge.exe") || process.name().eq_ignore_ascii_case("firefox.exe") {
                         let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                         let is_paused = paused_list.contains(&exe_path);
-
-                        // Only emit non-zero rates when on a metered/mobile connection.
-                        // This prevents phantom data from showing on regular Wi-Fi or Ethernet.
-                        let is_metered = is_metered_network::check().unwrap_or(false);
-
-                        let base_multiplier = if is_paused { 0.0 } else { 1.0 };
-                        let rate_multiplier = if is_metered { 1.0 } else { 0.0 };
-
-                        let inbound_rate = (process.cpu_usage() as f64 * 12.5 + (conn_count as f64 * 3.4)) * base_multiplier * rate_multiplier;
-                        let outbound_rate = (process.cpu_usage() as f64 * 4.2 + (conn_count as f64 * 1.1)) * base_multiplier * rate_multiplier;
                         
-                        // Memory usage in MB
-                        let mem_mb = process.memory() / (1024 * 1024);
+                        let weight = if is_paused {
+                            0.0
+                        } else {
+                            (conn_count as f64 * 3.0) + (process.cpu_usage() as f64 * 1.5) + 0.1
+                        };
                         
-                        process_data.push(ProcessNetworkData {
-                            pid: pid_u32,
-                            name: process.name().to_string(),
-                            exe_path,
-                            inbound_rate: (inbound_rate * 100.0).round() / 100.0,
-                            outbound_rate: (outbound_rate * 100.0).round() / 100.0,
-                            cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
-                            memory_usage: mem_mb,
-                            connections_count: conn_count,
-                            is_paused,
-                            sockets: process_sockets,
-                        });
+                        total_weight += weight;
+                        candidates.push((pid_u32, process, exe_path, is_paused, process_sockets, conn_count, weight));
                     }
+                }
+
+                let mut process_data = Vec::new();
+                for (pid_u32, process, exe_path, is_paused, process_sockets, conn_count, weight) in candidates {
+                    let (inbound_rate, outbound_rate) = if total_weight > 0.0 {
+                        let share = weight / total_weight;
+                        (total_system_inbound * share, total_system_outbound * share)
+                    } else {
+                        (0.0, 0.0)
+                    };
+                    
+                    let mem_mb = process.memory() / (1024 * 1024);
+                    
+                    process_data.push(ProcessNetworkData {
+                        pid: pid_u32,
+                        name: process.name().to_string(),
+                        exe_path,
+                        inbound_rate: (inbound_rate * 100.0).round() / 100.0,
+                        outbound_rate: (outbound_rate * 100.0).round() / 100.0,
+                        cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
+                        memory_usage: mem_mb,
+                        connections_count: conn_count,
+                        is_paused,
+                        sockets: process_sockets,
+                    });
                 }
                 
                 // Sort by speed descending
