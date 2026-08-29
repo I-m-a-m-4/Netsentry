@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
   Activity, 
   Search, 
@@ -76,6 +76,24 @@ interface LogEntry {
   type: 'info' | 'warning' | 'alert';
 }
 
+/// System-wide telemetry measured at the physical adapters by the Rust backend.
+/// Every total here is ABSOLUTE — assign it, never accumulate it. Accumulating is
+/// what allowed a duplicated listener to inflate "Total Data Used" to ~180 MB.
+interface SystemTelemetry {
+  rx_rate_kbps: number;
+  tx_rate_kbps: number;
+  interval_ms: number;
+  session_rx_mb: number;
+  session_tx_mb: number;
+  today_rx_mb: number;
+  today_tx_mb: number;
+}
+
+interface NetworkDataPayload {
+  processes: ProcessNetworkData[];
+  system: SystemTelemetry;
+}
+
 interface DailyTotal {
   date: string;
   total_inbound_mb: number;
@@ -93,6 +111,18 @@ const getProcessIcon = (name: string) => {
   return <AppWindow className="w-4 h-4" />;
 };
 
+/// Render a throughput figure without rounding small real values away to "0 KB/s" —
+/// a rate that read 0 while the total climbed is what made the old build look broken.
+const formatRate = (kbps: number) => {
+  if (!Number.isFinite(kbps) || kbps <= 0) return '0 KB/s';
+  if (kbps >= 1024) return `${(kbps / 1024).toFixed(2)} MB/s`;
+  if (kbps >= 10) return `${Math.round(kbps)} KB/s`;
+  return `${kbps.toFixed(1)} KB/s`;
+};
+
+const formatVolume = (mb: number) =>
+  mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+
 export default function NetSentryDashboard() {
   const [isClient, setIsClient] = useState(false);
   const [processes, setProcesses] = useState<ProcessNetworkData[]>([]);
@@ -107,7 +137,15 @@ export default function NetSentryDashboard() {
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
   const [quotaLimit, setQuotaLimit] = useState<number>(1000); // MB
-  const [accumulatedUsage, setAccumulatedUsage] = useState<number>(0); // MB
+  // Absolute telemetry from Rust. Assigned wholesale each tick, never accumulated.
+  const [system, setSystem] = useState<SystemTelemetry | null>(null);
+  // Read inside the event handler, so the quota can change without tearing down
+  // and re-registering the listener (which is how listeners used to get duplicated).
+  const quotaRef = useRef<number>(1000);
+  // Latches the quota alert so it fires on crossing, not once per tick.
+  const alertedRef = useRef<boolean>(false);
+  // PIDs already reported as suspicious, so each one is logged on transition only.
+  const flaggedPidsRef = useRef<Set<number>>(new Set());
   const [securityLogs, setSecurityLogs] = useState<LogEntry[]>([
     { timestamp: new Date().toLocaleTimeString(), message: "NetSentry security engine initialized.", type: "info" }
   ]);
@@ -175,8 +213,14 @@ export default function NetSentryDashboard() {
     setSecurityLogs(prev => [
       { timestamp: new Date().toLocaleTimeString(), message, type },
       ...prev
-    ]);
+    ].slice(0, 500)); // cap: this list is append-only for the life of the session
   };
+
+  // Keep the ref in sync so the telemetry listener can read the current quota
+  // without needing to be re-registered when the limit changes.
+  useEffect(() => {
+    quotaRef.current = quotaLimit;
+  }, [quotaLimit]);
 
   useEffect(() => {
     setIsClient(true);
@@ -207,35 +251,49 @@ export default function NetSentryDashboard() {
         // Poll every 2.5s for connection type changes (e.g. switching from Wi-Fi to hotspot)
         const costInterval = setInterval(checkConnectionStatus, 2500);
         
-        const unlisten = await listen<ProcessNetworkData[]>('network-data', (event) => {
-          setProcesses(event.payload);
-          
-          // Calculate overall stats
-          const totalInbound = event.payload.reduce((sum, p) => sum + p.inbound_rate, 0);
-          const totalOutbound = event.payload.reduce((sum, p) => sum + p.outbound_rate, 0);
-          
-          // Accumulate usage: event fires every 1 s, rates are in KB/s
-          // so per-tick usage in MB = totalKB / 1024 (no further division)
-          const totalKB = totalInbound + totalOutbound;
-          setAccumulatedUsage(prev => {
-            const addedMB = totalKB / 1024;
-            const newTotal = prev + addedMB;
-            if (newTotal >= quotaLimit && prev < quotaLimit) {
-              addLog(`Alert: Bandwidth quota of ${quotaLimit} MB exceeded!`, 'alert');
-            }
-            return newTotal;
-          });
+        const unlisten = await listen<NetworkDataPayload>('network-data', (event) => {
+          const { processes: procs, system: sys } = event.payload;
 
-          // Threat Audit logs
-          event.payload.forEach(p => {
-            if (p.connections_count > 25 && p.cpu_usage > 50 && p.name !== 'chrome.exe' && p.name !== 'msedge.exe' && p.name !== 'firefox.exe') {
+          setProcesses(procs);
+          // Plain assignment. Rust owns the byte counters and sends absolute values,
+          // so even a duplicated listener writing the same number is a no-op rather
+          // than doubling the total.
+          setSystem(sys);
+
+          // Quota alert on the crossing only.
+          const usedMb = sys.today_rx_mb + sys.today_tx_mb;
+          const limit = quotaRef.current;
+          if (usedMb >= limit) {
+            if (!alertedRef.current) {
+              alertedRef.current = true;
+              addLog(`Alert: Bandwidth quota of ${limit} MB exceeded!`, 'alert');
+            }
+          } else {
+            alertedRef.current = false;
+          }
+
+          // Threat audit: log a PID when it *becomes* suspicious. The previous version
+          // re-logged every offending process on every tick, flooding the list once a second.
+          const previouslyFlagged = flaggedPidsRef.current;
+          const nowFlagged = new Set<number>();
+          procs.forEach(p => {
+            const suspicious =
+              p.connections_count > 25 &&
+              p.cpu_usage > 50 &&
+              p.name !== 'chrome.exe' &&
+              p.name !== 'msedge.exe' &&
+              p.name !== 'firefox.exe';
+            if (!suspicious) return;
+            nowFlagged.add(p.pid);
+            if (!previouslyFlagged.has(p.pid)) {
               addLog(`Warning: Process ${p.name} (PID ${p.pid}) shows suspicious socket counts (${p.connections_count}) and high CPU usage (${p.cpu_usage}%).`, 'warning');
             }
           });
+          flaggedPidsRef.current = nowFlagged;
 
           setChartData(prev => {
             const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const newData = [...prev, { time: now, inbound: Math.round(totalInbound), outbound: Math.round(totalOutbound) }];
+            const newData = [...prev, { time: now, inbound: sys.rx_rate_kbps, outbound: sys.tx_rate_kbps }];
             if (newData.length > 20) newData.shift();
             return newData;
           });
@@ -247,19 +305,28 @@ export default function NetSentryDashboard() {
         };
       };
 
+      let cancelled = false;
       let cleanup: (() => void) | undefined;
       setupTauri().then(cb => {
-        cleanup = cb;
+        // setupTauri awaits several IPC round-trips. If the effect was torn down while
+        // it was still in flight, dispose immediately — otherwise the listener and the
+        // 2.5s interval leak, which is exactly how duplicate listeners accumulated.
+        if (cancelled) cb?.();
+        else cleanup = cb;
+      }).catch(e => {
+        console.error('NetSentry: telemetry subscription failed', e);
+        setTauriStatus('disconnected');
       });
 
       return () => {
-        if (cleanup) cleanup();
+        cancelled = true;
+        cleanup?.();
       };
     } else {
       setTauriStatus('disconnected');
       setProcesses([]);
     }
-  }, [quotaLimit]);
+  }, []);
 
   const filteredProcesses = useMemo(() => {
     return processes.filter(p => 
@@ -269,20 +336,21 @@ export default function NetSentryDashboard() {
   }, [processes, searchQuery]);
 
   const overallStats = useMemo(() => {
-    let inbound = 0;
-    let outbound = 0;
     let totalConnections = 0;
     processes.forEach(p => {
-      inbound += p.inbound_rate;
-      outbound += p.outbound_rate;
       totalConnections += p.connections_count;
     });
     return {
-      inbound: Math.round(inbound),
-      outbound: Math.round(outbound),
+      // Straight from the adapter measurement. Summing the per-process values instead
+      // would lose every share that rounded to 0 across ~90 processes.
+      inbound: system?.rx_rate_kbps ?? 0,
+      outbound: system?.tx_rate_kbps ?? 0,
       totalConnections
     };
-  }, [processes]);
+  }, [processes, system]);
+
+  // "Total Data Used" — today's persisted total, shared with the Analytics tab.
+  const usedMb = (system?.today_rx_mb ?? 0) + (system?.today_tx_mb ?? 0);
 
   const handleTogglePause = async (proc: ProcessNetworkData) => {
     const key = `pause-${proc.pid}-${proc.exe_path}`;
@@ -554,23 +622,21 @@ export default function NetSentryDashboard() {
                   </div>
                   <div>
                     <div className="text-2xl font-black text-foreground">
-                      {accumulatedUsage >= 1024 
-                        ? `${(accumulatedUsage / 1024).toFixed(2)} GB` 
-                        : `${accumulatedUsage.toFixed(1)} MB`}
+                      {formatVolume(usedMb)}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Session bandwidth consumed
+                      Today &middot; since 00:00
                     </p>
                   </div>
                   <div className="space-y-1.5 pt-1">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>Quota Usage</span>
-                      <span className="font-semibold">{Math.min(Math.round((accumulatedUsage / quotaLimit) * 100), 100)}%</span>
+                      <span className="font-semibold">{Math.min(Math.round((usedMb / quotaLimit) * 100), 100)}%</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-300 ${accumulatedUsage >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
-                        style={{ width: `${Math.min((accumulatedUsage / quotaLimit) * 100, 100)}%` }}
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${usedMb >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
+                        style={{ width: `${Math.min((usedMb / quotaLimit) * 100, 100)}%` }}
                       />
                     </div>
                   </div>
@@ -587,7 +653,7 @@ export default function NetSentryDashboard() {
                       {quotaLimit} MB
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {Math.max(0, quotaLimit - accumulatedUsage).toFixed(1)} MB buffer remaining
+                      {Math.max(0, quotaLimit - usedMb).toFixed(1)} MB buffer remaining
                     </p>
                   </div>
                   <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
@@ -609,16 +675,14 @@ export default function NetSentryDashboard() {
                   </div>
                   <div>
                     <div className="text-2xl font-black text-emerald-500">
-                      {overallStats.inbound > 1024 
-                        ? `${(overallStats.inbound / 1024).toFixed(2)} MB/s` 
-                        : `${overallStats.inbound} KB/s`}
+                      {formatRate(overallStats.inbound)}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       Live incoming packet stream
                     </p>
                   </div>
                   <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
-                    Calculated across all active sockets
+                    Measured at the physical adapter
                   </div>
                 </div>
 
@@ -630,16 +694,14 @@ export default function NetSentryDashboard() {
                   </div>
                   <div>
                     <div className="text-2xl font-black text-primary">
-                      {overallStats.outbound > 1024 
-                        ? `${(overallStats.outbound / 1024).toFixed(2)} MB/s` 
-                        : `${overallStats.outbound} KB/s`}
+                      {formatRate(overallStats.outbound)}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       Live outgoing packet stream
                     </p>
                   </div>
                   <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
-                    Telemetry updated every 1,000ms
+                    {system ? `Sampled every ${system.interval_ms.toLocaleString()}ms` : 'Awaiting telemetry'}
                   </div>
                 </div>
               </div>
@@ -700,11 +762,11 @@ export default function NetSentryDashboard() {
                 <div className="flex items-center gap-3 text-xs font-mono">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-                    <span className="text-muted-foreground">Inbound: <strong className="text-foreground">{overallStats.inbound} KB/s</strong></span>
+                    <span className="text-muted-foreground">Inbound: <strong className="text-foreground">{formatRate(overallStats.inbound)}</strong></span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <span className="text-muted-foreground">Outbound: <strong className="text-foreground">{overallStats.outbound} KB/s</strong></span>
+                    <span className="text-muted-foreground">Outbound: <strong className="text-foreground">{formatRate(overallStats.outbound)}</strong></span>
                   </div>
                 </div>
               </div>
@@ -791,8 +853,8 @@ export default function NetSentryDashboard() {
                       <th className="px-6 py-4">PID</th>
                       <th className="px-6 py-4">CPU</th>
                       <th className="px-6 py-4">Memory</th>
-                      <th className="px-6 py-4">Inbound Rate</th>
-                      <th className="px-6 py-4">Outbound Rate</th>
+                      <th className="px-6 py-4" title="Estimated split of the measured system traffic, weighted by socket count and CPU. Not measured per process.">Inbound (est.)</th>
+                      <th className="px-6 py-4" title="Estimated split of the measured system traffic, weighted by socket count and CPU. Not measured per process.">Outbound (est.)</th>
                       <th className="px-6 py-4">Sockets</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
@@ -845,14 +907,10 @@ export default function NetSentryDashboard() {
                             <td className="px-6 py-4 font-mono text-xs font-semibold">{proc.cpu_usage.toFixed(1)}%</td>
                             <td className="px-6 py-4 font-mono text-xs font-semibold">{proc.memory_usage} MB</td>
                             <td className="px-6 py-4 font-mono text-sm text-primary font-semibold">
-                              {proc.inbound_rate > 1024 
-                                ? `${(proc.inbound_rate / 1024).toFixed(1)} MB/s` 
-                                : `${proc.inbound_rate.toFixed(1)} KB/s`}
+                              ~{formatRate(proc.inbound_rate)}
                             </td>
                             <td className="px-6 py-4 font-mono text-sm text-primary font-semibold">
-                              {proc.outbound_rate > 1024 
-                                ? `${(proc.outbound_rate / 1024).toFixed(1)} MB/s` 
-                                : `${proc.outbound_rate.toFixed(1)} KB/s`}
+                              ~{formatRate(proc.outbound_rate)}
                             </td>
                             <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.connections_count}</td>
                             <td className="px-6 py-4 text-right">

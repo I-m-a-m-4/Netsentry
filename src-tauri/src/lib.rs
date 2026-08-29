@@ -3,10 +3,10 @@ use tauri::Manager;
 use tauri::Emitter;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
-use sysinfo::{System, Networks};
+use sysinfo::{System, Networks, RefreshKind, ProcessRefreshKind};
 use windows::Networking::Connectivity::NetworkInformation;
 use rusqlite::{Connection, params};
 
@@ -46,6 +46,25 @@ pub struct DailyTotal {
     pub total_outbound_mb: f64,
 }
 
+/// Real-time system-level telemetry emitted each tick.
+/// All totals are ABSOLUTE — React must assign, never accumulate.
+#[derive(Serialize, Clone, Debug)]
+pub struct SystemTelemetry {
+    pub rx_rate_kbps: f64,      // adapter-measured, divided by real elapsed seconds
+    pub tx_rate_kbps: f64,
+    pub interval_ms: u64,       // real measured sampling gap; the divisor behind the rates
+    pub session_rx_mb: f64,     // cumulative since launch
+    pub session_tx_mb: f64,
+    pub today_rx_mb: f64,       // since local midnight, persisted to SQLite
+    pub today_tx_mb: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct NetworkDataPayload {
+    pub processes: Vec<ProcessNetworkData>,
+    pub system: SystemTelemetry,
+}
+
 fn init_analytics_db(db_path: PathBuf) {
     match Connection::open(&db_path) {
         Ok(conn) => {
@@ -71,15 +90,14 @@ fn init_analytics_db(db_path: PathBuf) {
     }
 }
 
-fn record_usage_to_db(inbound_kb: f64, outbound_kb: f64) {
+/// Flush pending MB to the DB. Takes MB directly (no /1024 inside).
+fn record_usage_to_db(inbound_mb: f64, outbound_mb: f64) {
     if let Ok(db) = ANALYTICS_DB.lock() {
         if let Some(conn) = db.as_ref() {
             let now_ts = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs() as i64;
-            let inbound_mb = inbound_kb / 1024.0;
-            let outbound_mb = outbound_kb / 1024.0;
             // Upsert today's running total (SQLite resolves 'localtime' server-side)
             let _ = conn.execute(
                 "INSERT INTO daily_totals (date, total_inbound_mb, total_outbound_mb)
@@ -89,13 +107,47 @@ fn record_usage_to_db(inbound_kb: f64, outbound_kb: f64) {
                    total_outbound_mb = total_outbound_mb + excluded.total_outbound_mb",
                 params![inbound_mb, outbound_mb],
             );
-            // Insert fine-grained snapshot
+            // Insert fine-grained snapshot (store in KB for existing schema)
             let _ = conn.execute(
                 "INSERT INTO hourly_snapshots (timestamp, total_inbound_kb, total_outbound_kb) VALUES (?1, ?2, ?3)",
-                params![now_ts, inbound_kb, outbound_kb],
+                params![now_ts, inbound_mb * 1024.0, outbound_mb * 1024.0],
             );
         }
     }
+}
+
+/// Load today's already-persisted totals so we can seed in-memory accumulators.
+fn load_today_totals() -> (f64, f64) {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let result = conn.query_row(
+                "SELECT total_inbound_mb, total_outbound_mb FROM daily_totals WHERE date = date('now', 'localtime')",
+                [],
+                |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?)),
+            );
+            if let Ok(pair) = result {
+                return pair;
+            }
+        }
+    }
+    (0.0, 0.0)
+}
+
+/// The current local date exactly as SQLite formats it (`YYYY-MM-DD`).
+///
+/// Rollover detection MUST use the same clock the `daily_totals` rows are keyed by.
+/// A UTC-derived day index would flip at UTC midnight while rows are keyed by
+/// `date('now','localtime')`, so on any machine with a UTC offset the in-memory
+/// total and the persisted row would disagree for the length of that offset.
+fn local_date_string() -> String {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            if let Ok(d) = conn.query_row("SELECT date('now', 'localtime')", [], |row| row.get::<_, String>(0)) {
+                return d;
+            }
+        }
+    }
+    String::new()
 }
 
 // Helper to create a process command without spawning a console window on Windows
@@ -435,30 +487,58 @@ pub fn run() {
         // Start background event loop for streaming process network data
         let app_handle = app.handle().clone();
         std::thread::spawn(move || {
-            let mut sys = System::new_all();
+            // Use cheaper targeted refresh — we only need process name/exe/cpu/memory
+            let refresh_kind = RefreshKind::new()
+                .with_processes(ProcessRefreshKind::new().with_cpu().with_memory().with_exe(sysinfo::UpdateKind::OnlyIfNotSet));
+            let mut sys = System::new_with_specifics(refresh_kind);
+
+            // refresh_list() picks up adapters added or removed at runtime (e.g. USB tether, reconnect Wi-Fi)
             let mut networks = Networks::new_with_refreshed_list();
             let mut prev_net_data: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new();
-            // Prime prev_net_data with initial values so the very first delta is 0, not a huge spike
+            // Prime prev_net_data so the very first delta is 0, not a whole-session spike
             for (name, network) in &networks {
                 prev_net_data.insert(name.clone(), (network.total_received(), network.total_transmitted()));
             }
+
+            // Load today's already-persisted totals from SQLite so a restart continues correctly
+            let (seed_rx, seed_tx) = load_today_totals();
+            let mut today_rx_mb: f64 = seed_rx;
+            let mut today_tx_mb: f64 = seed_tx;
+            let mut session_rx_mb: f64 = 0.0;
+            let mut session_tx_mb: f64 = 0.0;
+            // Unflushed MB accumulated since last DB write
+            let mut pending_rx_mb: f64 = 0.0;
+            let mut pending_tx_mb: f64 = 0.0;
             let mut tick_count: u64 = 0;
+            // Track the local date for midnight rollover, using the same clock the
+            // daily_totals rows are keyed by so the two can never disagree.
+            let mut current_date = local_date_string();
+
+            let mut last_tick = Instant::now();
 
             loop {
-                sys.refresh_all();
-                networks.refresh(); // refresh() updates existing adapter stats; refresh_list() is for adding/removing adapters
+                let tick_start = Instant::now();
+
+                // Cheaper: refresh only processes we care about (cpu, mem, exe)
+                sys.refresh_processes_specifics(ProcessRefreshKind::new().with_cpu().with_memory().with_exe(sysinfo::UpdateKind::OnlyIfNotSet));
+                // refresh_list() detects new/removed adapters (e.g. hotspot reconnect)
+                networks.refresh_list();
                 let connections = get_active_connections();
-                
+
+                // Real elapsed time since last tick for accurate KB/s
+                let elapsed_secs = last_tick.elapsed().as_secs_f64().max(0.01);
+                last_tick = Instant::now();
+
                 // Group connections by PID
                 let mut pid_connections: std::collections::HashMap<u32, Vec<ConnectionInfo>> = std::collections::HashMap::new();
                 for conn in &connections {
                     pid_connections.entry(conn.pid).or_insert_with(Vec::new).push(conn.clone());
                 }
-                
+
                 // Calculate physical network adapter delta bytes
                 let mut total_rx_delta = 0u64;
                 let mut total_tx_delta = 0u64;
-                
+
                 for (name, network) in &networks {
                     let name_lower = name.to_lowercase();
                     // Skip ALL virtual, loopback, and tunnel adapters.
@@ -488,25 +568,55 @@ pub fn run() {
                     {
                         continue;
                     }
-                    
+
                     let current_rx = network.total_received();
                     let current_tx = network.total_transmitted();
-                    
+
                     if let Some(&(prev_rx, prev_tx)) = prev_net_data.get(name) {
-                        if current_rx >= prev_rx {
-                            total_rx_delta += current_rx - prev_rx;
-                        }
-                        if current_tx >= prev_tx {
-                            total_tx_delta += current_tx - prev_tx;
-                        }
+                        // New adapter (first time seen) has no prev entry — skip to avoid spike
+                        if current_rx >= prev_rx { total_rx_delta += current_rx - prev_rx; }
+                        if current_tx >= prev_tx { total_tx_delta += current_tx - prev_tx; }
                     }
-                    
+                    // Always update, even for new adapters (will contribute from next tick)
                     prev_net_data.insert(name.clone(), (current_rx, current_tx));
                 }
-                
-                // Real system throughput in KB/s
-                let total_system_inbound = total_rx_delta as f64 / 1024.0;
-                let total_system_outbound = total_tx_delta as f64 / 1024.0;
+
+                // Convert to KB/s using REAL elapsed time, not assumed 1 s
+                let rx_kbps = (total_rx_delta as f64 / 1024.0) / elapsed_secs;
+                let tx_kbps = (total_tx_delta as f64 / 1024.0) / elapsed_secs;
+                let tick_rx_mb = total_rx_delta as f64 / (1024.0 * 1024.0);
+                let tick_tx_mb = total_tx_delta as f64 / (1024.0 * 1024.0);
+
+                // --- Local midnight rollover check ---
+                let now_day = local_date_string();
+                if !now_day.is_empty() && now_day != current_date {
+                    // Flush pending before resetting
+                    if pending_rx_mb > 0.0 || pending_tx_mb > 0.0 {
+                        record_usage_to_db(pending_rx_mb, pending_tx_mb);
+                        pending_rx_mb = 0.0;
+                        pending_tx_mb = 0.0;
+                    }
+                    today_rx_mb = 0.0;
+                    today_tx_mb = 0.0;
+                    current_date = now_day;
+                }
+
+                // Accumulate this tick's bytes
+                today_rx_mb += tick_rx_mb;
+                today_tx_mb += tick_tx_mb;
+                session_rx_mb += tick_rx_mb;
+                session_tx_mb += tick_tx_mb;
+                pending_rx_mb += tick_rx_mb;
+                pending_tx_mb += tick_tx_mb;
+
+                tick_count += 1;
+
+                // Flush to SQLite every 15 ticks (~15 s) — crash costs at most 15 s of data
+                if tick_count % 15 == 0 && (pending_rx_mb > 0.0 || pending_tx_mb > 0.0) {
+                    record_usage_to_db(pending_rx_mb, pending_tx_mb);
+                    pending_rx_mb = 0.0;
+                    pending_tx_mb = 0.0;
+                }
 
                 let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
                     paused.clone()
@@ -516,23 +626,23 @@ pub fn run() {
 
                 let mut candidates = Vec::new();
                 let mut total_weight = 0.0;
-                
-                // Group candidate processes and calculate their weights
+
+                // Group candidate processes and calculate weights for estimated share
                 for (pid, process) in sys.processes() {
                     let pid_u32 = pid.as_u32();
                     let process_sockets = pid_connections.get(&pid_u32).cloned().unwrap_or_default();
                     let conn_count = process_sockets.len() as u32;
-                    
+
                     if conn_count > 0 || process.name().eq_ignore_ascii_case("chrome.exe") || process.name().eq_ignore_ascii_case("msedge.exe") || process.name().eq_ignore_ascii_case("firefox.exe") {
                         let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                         let is_paused = paused_list.contains(&exe_path);
-                        
+
                         let weight = if is_paused {
                             0.0
                         } else {
                             (conn_count as f64 * 3.0) + (process.cpu_usage() as f64 * 1.5) + 0.1
                         };
-                        
+
                         total_weight += weight;
                         candidates.push((pid_u32, process, exe_path, is_paused, process_sockets, conn_count, weight));
                     }
@@ -542,19 +652,19 @@ pub fn run() {
                 for (pid_u32, process, exe_path, is_paused, process_sockets, conn_count, weight) in candidates {
                     let (inbound_rate, outbound_rate) = if total_weight > 0.0 {
                         let share = weight / total_weight;
-                        (total_system_inbound * share, total_system_outbound * share)
+                        (rx_kbps * share, tx_kbps * share)
                     } else {
                         (0.0, 0.0)
                     };
-                    
+
                     let mem_mb = process.memory() / (1024 * 1024);
-                    
+
                     process_data.push(ProcessNetworkData {
                         pid: pid_u32,
                         name: process.name().to_string(),
                         exe_path,
-                        inbound_rate: (inbound_rate * 100.0).round() / 100.0,
-                        outbound_rate: (outbound_rate * 100.0).round() / 100.0,
+                        inbound_rate: (inbound_rate * 10.0).round() / 10.0,
+                        outbound_rate: (outbound_rate * 10.0).round() / 10.0,
                         cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
                         memory_usage: mem_mb,
                         connections_count: conn_count,
@@ -562,24 +672,37 @@ pub fn run() {
                         sockets: process_sockets,
                     });
                 }
-                
-                // Sort by speed descending
+
+                // Sort by combined throughput descending
                 process_data.sort_by(|a, b| {
                     let total_a = a.inbound_rate + a.outbound_rate;
                     let total_b = b.inbound_rate + b.outbound_rate;
                     total_b.partial_cmp(&total_a).unwrap_or(std::cmp::Ordering::Equal)
                 });
-                
-                // Stream metrics via Tauri event
-                let _ = app_handle.emit("network-data", process_data);
 
-                // Persist bandwidth totals to SQLite every 60 seconds
-                tick_count += 1;
-                if tick_count % 60 == 0 {
-                    record_usage_to_db(total_system_inbound, total_system_outbound);
-                }
+                // Report the interval the rates were actually divided by (previous adapter
+                // read -> this one). tick_start.elapsed() would be work time only, and would
+                // under-report the real sampling gap by however long the loop slept.
+                let interval_ms = (elapsed_secs * 1000.0).round() as u64;
 
-                std::thread::sleep(Duration::from_millis(1000));
+                // Emit combined payload — all totals are absolute; React assigns, never accumulates
+                let _ = app_handle.emit("network-data", NetworkDataPayload {
+                    processes: process_data,
+                    system: SystemTelemetry {
+                        rx_rate_kbps: (rx_kbps * 10.0).round() / 10.0,
+                        tx_rate_kbps: (tx_kbps * 10.0).round() / 10.0,
+                        interval_ms,
+                        session_rx_mb: (session_rx_mb * 1000.0).round() / 1000.0,
+                        session_tx_mb: (session_tx_mb * 1000.0).round() / 1000.0,
+                        today_rx_mb: (today_rx_mb * 1000.0).round() / 1000.0,
+                        today_tx_mb: (today_tx_mb * 1000.0).round() / 1000.0,
+                    },
+                });
+
+                // Target 1 s period — subtract work time so the loop doesn't drift
+                let work_ms = tick_start.elapsed().as_millis() as u64;
+                let sleep_ms = 1000u64.saturating_sub(work_ms);
+                std::thread::sleep(Duration::from_millis(sleep_ms));
             }
         });
       }
