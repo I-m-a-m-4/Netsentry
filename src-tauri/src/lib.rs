@@ -36,9 +36,20 @@ lazy_static::lazy_static! {
     static ref PAUSED_PROCESSES: Arc<Mutex<std::collections::HashSet<String>>> = Arc::new(Mutex::new(std::collections::HashSet::new()));
 }
 
+// Helper to create a process command without spawning a console window on Windows
+fn create_cmd(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
 // Execute netsh firewall commands
 fn run_firewall_command(args: &[&str]) -> Result<String, String> {
-    let output = Command::new("netsh")
+    let output = create_cmd("netsh")
         .args(args)
         .output()
         .map_err(|e| e.to_string())?;
@@ -92,7 +103,7 @@ fn resume_inbound_traffic(exe_path: String, name: String) -> Result<bool, String
 #[tauri::command]
 fn resume_all_traffic() -> Result<bool, String> {
     let ps_cmd = "Get-NetFirewallRule -DisplayName 'NetSentry - Block - *' | Remove-NetFirewallRule";
-    let output = Command::new("powershell")
+    let output = create_cmd("powershell")
         .args(&["-Command", ps_cmd])
         .output()
         .map_err(|e| e.to_string())?;
@@ -106,7 +117,7 @@ fn resume_all_traffic() -> Result<bool, String> {
 
 #[tauri::command]
 fn kill_process(pid: u32) -> Result<bool, String> {
-    let output = Command::new("taskkill")
+    let output = create_cmd("taskkill")
         .args(&["/F", "/PID", &pid.to_string()])
         .output()
         .map_err(|e| e.to_string())?;
@@ -154,7 +165,7 @@ fn is_metered_connection() -> Result<ConnectionStatus, String> {
 // Read netstat connections to map active ports to PIDs
 fn get_active_connections() -> Vec<ConnectionInfo> {
     let mut connections = Vec::new();
-    let output = Command::new("netstat")
+    let output = create_cmd("netstat")
         .args(&["-ano"])
         .output();
         
@@ -318,12 +329,9 @@ pub fn run() {
                     prev_net_data.insert(name.clone(), (current_rx, current_tx));
                 }
                 
-                let is_metered = is_metered_network::check().unwrap_or(false);
-                let rate_multiplier = if is_metered { 1.0 } else { 0.0 };
-                
                 // Real system throughput in KB/s
-                let total_system_inbound = (total_rx_delta as f64 / 1024.0) * rate_multiplier;
-                let total_system_outbound = (total_tx_delta as f64 / 1024.0) * rate_multiplier;
+                let total_system_inbound = total_rx_delta as f64 / 1024.0;
+                let total_system_outbound = total_tx_delta as f64 / 1024.0;
 
                 let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
                     paused.clone()
