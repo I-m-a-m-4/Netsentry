@@ -292,10 +292,14 @@ pub fn run() {
             let mut sys = System::new_all();
             let mut networks = Networks::new_with_refreshed_list();
             let mut prev_net_data: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new();
+            // Prime prev_net_data with initial values so the very first delta is 0, not a huge spike
+            for (name, network) in &networks {
+                prev_net_data.insert(name.clone(), (network.received(), network.transmitted()));
+            }
 
             loop {
                 sys.refresh_all();
-                networks.refresh_list();
+                networks.refresh(); // refresh() updates existing adapter stats; refresh_list() is for adding/removing adapters
                 let connections = get_active_connections();
                 
                 // Group connections by PID
@@ -310,7 +314,31 @@ pub fn run() {
                 
                 for (name, network) in &networks {
                     let name_lower = name.to_lowercase();
-                    if name_lower.contains("loopback") || name_lower == "lo" {
+                    // Skip ALL virtual, loopback, and tunnel adapters.
+                    // Only count genuine physical interfaces (Wi-Fi, Ethernet, WWAN/LTE).
+                    if name_lower.contains("loopback")
+                        || name_lower == "lo"
+                        || name_lower.starts_with("vethernet")
+                        || name_lower.starts_with("veth")
+                        || name_lower.contains("hyper-v")
+                        || name_lower.contains("hyperv")
+                        || name_lower.contains("virtual")
+                        || name_lower.contains("vmware")
+                        || name_lower.contains("vmnet")
+                        || name_lower.contains("virtualbox")
+                        || name_lower.contains("vbox")
+                        || name_lower.contains("tap")
+                        || name_lower.contains("tun")
+                        || name_lower.contains("wsl")
+                        || name_lower.contains("docker")
+                        || name_lower.contains("vpn")
+                        || name_lower.contains("wireguard")
+                        || name_lower.contains("nordvpn")
+                        || name_lower.contains("expressvpn")
+                        || name_lower.contains("isatap")
+                        || name_lower.contains("teredo")
+                        || name_lower.contains("6to4")
+                    {
                         continue;
                     }
                     

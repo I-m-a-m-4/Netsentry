@@ -133,10 +133,11 @@ export default function NetSentryDashboard() {
           const totalInbound = event.payload.reduce((sum, p) => sum + p.inbound_rate, 0);
           const totalOutbound = event.payload.reduce((sum, p) => sum + p.outbound_rate, 0);
           
-          // Accumulate usage (KB -> MB)
+          // Accumulate usage: event fires every 1 s, rates are in KB/s
+          // so per-tick usage in MB = totalKB / 1024 (no further division)
           const totalKB = totalInbound + totalOutbound;
           setAccumulatedUsage(prev => {
-            const addedMB = (totalKB / 1024) / 10;
+            const addedMB = totalKB / 1024;
             const newTotal = prev + addedMB;
             if (newTotal >= quotaLimit && prev < quotaLimit) {
               addLog(`Alert: Bandwidth quota of ${quotaLimit} MB exceeded!`, 'alert');
