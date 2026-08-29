@@ -243,6 +243,12 @@ pub fn run() {
   }
 
   builder
+    .on_window_event(|window, event| {
+      if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        let _ = window.hide();
+        api.prevent_close();
+      }
+    })
     .setup(|app| {
       println!("NetSentry: Entering setup...");
 

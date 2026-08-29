@@ -23,7 +23,14 @@ import {
   TrendingUp,
   Monitor,
   Coffee,
-  Heart
+  Heart,
+  Globe,
+  AppWindow,
+  Cpu,
+  MessageSquare,
+  Music,
+  Code,
+  Cloud
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -62,6 +69,17 @@ interface LogEntry {
   message: string;
   type: 'info' | 'warning' | 'alert';
 }
+
+const getProcessIcon = (name: string) => {
+  const n = name.toLowerCase();
+  if (n.includes('chrome') || n.includes('msedge') || n.includes('firefox') || n.includes('brave') || n.includes('opera')) return <Globe className="w-4 h-4" />;
+  if (n.includes('discord') || n.includes('slack') || n.includes('teams') || n.includes('whatsapp') || n.includes('telegram')) return <MessageSquare className="w-4 h-4" />;
+  if (n.includes('spotify') || n.includes('itunes')) return <Music className="w-4 h-4" />;
+  if (n.includes('code') || n.includes('ide') || n.includes('language_server') || n.includes('antigravity')) return <Code className="w-4 h-4" />;
+  if (n.includes('system') || n.includes('svchost') || n.includes('ntoskrnl')) return <Cpu className="w-4 h-4" />;
+  if (n.includes('onedrive') || n.includes('dropbox') || n.includes('drive')) return <Cloud className="w-4 h-4" />;
+  return <AppWindow className="w-4 h-4" />;
+};
 
 export default function NetSentryDashboard() {
   const [isClient, setIsClient] = useState(false);
@@ -695,7 +713,7 @@ export default function NetSentryDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${borderClass} ${tableHeaderBg} ${textMutedClass}`}>
+                    <tr className={`border-b border-border/50 text-xs font-semibold uppercase tracking-wider ${tableHeaderBg} ${textMutedClass}`}>
                       <th className="px-6 py-4">Process Name</th>
                       <th className="px-6 py-4">PID</th>
                       <th className="px-6 py-4">CPU</th>
@@ -706,7 +724,7 @@ export default function NetSentryDashboard() {
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className={`divide-y ${borderClass}`}>
+                  <tbody className="divide-y divide-border/50">
                     {filteredProcesses.length > 0 ? (
                       filteredProcesses.map((proc) => {
                         const key = `proc-${proc.pid}`;
@@ -722,9 +740,14 @@ export default function NetSentryDashboard() {
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center space-x-3">
-                                <span className={`w-2.5 h-2.5 rounded-full ${
-                                  proc.is_paused ? 'bg-red-500 animate-pulse' : isHighestDrain ? 'bg-amber-500 animate-ping' : isSuspicious ? 'bg-primary animate-bounce' : 'bg-emerald-500'
-                                }`} />
+                                <div className={`p-1.5 rounded-lg border bg-background/50 ${
+                                  proc.is_paused ? 'border-red-500/50 text-red-500 animate-pulse' : 
+                                  isHighestDrain ? 'border-amber-500/50 text-amber-500 animate-ping' : 
+                                  isSuspicious ? 'border-primary/50 text-primary animate-bounce' : 
+                                  'border-border/50 text-emerald-500'
+                                }`}>
+                                  {getProcessIcon(proc.name)}
+                                </div>
                                 <div>
                                   <div className="flex items-center space-x-1.5 flex-wrap gap-1">
                                     <span className="font-bold text-sm">{proc.name}</span>
