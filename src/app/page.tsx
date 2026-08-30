@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { 
   Activity, 
   Search, 
@@ -130,7 +131,8 @@ export default function NetSentryDashboard() {
   const [chartData, setChartData] = useState<{ time: string; inbound: number; outbound: number }[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [tauriStatus, setTauriStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // next-themes wires this to the actual class on <html> so the whole page reacts
+  const { theme, setTheme, resolvedTheme } = useTheme();
   
   // States
   const [selectedProcess, setSelectedProcess] = useState<ProcessNetworkData | null>(null);
@@ -161,9 +163,9 @@ export default function NetSentryDashboard() {
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe'
   );
 
-  // Toggle Theme
+  // Toggle Theme — setTheme from next-themes updates the <html class> directly
   const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
   };
 
   const loadDailyTotals = async () => {
@@ -432,8 +434,8 @@ export default function NetSentryDashboard() {
 
   if (!isClient) return null;
 
-  // Theme configuration (Zeneva Orange theme values)
-  const isDark = theme === 'dark';
+  // Theme configuration — use resolvedTheme so 'system' preference is respected
+  const isDark = resolvedTheme === 'dark';
   const bgClass = "bg-background text-foreground";
   const borderClass = "border-border";
   const cardClass = "bg-card border border-border/70 rounded-2xl shadow-sm p-6 hover:shadow-md transition-all duration-200";
@@ -852,7 +854,7 @@ export default function NetSentryDashboard() {
                       <th className="px-6 py-4">Process Name</th>
                       <th className="px-6 py-4">PID</th>
                       <th className="px-6 py-4">CPU</th>
-                      <th className="px-6 py-4">Memory</th>
+                      <th className="px-6 py-4" title="Estimated data used this session (inbound + outbound combined)">Data Usage</th>
                       <th className="px-6 py-4" title="Estimated split of the measured system traffic, weighted by socket count and CPU. Not measured per process.">Inbound (est.)</th>
                       <th className="px-6 py-4" title="Estimated split of the measured system traffic, weighted by socket count and CPU. Not measured per process.">Outbound (est.)</th>
                       <th className="px-6 py-4">Sockets</th>
@@ -905,7 +907,9 @@ export default function NetSentryDashboard() {
                             </td>
                             <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.pid}</td>
                             <td className="px-6 py-4 font-mono text-xs font-semibold">{proc.cpu_usage.toFixed(1)}%</td>
-                            <td className="px-6 py-4 font-mono text-xs font-semibold">{proc.memory_usage} MB</td>
+                            <td className="px-6 py-4 font-mono text-xs font-semibold text-primary">
+                              {formatVolume((proc.inbound_rate + proc.outbound_rate) / 1024)}
+                            </td>
                             <td className="px-6 py-4 font-mono text-sm text-primary font-semibold">
                               ~{formatRate(proc.inbound_rate)}
                             </td>
