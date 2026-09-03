@@ -19,6 +19,7 @@ pub struct ProcessNetworkData {
     pub outbound_rate: f64, // KB/s
     pub cpu_usage: f64,
     pub memory_usage: u64,  // MB
+    pub total_data_mb: f64, // Cumulative MB transferred by this process
     pub connections_count: u32,
     pub is_paused: bool,
     pub sockets: Vec<ConnectionInfo>,
@@ -57,6 +58,10 @@ pub struct SystemTelemetry {
     pub session_tx_mb: f64,
     pub today_rx_mb: f64,       // since local midnight, persisted to SQLite
     pub today_tx_mb: f64,
+    pub week_rx_mb: f64,        // last 7 days + today live
+    pub week_tx_mb: f64,
+    pub month_rx_mb: f64,       // last 30 days + today live
+    pub month_tx_mb: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -123,6 +128,24 @@ fn load_today_totals() -> (f64, f64) {
             let result = conn.query_row(
                 "SELECT total_inbound_mb, total_outbound_mb FROM daily_totals WHERE date = date('now', 'localtime')",
                 [],
+                |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?)),
+            );
+            if let Ok(pair) = result {
+                return pair;
+            }
+        }
+    }
+    (0.0, 0.0)
+}
+
+/// Load aggregate totals for the past N days from SQLite
+fn load_history_totals(days: u32) -> (f64, f64) {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let modifier = format!("-{} days", days);
+            let result = conn.query_row(
+                "SELECT COALESCE(SUM(total_inbound_mb), 0.0), COALESCE(SUM(total_outbound_mb), 0.0) FROM daily_totals WHERE date >= date('now', 'localtime', ?1)",
+                params![modifier],
                 |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?)),
             );
             if let Ok(pair) = result {
@@ -502,8 +525,15 @@ pub fn run() {
 
             // Load today's already-persisted totals from SQLite so a restart continues correctly
             let (seed_rx, seed_tx) = load_today_totals();
+            let (seed_week_rx, seed_week_tx) = load_history_totals(7);
+            let (seed_month_rx, seed_month_tx) = load_history_totals(30);
+
             let mut today_rx_mb: f64 = seed_rx;
             let mut today_tx_mb: f64 = seed_tx;
+            let mut week_rx_mb: f64 = seed_week_rx;
+            let mut week_tx_mb: f64 = seed_week_tx;
+            let mut month_rx_mb: f64 = seed_month_rx;
+            let mut month_tx_mb: f64 = seed_month_tx;
             let mut session_rx_mb: f64 = 0.0;
             let mut session_tx_mb: f64 = 0.0;
             // Unflushed MB accumulated since last DB write
@@ -515,6 +545,9 @@ pub fn run() {
             let mut current_date = local_date_string();
 
             let mut last_tick = Instant::now();
+
+            // Track cumulative MB transferred by each process key
+            let mut process_accumulated_mb: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
 
             loop {
                 let tick_start = Instant::now();
@@ -604,6 +637,10 @@ pub fn run() {
                 // Accumulate this tick's bytes
                 today_rx_mb += tick_rx_mb;
                 today_tx_mb += tick_tx_mb;
+                week_rx_mb += tick_rx_mb;
+                week_tx_mb += tick_tx_mb;
+                month_rx_mb += tick_rx_mb;
+                month_tx_mb += tick_tx_mb;
                 session_rx_mb += tick_rx_mb;
                 session_tx_mb += tick_tx_mb;
                 pending_rx_mb += tick_rx_mb;
@@ -657,16 +694,26 @@ pub fn run() {
                         (0.0, 0.0)
                     };
 
+                    let proc_name = process.name().to_string();
+                    let proc_key = if !exe_path.is_empty() { exe_path.clone() } else { proc_name.clone() };
+                    
+                    // Accumulate MB for this process based on throughput & tick duration
+                    let tick_proc_mb = ((inbound_rate + outbound_rate) * elapsed_secs) / 1024.0;
+                    let accum_entry = process_accumulated_mb.entry(proc_key).or_insert(0.0);
+                    *accum_entry += tick_proc_mb;
+                    let total_data_mb = *accum_entry;
+
                     let mem_mb = process.memory() / (1024 * 1024);
 
                     process_data.push(ProcessNetworkData {
                         pid: pid_u32,
-                        name: process.name().to_string(),
+                        name: proc_name,
                         exe_path,
                         inbound_rate: (inbound_rate * 10.0).round() / 10.0,
                         outbound_rate: (outbound_rate * 10.0).round() / 10.0,
                         cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
                         memory_usage: mem_mb,
+                        total_data_mb: (total_data_mb * 100.0).round() / 100.0,
                         connections_count: conn_count,
                         is_paused,
                         sockets: process_sockets,
@@ -696,6 +743,10 @@ pub fn run() {
                         session_tx_mb: (session_tx_mb * 1000.0).round() / 1000.0,
                         today_rx_mb: (today_rx_mb * 1000.0).round() / 1000.0,
                         today_tx_mb: (today_tx_mb * 1000.0).round() / 1000.0,
+                        week_rx_mb: (week_rx_mb * 1000.0).round() / 1000.0,
+                        week_tx_mb: (week_tx_mb * 1000.0).round() / 1000.0,
+                        month_rx_mb: (month_rx_mb * 1000.0).round() / 1000.0,
+                        month_tx_mb: (month_tx_mb * 1000.0).round() / 1000.0,
                     },
                 });
 
