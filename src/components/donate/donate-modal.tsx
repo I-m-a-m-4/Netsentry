@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Coffee, Heart, Sparkles, Shield, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import useDodoPayments from '@/hooks/use-dodopayments';
+import usePaddle from '@/hooks/use-paddle';
 
 interface DonateModalProps {
   open: boolean;
@@ -30,7 +30,7 @@ const PRESET_TIERS = [
 
 export default function DonateModal({ open, onOpenChange }: DonateModalProps) {
   const { toast } = useToast();
-  const { isScriptLoaded, initializeCheckout } = useDodoPayments();
+  const { isLoaded, openCheckout } = usePaddle();
 
   const [selectedAmount, setSelectedAmount] = useState<number>(9);
   const [customAmount, setCustomAmount] = useState<string>('');
@@ -55,8 +55,24 @@ export default function DonateModal({ open, onOpenChange }: DonateModalProps) {
     setIsLoading(true);
 
     try {
-      // Call Dodo Payments checkout session API or direct checkout
-      const response = await fetch('/api/donate', {
+      // First try Paddle overlay checkout
+      const opened = openCheckout({
+        customAmount: finalAmount,
+        customerEmail: email.trim() || undefined,
+        customerName: name.trim() || undefined,
+      });
+
+      if (opened) {
+        onOpenChange(false);
+        toast({
+          title: 'Opening Secure Paddle Checkout',
+          description: `Thank you for supporting NetSentry with $${finalAmount}!`,
+        });
+        return;
+      }
+
+      // Fallback API call if dynamic transaction checkout is configured
+      const response = await fetch('/api/paddle/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -71,18 +87,14 @@ export default function DonateModal({ open, onOpenChange }: DonateModalProps) {
       const data = await response.json();
 
       if (data.checkoutUrl) {
-        if (isScriptLoaded) {
-          initializeCheckout(data.checkoutUrl);
-        } else {
-          window.open(data.checkoutUrl, '_blank');
-        }
+        window.open(data.checkoutUrl, '_blank');
         onOpenChange(false);
         toast({
           title: 'Opening Secure Checkout',
           description: `Thank you for supporting NetSentry with $${finalAmount}!`,
         });
       } else {
-        // Fallback demo acknowledgment
+        // Acknowledgment if keys are being setup in sandbox
         toast({
           title: 'Thank You for Your Support! 🧡',
           description: `Your contribution of $${finalAmount} helps keep NetSentry fast, secure, and independent.`,
@@ -229,7 +241,7 @@ export default function DonateModal({ open, onOpenChange }: DonateModalProps) {
 
           <p className="text-[10px] text-center text-muted-foreground flex items-center justify-center gap-1">
             <Shield className="w-3 h-3 text-primary" />
-            Secured globally via Dodo Payments. No subscription commitments.
+            Secured globally via Paddle (Merchant of Record). No hidden fees.
           </p>
         </div>
       </DialogContent>

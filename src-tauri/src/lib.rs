@@ -368,13 +368,144 @@ fn disable_data_saver_mode() -> Result<bool, String> {
 }
 
 
-// Read netstat connections to map active ports to PIDs
-fn get_active_connections() -> Vec<ConnectionInfo> {
+// Read connections directly via Win32 IP Helper API (0 process creation overhead)
+// Fallback to netstat at most once every 5 seconds if Win32 API fails
+#[cfg(target_os = "windows")]
+fn get_active_connections_win32() -> Result<Vec<ConnectionInfo>, String> {
+    use std::net::Ipv4Addr;
+    use windows::Win32::NetworkManagement::IpHelper::{
+        GetExtendedTcpTable, GetExtendedUdpTable,
+        MIB_TCPTABLE_OWNER_PID, MIB_TCPROW_OWNER_PID,
+        MIB_UDPTABLE_OWNER_PID, MIB_UDPROW_OWNER_PID,
+        TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
+    };
+    use windows::Win32::Networking::WinSock::AF_INET;
+
     let mut connections = Vec::new();
-    let output = create_cmd("netstat")
-        .args(&["-ano"])
-        .output();
-        
+
+    unsafe {
+        // --- 1. TCP Table ---
+        let mut buf_size = 0u32;
+        let _ = GetExtendedTcpTable(
+            None,
+            &mut buf_size,
+            true,
+            AF_INET.0 as u32,
+            TCP_TABLE_OWNER_PID_ALL,
+            0,
+        );
+
+        if buf_size > 0 {
+            let mut buffer: Vec<u8> = vec![0; buf_size as usize];
+            let res = GetExtendedTcpTable(
+                Some(buffer.as_mut_ptr() as *mut _),
+                &mut buf_size,
+                true,
+                AF_INET.0 as u32,
+                TCP_TABLE_OWNER_PID_ALL,
+                0,
+            );
+
+            if res == 0 {
+                let table = *(buffer.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
+                let num_entries = table.dwNumEntries as usize;
+                let rows_ptr = buffer.as_ptr().add(std::mem::size_of::<u32>()) as *const MIB_TCPROW_OWNER_PID;
+                let rows = std::slice::from_raw_parts(rows_ptr, num_entries);
+
+                for row in rows {
+                    let local_ip = Ipv4Addr::from(u32::from_be(row.dwLocalAddr));
+                    let local_port = u16::from_be(row.dwLocalPort as u16);
+                    let remote_ip = Ipv4Addr::from(u32::from_be(row.dwRemoteAddr));
+                    let remote_port = u16::from_be(row.dwRemotePort as u16);
+
+                    let state_str = match row.dwState {
+                        1 => "CLOSED",
+                        2 => "LISTEN",
+                        3 => "SYN_SENT",
+                        4 => "SYN_RCVD",
+                        5 => "ESTABLISHED",
+                        6 => "FIN_WAIT1",
+                        7 => "FIN_WAIT2",
+                        8 => "CLOSE_WAIT",
+                        9 => "CLOSING",
+                        10 => "LAST_ACK",
+                        11 => "TIME_WAIT",
+                        12 => "DELETE_TCB",
+                        _ => "UNKNOWN",
+                    };
+
+                    connections.push(ConnectionInfo {
+                        protocol: "TCP".to_string(),
+                        local_address: format!("{}:{}", local_ip, local_port),
+                        foreign_address: format!("{}:{}", remote_ip, remote_port),
+                        state: state_str.to_string(),
+                        pid: row.dwOwningPid,
+                    });
+                }
+            }
+        }
+
+        // --- 2. UDP Table ---
+        let mut udp_buf_size = 0u32;
+        let _ = GetExtendedUdpTable(
+            None,
+            &mut udp_buf_size,
+            true,
+            AF_INET.0 as u32,
+            UDP_TABLE_OWNER_PID,
+            0,
+        );
+
+        if udp_buf_size > 0 {
+            let mut buffer: Vec<u8> = vec![0; udp_buf_size as usize];
+            let res = GetExtendedUdpTable(
+                Some(buffer.as_mut_ptr() as *mut _),
+                &mut udp_buf_size,
+                true,
+                AF_INET.0 as u32,
+                UDP_TABLE_OWNER_PID,
+                0,
+            );
+
+            if res == 0 {
+                let table = *(buffer.as_ptr() as *const MIB_UDPTABLE_OWNER_PID);
+                let num_entries = table.dwNumEntries as usize;
+                let rows_ptr = buffer.as_ptr().add(std::mem::size_of::<u32>()) as *const MIB_UDPROW_OWNER_PID;
+                let rows = std::slice::from_raw_parts(rows_ptr, num_entries);
+
+                for row in rows {
+                    let local_ip = Ipv4Addr::from(u32::from_be(row.dwLocalAddr));
+                    let local_port = u16::from_be(row.dwLocalPort as u16);
+
+                    connections.push(ConnectionInfo {
+                        protocol: "UDP".to_string(),
+                        local_address: format!("{}:{}", local_ip, local_port),
+                        foreign_address: "*:*".to_string(),
+                        state: "*".to_string(),
+                        pid: row.dwOwningPid,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(connections)
+}
+
+fn get_active_connections() -> Vec<ConnectionInfo> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(conns) = get_active_connections_win32() {
+            if !conns.is_empty() {
+                return conns;
+            }
+        }
+    }
+
+    // Fallback if non-Windows or if Win32 API fails
+    let mut connections = Vec::new();
+    let output = create_cmd("netstat").args(&["-ano"]).output();
+
     if let Ok(out) = output {
         let stdout = String::from_utf8_lossy(&out.stdout);
         for line in stdout.lines() {
@@ -384,13 +515,13 @@ fn get_active_connections() -> Vec<ConnectionInfo> {
                 if proto == "TCP" || proto == "UDP" {
                     let local = parts[1];
                     let foreign = parts[2];
-                    
+
                     let (state, pid_str) = if proto == "TCP" && parts.len() >= 5 {
                         (parts[3], parts[4])
                     } else {
                         ("*", parts[3])
                     };
-                    
+
                     if let Ok(pid) = pid_str.parse::<u32>() {
                         connections.push(ConnectionInfo {
                             protocol: proto.to_string(),

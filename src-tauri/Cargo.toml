@@ -36,7 +36,13 @@ tauri-plugin-notification = "2"
 sysinfo = "0.30"
 lazy_static = "1.4"
 is-metered-network = "0.2.1"
-windows = { version = "0.61.3", features = ["Networking", "Networking_Connectivity"] }
+windows = { version = "0.61.3", features = [
+    "Networking",
+    "Networking_Connectivity",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Foundation",
+    "Win32_Networking_WinSock"
+] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 
 
