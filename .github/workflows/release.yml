@@ -131,7 +131,7 @@ jobs:
           TAURI_SKIP_CHECK_MISMATCHED_VERSIONS: 'true'
         run: |
           npx tauri android init || true
-          npx tauri android build --apk --ignore-version-mismatches || true
+          npx tauri android build --apk --debug --ignore-version-mismatches || true
           npx tauri android build --aab --ignore-version-mismatches || true
 
       - name: Upload Android Workflow Artifacts

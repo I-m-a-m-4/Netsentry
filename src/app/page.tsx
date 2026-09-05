@@ -655,9 +655,7 @@ export default function NetSentryDashboard() {
       {/* Header */}
       <header className={`sticky top-0 z-50 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between transition-colors duration-200 ${headerBgClass} ${borderClass}`}>
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-primary rounded-xl shadow-md">
-            <NetSentryLogo className="w-6 h-6 text-white" />
-          </div>
+          <NetSentryLogo className="w-10 h-10 shadow-md rounded-xl" />
           <div>
             <h1 className="font-bricolage text-xl font-black tracking-tight text-primary">
               NetSentry

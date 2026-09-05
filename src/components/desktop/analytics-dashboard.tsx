@@ -172,13 +172,7 @@ export default function AnalyticsDashboard({
       inbound: Number(a.inbound_rate.toFixed(1)),
       outbound: Number(a.outbound_rate.toFixed(1))
     }));
-    return list.length > 0 ? list : [
-      { name: 'Brave Browser', total: 42.5, sockets: 24, inbound: 120, outbound: 35 },
-      { name: 'Antigravity IDE', total: 28.2, sockets: 16, inbound: 45, outbound: 80 },
-      { name: 'Language Server', total: 18.6, sockets: 12, inbound: 15, outbound: 30 },
-      { name: 'Chrome', total: 14.1, sockets: 8, inbound: 60, outbound: 12 },
-      { name: 'Spotify', total: 9.4, sockets: 5, inbound: 95, outbound: 4 }
-    ];
+    return list;
   }, [appAggregates]);
 
   // Chart 11: Category Distribution
@@ -192,13 +186,7 @@ export default function AnalyticsDashboard({
       value: Number(value.toFixed(1))
     })).sort((a, b) => b.value - a.value);
 
-    return res.length > 0 ? res : [
-      { name: 'Web Browser', value: 55 },
-      { name: 'Developer Tool', value: 35 },
-      { name: 'Media & Streaming', value: 15 },
-      { name: 'Windows Core', value: 8 },
-      { name: 'Social & Chat', value: 6 }
-    ];
+    return res;
   }, [appAggregates]);
 
   // Chart 14: System vs User Space
@@ -210,10 +198,7 @@ export default function AnalyticsDashboard({
       if (meta.isSystem) systemMb += a.total_mb || 0.1;
       else userMb += a.total_mb || 0.5;
     });
-    if (systemMb === 0 && userMb === 0) {
-      systemMb = 12.4;
-      userMb = 87.6;
-    }
+    
     return [
       { name: 'Desktop User Apps', value: Number(userMb.toFixed(1)), fill: '#3b82f6' },
       { name: 'Windows System Daemons', value: Number(systemMb.toFixed(1)), fill: '#94a3b8' }
@@ -230,10 +215,7 @@ export default function AnalyticsDashboard({
         else if ((s.protocol || '').toUpperCase() === 'UDP') udpCount++;
       });
     });
-    if (tcpCount === 0 && udpCount === 0) {
-      tcpCount = 68;
-      udpCount = 18;
-    }
+    
     return [
       { name: 'TCP (Reliable / Stream)', value: tcpCount, fill: '#10b981' },
       { name: 'UDP (Datagram / Real-time)', value: udpCount, fill: '#f59e0b' }
@@ -260,13 +242,7 @@ export default function AnalyticsDashboard({
       });
     });
     const res = Object.entries(portMap).map(([port, count]) => ({ port, count })).sort((a, b) => b.count - a.count).slice(0, 6);
-    return res.length > 0 ? res : [
-      { port: '443 (HTTPS)', count: 48 },
-      { port: '80 (HTTP)', count: 12 },
-      { port: '53 (DNS)', count: 8 },
-      { port: '9008 (Next.js)', count: 6 },
-      { port: '8080 (Dev)', count: 4 }
-    ];
+    return res;
   }, [processes]);
 
   // Chart 17: Socket States
@@ -279,118 +255,45 @@ export default function AnalyticsDashboard({
       });
     });
     const res = Object.entries(stateMap).map(([state, count]) => ({ state, count }));
-    return res.length > 0 ? res : [
-      { state: 'ESTABLISHED', count: 42, fill: '#10b981' },
-      { state: 'TIME_WAIT', count: 14, fill: '#f59e0b' },
-      { state: 'CLOSE_WAIT', count: 6, fill: '#ef4444' },
-      { state: 'LISTEN', count: 18, fill: '#3b82f6' }
-    ];
+    return res;
   }, [processes]);
 
   // Chart 5 & 6: Historical 30-Day Daily Usage
   const historicalData = useMemo(() => {
-    if (dailyTotals && dailyTotals.length > 0) {
-      let cumulative = 0;
-      return dailyTotals.map(d => {
-        const totalDay = d.total_inbound_mb + d.total_outbound_mb;
-        cumulative += totalDay;
-        return {
-          date: d.date.slice(5),
-          inbound: Number(d.total_inbound_mb.toFixed(1)),
-          outbound: Number(d.total_outbound_mb.toFixed(1)),
-          total: Number(totalDay.toFixed(1)),
-          cumulative: Number(cumulative.toFixed(1))
-        };
-      });
-    }
-    // Realistic fallback for demonstration
-    const days = ['08-15', '08-18', '08-21', '08-24', '08-27', '08-30', '09-02', '09-05'];
-    let c = 0;
-    return days.map((d, i) => {
-      const inMb = 150 + Math.sin(i) * 60 + i * 20;
-      const outMb = 40 + Math.cos(i) * 15 + i * 5;
-      c += inMb + outMb;
+    let cumulative = 0;
+    return (dailyTotals || []).map(d => {
+      const totalDay = d.total_inbound_mb + d.total_outbound_mb;
+      cumulative += totalDay;
       return {
-        date: d,
-        inbound: Math.round(inMb),
-        outbound: Math.round(outMb),
-        total: Math.round(inMb + outMb),
-        cumulative: Math.round(c)
+        date: d.date.slice(5),
+        inbound: Number(d.total_inbound_mb.toFixed(1)),
+        outbound: Number(d.total_outbound_mb.toFixed(1)),
+        total: Number(totalDay.toFixed(1)),
+        cumulative: Number(cumulative.toFixed(1))
       };
     });
   }, [dailyTotals]);
 
   // Chart 7: Day of Week Usage Patterns
-  const dayOfWeekData = useMemo(() => [
-    { day: 'Mon', usage: 480, inbound: 380, outbound: 100 },
-    { day: 'Tue', usage: 620, inbound: 510, outbound: 110 },
-    { day: 'Wed', usage: 590, inbound: 470, outbound: 120 },
-    { day: 'Thu', usage: 750, inbound: 620, outbound: 130 },
-    { day: 'Fri', usage: 820, inbound: 680, outbound: 140 },
-    { day: 'Sat', usage: 940, inbound: 810, outbound: 130 },
-    { day: 'Sun', usage: 710, inbound: 590, outbound: 120 }
-  ], []);
+  const dayOfWeekData = useMemo(() => [] as any[], []);
 
   // Chart 8: Weekly Comparative
-  const weeklyComparativeData = useMemo(() => [
-    { day: 'Mon', thisWeek: 480, lastWeek: 430 },
-    { day: 'Tue', thisWeek: 620, lastWeek: 550 },
-    { day: 'Wed', thisWeek: 590, lastWeek: 610 },
-    { day: 'Thu', thisWeek: 750, lastWeek: 680 },
-    { day: 'Fri', thisWeek: 820, lastWeek: 740 },
-    { day: 'Sat', thisWeek: 940, lastWeek: 890 },
-    { day: 'Sun', thisWeek: 710, lastWeek: 660 }
-  ], []);
+  const weeklyComparativeData = useMemo(() => [] as any[], []);
 
   // Chart 9: Monthly Quota Forecast
-  const quotaForecastData = useMemo(() => [
-    { day: 'Day 1', actual: 1.2, limit: 30 },
-    { day: 'Day 5', actual: 5.8, limit: 30 },
-    { day: 'Day 10', actual: 11.4, limit: 30 },
-    { day: 'Day 15', actual: 17.2, limit: 30 },
-    { day: 'Day 20', actual: 22.8, limit: 30 },
-    { day: 'Day 25 (Proj)', projected: 27.5, limit: 30 },
-    { day: 'Day 30 (Proj)', projected: 32.1, limit: 30 }
-  ], []);
+  const quotaForecastData = useMemo(() => [] as any[], []);
 
   // Chart 19: 24-Hour Diurnal Heatmap/Distribution
-  const hourlyDiurnalData = useMemo(() => {
-    return Array.from({ length: 24 }).map((_, hour) => {
-      const hStr = `${hour.toString().padStart(2, '0')}:00`;
-      // High activity in afternoon / evening
-      const weight = hour >= 9 && hour <= 23 ? Math.sin((hour - 8) / 15 * Math.PI) * 85 + 20 : 8 + Math.random() * 5;
-      return {
-        hour: hStr,
-        volumeMb: Math.round(weight),
-        inbound: Math.round(weight * 0.8),
-        outbound: Math.round(weight * 0.2)
-      };
-    });
-  }, []);
+  const hourlyDiurnalData = useMemo(() => [] as any[], []);
 
   // Chart 20: Hourly Average Speed
-  const hourlySpeedData = useMemo(() => {
-    return Array.from({ length: 12 }).map((_, i) => {
-      const h = (i * 2).toString().padStart(2, '0') + ':00';
-      const speed = 250 + Math.sin(i) * 180 + Math.random() * 40;
-      return { time: h, speedKbps: Math.round(speed) };
-    });
-  }, []);
+  const hourlySpeedData = useMemo(() => [] as any[], []);
 
   // Chart 21: Data Saver Conservation
-  const conservationData = useMemo(() => [
-    { category: 'Background Updates', blockedMb: 450, allowedMb: 50 },
-    { category: 'Telemetry & Trackers', blockedMb: 120, allowedMb: 5 },
-    { category: 'Cloud Auto-Sync', blockedMb: 380, allowedMb: 120 },
-    { category: 'Web Media Preload', blockedMb: 240, allowedMb: 320 }
-  ], []);
+  const conservationData = useMemo(() => [] as any[], []);
 
   // Chart 18: Adapter Interface Share
-  const adapterData = useMemo(() => [
-    { name: 'Wi-Fi (Primary)', value: 78, fill: '#3b82f6' },
-    { name: 'Mobile Hotspot (WWAN)', value: 18, fill: '#f59e0b' },
-    { name: 'Ethernet', value: 4, fill: '#10b981' }
-  ], []);
+  const adapterData = useMemo(() => [] as any[], []);
 
   // Chart 2: Bandwidth Saturation Meter (Current throughput vs 10 MB/s capacity)
   const saturationMeterData = useMemo(() => {
@@ -398,7 +301,7 @@ export default function AnalyticsDashboard({
     const maxCapacityKbps = 10240; // 10 MB/s baseline
     const percent = Math.min(100, Math.round((currentRate / maxCapacityKbps) * 100));
     return [
-      { name: 'Saturation', value: percent || 8, fill: percent > 80 ? '#ef4444' : percent > 50 ? '#f59e0b' : '#3b82f6' }
+      { name: 'Saturation', value: percent, fill: percent > 80 ? '#ef4444' : percent > 50 ? '#f59e0b' : '#3b82f6' }
     ];
   }, [system]);
 

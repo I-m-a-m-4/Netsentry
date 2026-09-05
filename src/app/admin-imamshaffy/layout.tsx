@@ -120,9 +120,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           href="/admin-imamshaffy"
           className="flex items-center gap-2 text-base font-black tracking-tight whitespace-nowrap shrink-0 mr-4"
         >
-          <div className="p-1.5 bg-primary/10 text-primary rounded-lg border border-primary/20">
-            <NetSentryLogo className="w-4 h-4" />
-          </div>
+          <NetSentryLogo className="w-8 h-8 rounded-lg shadow-sm" />
           <span className="bg-gradient-to-r from-primary to-orange-400 bg-clip-text text-transparent font-bricolage">
             NetSentry Command
           </span>
