@@ -1,1 +1,1 @@
-export const visualCount = async () => ({ count: 0, confidence: 0, details: "Hardware-accelerated visual counting requires active telemetry link." });
+export const visualCount = async (_opts?: { imageBase64: string }) => ({ count: 0, confidence: 0, details: "Hardware-accelerated visual counting requires active telemetry link.", items: [] as { name: string, count: number }[] });

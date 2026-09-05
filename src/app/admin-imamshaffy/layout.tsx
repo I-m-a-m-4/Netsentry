@@ -23,6 +23,7 @@ import { getAuth, signOut } from 'firebase/auth';
 import { cn } from '@/lib/utils';
 import Admin2FAGate from '@/components/admin/admin-2fa-gate';
 import { useTheme } from 'next-themes';
+import { NetSentryLogo } from '@/components/ui/netsentry-logo';
 import { Badge } from '@/components/ui/badge';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { useNativeNotifications } from '@/hooks/use-native-notifications';
@@ -86,8 +87,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               if (!isNaN(time) && time > lastViewedTime && (Date.now() - time) < 60000) {
                 notify(
                   data.type === 'anomaly' ? 'Security Anomaly Detected' : 'New System Log',
-                  data.message || data.errorMessage || 'A new event was recorded.',
-                  '/admin-imamshaffy/developer-logs'
+                  data.message || data.errorMessage || 'A new event was recorded.'
                 );
               }
             }
@@ -121,7 +121,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="flex items-center gap-2 text-base font-black tracking-tight whitespace-nowrap shrink-0 mr-4"
         >
           <div className="p-1.5 bg-primary/10 text-primary rounded-lg border border-primary/20">
-            <ShieldAlert className="w-4 h-4" />
+            <NetSentryLogo className="w-4 h-4" />
           </div>
           <span className="bg-gradient-to-r from-primary to-orange-400 bg-clip-text text-transparent font-bricolage">
             NetSentry Command

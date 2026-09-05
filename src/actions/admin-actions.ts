@@ -1,1 +1,1 @@
-export const deleteBusinessUsersAuth = async () => ({ success: true }); export default {};
+export const deleteBusinessUsersAuth = async (_uids: string[]) => ({ success: true }); export default {};

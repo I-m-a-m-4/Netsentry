@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useTheme } from 'next-themes';
+import { NetSentryLogo } from '@/components/ui/netsentry-logo';
 import { 
   Activity, 
   Search, 
@@ -20,6 +21,7 @@ import {
   FolderOpen,
   Trash2,
   Eye,
+  Radio,
   X,
   TrendingUp,
   Monitor,
@@ -34,14 +36,19 @@ import {
   Cloud,
   BarChart2,
   ShieldOff,
-  Zap
+  Zap,
+  LayoutList,
+  LayoutGrid,
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   AreaChart, 
   Area, 
-  BarChart,
-  Bar,
-  Cell,
+  BarChart, 
+  Bar, 
+  Cell, 
   XAxis, 
   YAxis, 
   Tooltip, 
@@ -49,6 +56,9 @@ import {
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import DonateModal from '@/components/donate/donate-modal';
+import { AppIcon, getProcessBrandMeta, SYSTEM_PROCESS_NAMES } from '@/components/desktop/app-icons';
+import AnalyticsDashboard from '@/components/desktop/analytics-dashboard';
+import { syncClientTelemetryToFirebase, logSecurityEventToFirebase } from '@/lib/firebase-telemetry';
 
 interface ConnectionInfo {
   protocol: string;
@@ -106,159 +116,21 @@ interface DailyTotal {
   total_outbound_mb: number;
 }
 
-// System daemon process names to identify system background processes
-const SYSTEM_PROCESS_NAMES = new Set([
-  'svchost.exe', 'system', 'idle', 'tagsrv.exe', 'nimdnsresponder.exe', 
-  'qkactivedefense.exe', 'services.exe', 'lsass.exe', 'csrss.exe', 'smss.exe', 
-  'wininit.exe', 'winlogon.exe', 'spoolsv.exe', 'searchhost.exe', 'ctfmon.exe', 
-  'taskhostw.exe', 'runtimebroker.exe', 'sihost.exe', 'fontdrvhost.exe', 
-  'dwmp.exe', 'dwm.exe', 'conhost.exe', 'wmiusr.exe', 'wmiprvse.exe', 'registry'
-]);
-
-const getProcessBrandMeta = (name: string, path: string) => {
-  const n = name.toLowerCase();
-  const p = path.toLowerCase();
-  const isSystem = SYSTEM_PROCESS_NAMES.has(n) || p.includes('windows\\system32') || p.includes('windows\\syswow64');
-
-  if (n.includes('brave')) {
-    return {
-      isSystem: false,
-      label: 'Brave Browser',
-      category: 'Desktop App',
-      icon: <Globe className="w-4 h-4 text-orange-500" />,
-      badgeBg: 'bg-orange-500/10 border-orange-500/30 text-orange-500',
-    };
-  }
-  if (n.includes('chrome')) {
-    return {
-      isSystem: false,
-      label: 'Google Chrome',
-      category: 'Desktop App',
-      icon: <Globe className="w-4 h-4 text-blue-500" />,
-      badgeBg: 'bg-blue-500/10 border-blue-500/30 text-blue-500',
-    };
-  }
-  if (n.includes('msedge') || n.includes('edge')) {
-    return {
-      isSystem: false,
-      label: 'Microsoft Edge',
-      category: 'Desktop App',
-      icon: <Globe className="w-4 h-4 text-teal-500" />,
-      badgeBg: 'bg-teal-500/10 border-teal-500/30 text-teal-500',
-    };
-  }
-  if (n.includes('firefox')) {
-    return {
-      isSystem: false,
-      label: 'Mozilla Firefox',
-      category: 'Desktop App',
-      icon: <Globe className="w-4 h-4 text-amber-500" />,
-      badgeBg: 'bg-amber-500/10 border-amber-500/30 text-amber-500',
-    };
-  }
-  if (n.includes('opera') || n.includes('vivaldi')) {
-    return {
-      isSystem: false,
-      label: 'Opera Browser',
-      category: 'Desktop App',
-      icon: <Globe className="w-4 h-4 text-red-500" />,
-      badgeBg: 'bg-red-500/10 border-red-500/30 text-red-500',
-    };
-  }
-  if (n.includes('discord')) {
-    return {
-      isSystem: false,
-      label: 'Discord',
-      category: 'Desktop App',
-      icon: <MessageSquare className="w-4 h-4 text-indigo-400" />,
-      badgeBg: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400',
-    };
-  }
-  if (n.includes('slack')) {
-    return {
-      isSystem: false,
-      label: 'Slack',
-      category: 'Desktop App',
-      icon: <MessageSquare className="w-4 h-4 text-purple-400" />,
-      badgeBg: 'bg-purple-500/10 border-purple-500/30 text-purple-400',
-    };
-  }
-  if (n.includes('teams')) {
-    return {
-      isSystem: false,
-      label: 'Microsoft Teams',
-      category: 'Desktop App',
-      icon: <MessageSquare className="w-4 h-4 text-blue-400" />,
-      badgeBg: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
-    };
-  }
-  if (n.includes('whatsapp') || n.includes('telegram')) {
-    return {
-      isSystem: false,
-      label: n.includes('whatsapp') ? 'WhatsApp' : 'Telegram',
-      category: 'Desktop App',
-      icon: <MessageSquare className="w-4 h-4 text-emerald-400" />,
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
-    };
-  }
-  if (n.includes('spotify') || n.includes('itunes') || n.includes('music')) {
-    return {
-      isSystem: false,
-      label: 'Spotify Music',
-      category: 'Desktop App',
-      icon: <Music className="w-4 h-4 text-emerald-500" />,
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500',
-    };
-  }
-  if (n.includes('code') || n.includes('antigravity') || n.includes('idea') || n.includes('devenv')) {
-    return {
-      isSystem: false,
-      label: n.includes('antigravity') ? 'Antigravity IDE' : 'VS Code',
-      category: 'Developer Tool',
-      icon: <Code className="w-4 h-4 text-sky-400" />,
-      badgeBg: 'bg-sky-500/10 border-sky-500/30 text-sky-400',
-    };
-  }
-  if (n.includes('onedrive') || n.includes('dropbox') || n.includes('googledrive')) {
-    return {
-      isSystem: false,
-      label: 'Cloud Sync',
-      category: 'Cloud Service',
-      icon: <Cloud className="w-4 h-4 text-cyan-400" />,
-      badgeBg: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400',
-    };
-  }
-  if (n.includes('steam') || n.includes('epic') || n.includes('game')) {
-    return {
-      isSystem: false,
-      label: 'Gaming App',
-      category: 'Desktop App',
-      icon: <Zap className="w-4 h-4 text-amber-400" />,
-      badgeBg: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
-    };
-  }
-  if (isSystem) {
-    return {
-      isSystem: true,
-      label: 'System Process',
-      category: 'Windows System',
-      icon: <Cpu className="w-4 h-4 text-slate-400" />,
-      badgeBg: 'bg-slate-500/10 border-slate-500/20 text-slate-400',
-    };
-  }
-
-  return {
-    isSystem: false,
-    label: name,
-    category: 'Desktop App',
-    icon: <AppWindow className="w-4 h-4 text-primary" />,
-    badgeBg: 'bg-primary/10 border-primary/20 text-primary',
-  };
-};
-
-const getProcessIcon = (name: string) => {
-  return getProcessBrandMeta(name, '').icon;
-};
+export interface GroupedProcess {
+  key: string;
+  name: string;
+  exe_path: string;
+  pids: number[];
+  total_data_mb: number;
+  inbound_rate: number;
+  outbound_rate: number;
+  connections_count: number;
+  memory_usage: number;
+  cpu_usage: number;
+  is_paused: boolean;
+  instances: ProcessNetworkData[];
+  sockets: ConnectionInfo[];
+}
 
 /// Render a throughput figure without rounding small real values away to "0 KB/s" —
 /// a rate that read 0 while the total climbed is what made the old build look broken.
@@ -283,7 +155,7 @@ export default function NetSentryDashboard() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   
   // States
-  const [selectedProcess, setSelectedProcess] = useState<ProcessNetworkData | null>(null);
+  const [selectedProcess, setSelectedProcess] = useState<ProcessNetworkData | GroupedProcess | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
   const [quotaLimit, setQuotaLimit] = useState<number>(1000); // MB
@@ -304,12 +176,24 @@ export default function NetSentryDashboard() {
   const [filterCategory, setFilterCategory] = useState<'all' | 'user' | 'system' | 'active' | 'paused'>('all');
   const [hideSystemNoise, setHideSystemNoise] = useState<boolean>(true);
   const [sortBy, setSortBy] = useState<'data_usage' | 'inbound' | 'outbound' | 'name' | 'pid'>('data_usage');
+  const [groupByApp, setGroupByApp] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isMetered, setIsMetered] = useState<boolean>(false);
   const [isWwan, setIsWwan] = useState<boolean>(false);
   const [isDataSaverMode, setIsDataSaverMode] = useState<boolean>(false);
   const [dataSaverLoading, setDataSaverLoading] = useState<boolean>(false);
   const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+
+  const toggleGroupExpand = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
   // Default whitelist: common browsers + system
   const [allowedApps, setAllowedApps] = useState<string>(
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe'
@@ -367,7 +251,10 @@ export default function NetSentryDashboard() {
     setSecurityLogs(prev => [
       { timestamp: new Date().toLocaleTimeString(), message, type },
       ...prev
-    ].slice(0, 500)); // cap: this list is append-only for the life of the session
+    ].slice(0, 500));
+    if (type === 'warning' || type === 'alert') {
+      logSecurityEventToFirebase(message, type).catch(() => {});
+    }
   };
 
   // Keep the ref in sync so the telemetry listener can read the current quota
@@ -433,7 +320,7 @@ export default function NetSentryDashboard() {
           procs.forEach(p => {
             const suspicious =
               p.connections_count > 25 &&
-              p.cpu_usage > 50 &&
+              (p.cpu_usage || 0) > 50 &&
               p.name !== 'chrome.exe' &&
               p.name !== 'msedge.exe' &&
               p.name !== 'firefox.exe';
@@ -529,6 +416,110 @@ export default function NetSentryDashboard() {
       });
   }, [processes, searchQuery, filterCategory, hideSystemNoise, sortBy]);
 
+  const displayProcesses = useMemo((): GroupedProcess[] => {
+    if (!groupByApp) {
+      return filteredProcesses.map(p => ({
+        key: `proc-${p.pid}`,
+        name: p.name,
+        exe_path: p.exe_path,
+        pids: [p.pid],
+        total_data_mb: p.total_data_mb || 0,
+        inbound_rate: p.inbound_rate || 0,
+        outbound_rate: p.outbound_rate || 0,
+        connections_count: p.connections_count || 0,
+        memory_usage: p.memory_usage || 0,
+        cpu_usage: p.cpu_usage || 0,
+        is_paused: p.is_paused,
+        instances: [p],
+        sockets: p.sockets || []
+      }));
+    }
+
+    const map = new Map<string, GroupedProcess>();
+    filteredProcesses.forEach(p => {
+      const normKey = (p.exe_path || p.name).toLowerCase();
+      const existing = map.get(normKey);
+      if (existing) {
+        existing.pids.push(p.pid);
+        existing.total_data_mb += (p.total_data_mb || 0);
+        existing.inbound_rate += (p.inbound_rate || 0);
+        existing.outbound_rate += (p.outbound_rate || 0);
+        existing.connections_count += (p.connections_count || 0);
+        existing.memory_usage += (p.memory_usage || 0);
+        existing.cpu_usage = Math.max(existing.cpu_usage, p.cpu_usage || 0);
+        existing.is_paused = existing.is_paused || p.is_paused;
+        existing.instances.push(p);
+        if (p.sockets && p.sockets.length > 0) {
+          existing.sockets = existing.sockets.concat(p.sockets);
+        }
+      } else {
+        map.set(normKey, {
+          key: `group-${normKey}`,
+          name: p.name,
+          exe_path: p.exe_path,
+          pids: [p.pid],
+          total_data_mb: p.total_data_mb || 0,
+          inbound_rate: p.inbound_rate || 0,
+          outbound_rate: p.outbound_rate || 0,
+          connections_count: p.connections_count || 0,
+          memory_usage: p.memory_usage || 0,
+          cpu_usage: p.cpu_usage || 0,
+          is_paused: p.is_paused,
+          instances: [p],
+          sockets: p.sockets || []
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (sortBy === 'data_usage') return b.total_data_mb - a.total_data_mb;
+      if (sortBy === 'inbound') return b.inbound_rate - a.inbound_rate;
+      if (sortBy === 'outbound') return b.outbound_rate - a.outbound_rate;
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      return 0;
+    });
+  }, [filteredProcesses, groupByApp, sortBy]);
+
+  // Firebase Live Telemetry Synchronization
+  useEffect(() => {
+    if (tauriStatus !== 'connected' || processes.length === 0) return;
+
+    const syncTelemetry = () => {
+      const topApps = displayProcesses.slice(0, 8).map(p => {
+        const meta = getProcessBrandMeta(p.name, p.exe_path);
+        return {
+          name: p.name,
+          label: meta.label,
+          category: meta.category,
+          totalMb: p.total_data_mb,
+          inboundRate: p.inbound_rate,
+          outboundRate: p.outbound_rate,
+          sockets: p.connections_count
+        };
+      });
+
+      syncClientTelemetryToFirebase({
+        deviceName: 'Windows-Client',
+        clientVersion: 'v2.0.0',
+        todayRxMb: system?.today_rx_mb || 0,
+        todayTxMb: system?.today_tx_mb || 0,
+        totalDataMb: (system?.today_rx_mb || 0) + (system?.today_tx_mb || 0),
+        inboundRateKbps: system?.rx_rate_kbps || 0,
+        outboundRateKbps: system?.tx_rate_kbps || 0,
+        activeSockets: processes.reduce((acc, p) => acc + (p.connections_count || 0), 0),
+        activeProcesses: processes.length,
+        isMetered,
+        isWwan,
+        isDataSaverMode,
+        topApps
+      }).catch(() => {});
+    };
+
+    syncTelemetry();
+    const interval = setInterval(syncTelemetry, 30000);
+    return () => clearInterval(interval);
+  }, [tauriStatus, processes, system, isMetered, isWwan, isDataSaverMode, displayProcesses]);
+
   const overallStats = useMemo(() => {
     let totalConnections = 0;
     processes.forEach(p => {
@@ -551,8 +542,9 @@ export default function NetSentryDashboard() {
     return (system?.today_rx_mb ?? 0) + (system?.today_tx_mb ?? 0);
   }, [system, timeRangeFilter]);
 
-  const handleTogglePause = async (proc: ProcessNetworkData) => {
-    const key = `pause-${proc.pid}-${proc.exe_path}`;
+  const handleTogglePause = async (proc: ProcessNetworkData | GroupedProcess) => {
+    const primaryPid = 'pids' in proc ? proc.pids[0] : proc.pid;
+    const key = `pause-${primaryPid}-${proc.exe_path}`;
     setActionLoading(key);
     
     try {
@@ -560,10 +552,10 @@ export default function NetSentryDashboard() {
         const { invoke } = await import('@tauri-apps/api/core');
         if (proc.is_paused) {
           await invoke('resume_inbound_traffic', { exePath: proc.exe_path, name: proc.name });
-          addLog(`Inbound rules resumed for ${proc.name} (PID ${proc.pid})`, 'info');
+          addLog(`Inbound rules resumed for ${proc.name}`, 'info');
         } else {
           await invoke('pause_inbound_traffic', { exePath: proc.exe_path, name: proc.name });
-          addLog(`Firewall blocked inbound traffic for ${proc.name} (PID ${proc.pid})`, 'warning');
+          addLog(`Firewall blocked inbound traffic for ${proc.name}`, 'warning');
         }
       }
     } catch (e) {
@@ -574,17 +566,20 @@ export default function NetSentryDashboard() {
     }
   };
 
-  const handleKillProcess = async (proc: ProcessNetworkData) => {
-    if (!confirm(`Are you sure you want to force terminate ${proc.name} (PID ${proc.pid})?`)) return;
+  const handleKillProcess = async (proc: ProcessNetworkData | GroupedProcess) => {
+    const pidsToKill = 'pids' in proc ? proc.pids : [proc.pid];
+    if (!confirm(`Are you sure you want to force terminate ${proc.name} (${pidsToKill.length > 1 ? `${pidsToKill.length} processes` : `PID ${pidsToKill[0]}`})?`)) return;
     
-    const key = `kill-${proc.pid}`;
+    const key = `kill-${pidsToKill[0]}`;
     setActionLoading(key);
     
     try {
       if (tauriStatus === 'connected') {
         const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('kill_process', { pid: proc.pid });
-        addLog(`Force terminated process ${proc.name} (PID ${proc.pid})`, 'alert');
+        for (const pid of pidsToKill) {
+          await invoke('kill_process', { pid });
+        }
+        addLog(`Force terminated ${proc.name} (${pidsToKill.length} instance(s))`, 'alert');
       }
     } catch (e) {
       console.error(e);
@@ -594,7 +589,7 @@ export default function NetSentryDashboard() {
     }
   };
 
-  const handleOpenFileLocation = async (proc: ProcessNetworkData) => {
+  const handleOpenFileLocation = async (proc: ProcessNetworkData | GroupedProcess) => {
     try {
       if (tauriStatus === 'connected') {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -624,7 +619,7 @@ export default function NetSentryDashboard() {
     }
   };
 
-  const openInspector = (proc: ProcessNetworkData) => {
+  const openInspector = (proc: ProcessNetworkData | GroupedProcess) => {
     setSelectedProcess(proc);
     setIsInspectorOpen(true);
   };
@@ -661,7 +656,7 @@ export default function NetSentryDashboard() {
       <header className={`sticky top-0 z-50 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between transition-colors duration-200 ${headerBgClass} ${borderClass}`}>
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-primary rounded-xl shadow-md">
-            <Shield className="w-6 h-6 text-white" />
+            <NetSentryLogo className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="font-bricolage text-xl font-black tracking-tight text-primary">
@@ -824,10 +819,10 @@ export default function NetSentryDashboard() {
                         isDark ? 'bg-slate-900 border-slate-750 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
                       }`}
                     >
-                      <option value="today">📅 Today (00:00)</option>
-                      <option value="session">⏱️ Live Session</option>
-                      <option value="week">📊 7 Days (Week)</option>
-                      <option value="month">🗓️ 30 Days (Month)</option>
+                      <option value="today">Today (00:00)</option>
+                      <option value="session">Live Session</option>
+                      <option value="week">7 Days (Week)</option>
+                      <option value="month">30 Days (Month)</option>
                     </select>
                   </div>
                   <div>
@@ -1040,11 +1035,35 @@ export default function NetSentryDashboard() {
                     <p className={`text-xs ${textMutedClass}`}>Monitor live bandwidth consumption & manage per-app firewall rules</p>
                   </div>
                   
-                  {/* Search Bar & Sort Dropdown */}
+                  {/* View Switcher, Sort Dropdown & Search Bar */}
                   <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                    {/* View Switcher (Table vs Grid) */}
+                    <div className={`flex items-center border rounded-xl overflow-hidden p-0.5 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                      <button
+                        onClick={() => setViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          viewMode === 'table' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Classic Table View"
+                      >
+                        <LayoutList className="w-3.5 h-3.5" />
+                        <span>Table</span>
+                      </button>
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          viewMode === 'grid' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Modern Card Grid View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span>Grid</span>
+                      </button>
+                    </div>
+
                     {/* Sort Selector */}
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Sort by:</span>
+                      <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Sort:</span>
                       <select
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as any)}
@@ -1061,7 +1080,7 @@ export default function NetSentryDashboard() {
                     </div>
 
                     {/* Search Input */}
-                    <div className="relative w-full sm:w-64">
+                    <div className="relative w-full sm:w-60">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="w-4 h-4 text-slate-400" />
                       </span>
@@ -1069,7 +1088,7 @@ export default function NetSentryDashboard() {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search app name, path, or PID..."
+                        placeholder="Search app, path, PID..."
                         className={`w-full border focus:ring-1 rounded-xl pl-9 pr-4 py-2 text-xs outline-none transition-all ${
                           isDark 
                             ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-primary focus:ring-primary focus:bg-slate-950 placeholder-slate-500' 
@@ -1080,10 +1099,29 @@ export default function NetSentryDashboard() {
                   </div>
                 </div>
 
-                {/* Filter Controls & System Noise Toggle */}
+                {/* Filter Controls, Group by App Toggle & System Noise Toggle */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/40">
-                  {/* Category Filter Tabs */}
+                  {/* Category Filter Tabs & Group Toggle */}
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Group by App Toggle */}
+                    <button
+                      onClick={() => setGroupByApp(prev => !prev)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border ${
+                        groupByApp 
+                          ? 'bg-primary/10 border-primary/30 text-primary' 
+                          : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/70'
+                      }`}
+                      title={groupByApp ? "Application Grouping ON: Merges duplicate instances" : "Showing raw individual PIDs"}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>{groupByApp ? 'Grouped by App' : 'Raw PIDs'}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary font-extrabold">
+                        {displayProcesses.length}
+                      </span>
+                    </button>
+
+                    <span className="h-4 w-[1px] bg-border mx-1" />
+
                     <button
                       onClick={() => setFilterCategory('all')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
@@ -1092,7 +1130,7 @@ export default function NetSentryDashboard() {
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
                       }`}
                     >
-                      All ({processes.length})
+                      All
                     </button>
                     <button
                       onClick={() => setFilterCategory('user')}
@@ -1112,7 +1150,7 @@ export default function NetSentryDashboard() {
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
                       }`}
                     >
-                      ⚡ Active Traffic
+                      ⚡ Active
                     </button>
                     <button
                       onClick={() => setFilterCategory('paused')}
@@ -1132,7 +1170,7 @@ export default function NetSentryDashboard() {
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
                       }`}
                     >
-                      ⚙️ System Daemons
+                      ⚙️ Daemons
                     </button>
                   </div>
 
@@ -1149,148 +1187,367 @@ export default function NetSentryDashboard() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className={`border-b border-border/50 text-xs font-semibold uppercase tracking-wider ${tableHeaderBg} ${textMutedClass}`}>
-                      <th className="px-6 py-4">Application / Process</th>
-                      <th className="px-6 py-4">PID</th>
-                      <th className="px-6 py-4" title="Cumulative network data transferred by this application in this session">Data Usage</th>
-                      <th className="px-6 py-4" title="Live inbound download rate">Inbound Rate</th>
-                      <th className="px-6 py-4" title="Live outbound upload rate">Outbound Rate</th>
-                      <th className="px-6 py-4">Sockets</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {filteredProcesses.length > 0 ? (
-                      filteredProcesses.map((proc) => {
-                        const key = `proc-${proc.pid}`;
-                        const brand = getProcessBrandMeta(proc.name, proc.exe_path);
-                        const isToggleLoading = actionLoading === `pause-${proc.pid}-${proc.exe_path}`;
-                        const isKillLoading = actionLoading === `kill-${proc.pid}`;
-                        const isHighestDrain = proc.inbound_rate > 50 && proc.inbound_rate === Math.max(...processes.map(p => p.inbound_rate));
-                        const isSuspicious = proc.connections_count > 25 && (proc.cpu_usage ?? 0) > 50 && !brand.label.includes('Chrome') && !brand.label.includes('Edge') && !brand.label.includes('Firefox');
+              {/* View Rendering: Table View or Grid View */}
+              {viewMode === 'table' ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className={`border-b border-border/50 text-xs font-semibold uppercase tracking-wider ${tableHeaderBg} ${textMutedClass}`}>
+                        <th className="px-6 py-4">Application / Process</th>
+                        <th className="px-6 py-4">PID</th>
+                        <th className="px-6 py-4" title="Cumulative network data transferred by this application in this session">Data Usage</th>
+                        <th className="px-6 py-4" title="Live inbound download rate">Inbound Rate</th>
+                        <th className="px-6 py-4" title="Live outbound upload rate">Outbound Rate</th>
+                        <th className="px-6 py-4">Sockets</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {displayProcesses.length > 0 ? (
+                        displayProcesses.map((proc) => {
+                          const brand = getProcessBrandMeta(proc.name, proc.exe_path);
+                          const isExpanded = expandedGroups.has(proc.key);
+                          const primaryPid = proc.pids[0];
+                          const isToggleLoading = actionLoading === `pause-${primaryPid}-${proc.exe_path}`;
+                          const isKillLoading = actionLoading === `kill-${primaryPid}`;
+                          const isHighestDrain = proc.inbound_rate > 50;
 
-                        return (
-                          <tr 
-                            key={key} 
-                            className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isHighestDrain ? 'bg-amber-500/5' : ''}`}
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center space-x-3">
-                                <div className={`p-2 rounded-xl border ${brand.badgeBg} flex items-center justify-center`}>
-                                  {brand.icon}
-                                </div>
-                                <div>
-                                  <div className="flex items-center space-x-1.5 flex-wrap gap-1">
-                                    <span className="font-bold text-sm text-foreground">{proc.name}</span>
-                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${brand.badgeBg}`}>
-                                      {brand.category}
-                                    </span>
-                                    {isHighestDrain && (
-                                      <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase flex items-center gap-0.5">
-                                        🔥 Data Drain
-                                      </span>
-                                    )}
-                                    {isSuspicious && (
-                                      <span className="bg-primary/10 border border-primary/30 text-primary text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase">
-                                        Suspicious
-                                      </span>
-                                    )}
+                          return (
+                            <React.Fragment key={proc.key}>
+                              <tr 
+                                className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isHighestDrain ? 'bg-amber-500/5' : ''}`}
+                              >
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center space-x-3">
+                                    <AppIcon name={proc.name} exePath={proc.exe_path} />
+                                    <div>
+                                      <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                                        <span className="font-bold text-sm text-foreground">{brand.label || proc.name}</span>
+                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${brand.badgeBg}`}>
+                                          {brand.category}
+                                        </span>
+                                        {proc.pids.length > 1 && (
+                                          <button
+                                            onClick={() => toggleGroupExpand(proc.key)}
+                                            className="bg-primary/10 border border-primary/30 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
+                                            title="Click to view child process instances"
+                                          >
+                                            <span>{proc.pids.length} Instances</span>
+                                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                          </button>
+                                        )}
+                                        {isHighestDrain && (
+                                          <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full tracking-wider uppercase flex items-center gap-0.5">
+                                            🔥 Data Drain
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className={`text-[10px] max-w-xs truncate ${textMutedClass} mt-0.5`} title={proc.exe_path}>
+                                        {proc.exe_path || 'System Executable'}
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className={`text-[10px] max-w-xs truncate ${textMutedClass} mt-0.5`} title={proc.exe_path}>
-                                    {proc.exe_path || 'System Executable'}
+                                </td>
+                                <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>
+                                  {proc.pids.length > 1 ? (
+                                    <span className="font-bold text-primary">{proc.pids[0]} +{proc.pids.length - 1}</span>
+                                  ) : (
+                                    proc.pids[0]
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 font-mono text-xs font-bold text-primary">
+                                  <span className="bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg">
+                                    {formatVolume(proc.total_data_mb || 0)}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 font-mono text-xs text-emerald-500 font-semibold">
+                                  {formatRate(proc.inbound_rate)}
+                                </td>
+                                <td className="px-6 py-4 font-mono text-xs text-primary font-semibold">
+                                  {formatRate(proc.outbound_rate)}
+                                </td>
+                                <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.connections_count}</td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="inline-flex items-center space-x-2">
+                                    {/* Open Location */}
+                                    <button
+                                      onClick={() => handleOpenFileLocation(proc)}
+                                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                        isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                                      }`}
+                                      title="Open File Location"
+                                    >
+                                      <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+                                    </button>
+
+                                    {/* Connections Inspector */}
+                                    <button
+                                      onClick={() => openInspector(proc)}
+                                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                        isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                                      }`}
+                                      title="Inspect Active Sockets"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+                                    </button>
+
+                                    {/* Force Kill */}
+                                    <button
+                                      onClick={() => handleKillProcess(proc)}
+                                      disabled={isKillLoading || tauriStatus !== 'connected'}
+                                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                        isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                      title="Force Terminate Process"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                                    </button>
+
+                                    {/* Toggle Inbound Traffic */}
+                                    <button
+                                      onClick={() => handleTogglePause(proc)}
+                                      disabled={isToggleLoading || tauriStatus !== 'connected'}
+                                      className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-all ${
+                                        proc.is_paused 
+                                          ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
+                                          : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
+                                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                      title={proc.is_paused ? 'Resume Inbound Data Flow' : 'Pause Inbound Data Flow'}
+                                    >
+                                      {isToggleLoading ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                      ) : proc.is_paused ? (
+                                        <Play className="w-3 h-3" />
+                                      ) : (
+                                        <Pause className="w-3 h-3" />
+                                      )}
+                                      <span>{proc.is_paused ? 'Resume Data' : 'Pause Data'}</span>
+                                    </button>
                                   </div>
-                                </div>
+                                </td>
+                              </tr>
+
+                              {/* Expanded Child Sub-Processes Breakdown */}
+                              {isExpanded && proc.instances.length > 1 && (
+                                <tr className={`${isDark ? 'bg-slate-950/60' : 'bg-slate-50/80'} border-b border-border/30`}>
+                                  <td colSpan={7} className="px-10 py-3">
+                                    <div className="space-y-1.5">
+                                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                        <Layers className="w-3 h-3 text-primary" />
+                                        <span>Consolidated Instances ({proc.instances.length} Sub-Processes)</span>
+                                      </div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                        {proc.instances.map(inst => (
+                                          <div key={inst.pid} className="flex items-center justify-between p-2 rounded-lg border border-border/60 bg-background/60 font-mono text-xs">
+                                            <div>
+                                              <span className="font-bold text-foreground">PID {inst.pid}</span>
+                                              <span className="text-[10px] text-muted-foreground ml-2">({inst.connections_count} sockets)</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-primary font-semibold text-[11px]">{formatVolume(inst.total_data_mb)}</span>
+                                              <button
+                                                onClick={() => handleKillProcess(inst)}
+                                                className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                                title={`Terminate PID ${inst.pid}`}
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center text-slate-500 text-sm">
+                            {tauriStatus === 'connected' 
+                              ? 'No active desktop applications match your current filters.' 
+                              : 'Please run NetSentry as a Windows Desktop application to monitor connections.'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* Modern Card Grid View */
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {displayProcesses.length > 0 ? (
+                    displayProcesses.map((proc) => {
+                      const brand = getProcessBrandMeta(proc.name, proc.exe_path);
+                      const isExpanded = expandedGroups.has(proc.key);
+                      const primaryPid = proc.pids[0];
+                      const isToggleLoading = actionLoading === `pause-${primaryPid}-${proc.exe_path}`;
+                      const isKillLoading = actionLoading === `kill-${primaryPid}`;
+
+                      return (
+                        <div 
+                          key={proc.key}
+                          className={`relative border rounded-2xl p-5 shadow-sm transition-all hover:shadow-md ${
+                            isDark ? 'bg-slate-900/50 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
+                          } ${proc.is_paused ? 'border-red-500/30 bg-red-500/5' : ''}`}
+                        >
+                          {/* Top Brand & Title */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <AppIcon name={proc.name} exePath={proc.exe_path} large />
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-bold text-sm truncate text-foreground" title={proc.name}>
+                                  {brand.label || proc.name}
+                                </h3>
+                                <p className="text-[10px] text-muted-foreground truncate" title={proc.exe_path}>
+                                  {proc.exe_path ? proc.exe_path.split('\\').pop() : 'System Process'}
+                                </p>
                               </div>
-                            </td>
-                            <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.pid}</td>
-                            <td className="px-6 py-4 font-mono text-xs font-bold text-primary">
-                              <span className="bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg">
+                            </div>
+
+                            {/* Badges */}
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${brand.badgeBg}`}>
+                                {brand.category}
+                              </span>
+                              {proc.pids.length > 1 && (
+                                <button
+                                  onClick={() => toggleGroupExpand(proc.key)}
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
+                                  title="Toggle sub-processes"
+                                >
+                                  <span>{proc.pids.length} PIDs</span>
+                                  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Metrics Body */}
+                          <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+                            {/* Data Usage Big Counter */}
+                            <div className="flex items-baseline justify-between">
+                              <span className="text-xs text-muted-foreground font-medium">Data Used:</span>
+                              <span className="font-mono text-lg font-extrabold text-primary">
                                 {formatVolume(proc.total_data_mb || 0)}
                               </span>
-                            </td>
-                            <td className="px-6 py-4 font-mono text-xs text-emerald-500 font-semibold">
-                              {formatRate(proc.inbound_rate)}
-                            </td>
-                            <td className="px-6 py-4 font-mono text-xs text-primary font-semibold">
-                              {formatRate(proc.outbound_rate)}
-                            </td>
-                            <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.connections_count}</td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="inline-flex items-center space-x-2">
-                                {/* Open Location */}
-                                <button
-                                  onClick={() => handleOpenFileLocation(proc)}
-                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                                    isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
-                                  }`}
-                                  title="Open File Location"
-                                >
-                                  <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
-                                </button>
+                            </div>
 
-                                {/* Connections Inspector */}
-                                <button
-                                  onClick={() => openInspector(proc)}
-                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                                    isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
-                                  }`}
-                                  title="Inspect Active Sockets"
-                                >
-                                  <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
-                                </button>
-
-                                {/* Force Kill */}
-                                <button
-                                  onClick={() => handleKillProcess(proc)}
-                                  disabled={isKillLoading || tauriStatus !== 'connected'}
-                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                                    isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
-                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                  title="Force Terminate Process"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
-                                </button>
-
-                                {/* Toggle Inbound Traffic */}
-                                <button
-                                  onClick={() => handleTogglePause(proc)}
-                                  disabled={isToggleLoading || tauriStatus !== 'connected'}
-                                  className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-all ${
-                                    proc.is_paused 
-                                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
-                                      : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
-                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                  title={proc.is_paused ? 'Resume Inbound Data Flow' : 'Pause Inbound Data Flow'}
-                                >
-                                  {isToggleLoading ? (
-                                    <RefreshCw className="w-3 h-3 animate-spin" />
-                                  ) : proc.is_paused ? (
-                                    <Play className="w-3 h-3" />
-                                  ) : (
-                                    <Pause className="w-3 h-3" />
-                                  )}
-                                  <span>{proc.is_paused ? 'Resume Data' : 'Pause Data'}</span>
-                                </button>
+                            {/* Inbound & Outbound Speeds */}
+                            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                              <div className="p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-between">
+                                <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                                  <ArrowDown className="w-3 h-3 text-emerald-500" />
+                                  Down
+                                </span>
+                                <span className="font-bold text-emerald-500">{formatRate(proc.inbound_rate)}</span>
                               </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-slate-500 text-sm">
-                          {tauriStatus === 'connected' 
-                            ? 'No active desktop applications match your current filters.' 
-                            : 'Please run NetSentry as a Windows Desktop application to monitor connections.'}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                              <div className="p-2 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+                                <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                                  <ArrowUp className="w-3 h-3 text-primary" />
+                                  Up
+                                </span>
+                                <span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
+                              </div>
+                            </div>
+
+                            {/* Concurrency & Sockets */}
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                              <span className="flex items-center gap-1">
+                                <Radio className="w-3 h-3 text-sky-400" />
+                                <span>{proc.connections_count} Active Sockets</span>
+                              </span>
+                              <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : `PID: ${proc.pids[0]}`}</span>
+                            </div>
+                          </div>
+
+                          {/* Expanded Sub-Processes Drawer */}
+                          {isExpanded && proc.instances.length > 1 && (
+                            <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5 max-h-40 overflow-y-auto font-mono text-[10px]">
+                              <div className="text-muted-foreground font-semibold uppercase text-[9px]">Sub-Processes ({proc.instances.length})</div>
+                              {proc.instances.map(inst => (
+                                <div key={inst.pid} className="flex items-center justify-between p-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                                  <span>PID: {inst.pid}</span>
+                                  <span className="text-primary">{formatVolume(inst.total_data_mb)}</span>
+                                  <span className="text-emerald-500">{formatRate(inst.inbound_rate)}</span>
+                                  <button
+                                    onClick={() => handleKillProcess(inst)}
+                                    className="text-slate-400 hover:text-red-500 p-1"
+                                    title="Kill PID"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Card Actions Footer */}
+                          <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                onClick={() => handleOpenFileLocation(proc)}
+                                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                                }`}
+                                title="Open Executable Location"
+                              >
+                                <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+                              </button>
+                              <button
+                                onClick={() => openInspector(proc)}
+                                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                                }`}
+                                title="Inspect Active Sockets"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+                              </button>
+                              <button
+                                onClick={() => handleKillProcess(proc)}
+                                disabled={isKillLoading || tauriStatus !== 'connected'}
+                                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                                } disabled:opacity-50`}
+                                title="Force Terminate"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => handleTogglePause(proc)}
+                              disabled={isToggleLoading || tauriStatus !== 'connected'}
+                              className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer border transition-all ${
+                                proc.is_paused
+                                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
+                                  : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20'
+                              } disabled:opacity-50`}
+                            >
+                              {isToggleLoading ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : proc.is_paused ? (
+                                <Play className="w-3.5 h-3.5" />
+                              ) : (
+                                <Pause className="w-3.5 h-3.5" />
+                              )}
+                              <span>{proc.is_paused ? 'Resume' : 'Pause Data'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-full py-12 text-center text-slate-500 text-sm">
+                      {tauriStatus === 'connected' 
+                        ? 'No active desktop applications match your current filters.' 
+                        : 'Please run NetSentry as a Windows Desktop application to monitor connections.'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -1338,153 +1595,24 @@ export default function NetSentryDashboard() {
           </div>
         )}
 
+        {/* 21-Chart Comprehensive Analytics Intelligence Dashboard */}
         {currentTab === 'analytics' && (
-          <div className="space-y-6">
-            {/* Data Saver Mode Card */}
-            <div className={`bg-card border rounded-2xl p-6 shadow-sm ${isDataSaverMode ? 'border-amber-500/40 bg-amber-500/5' : 'border-border'}`}>
-              <div className="flex flex-col md:flex-row md:items-start gap-6">
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl border ${isDataSaverMode ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-primary/10 border-primary/20 text-primary'}`}>
-                      {isDataSaverMode ? <ShieldOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <h2 className="font-bricolage text-lg font-bold">Data Saver Mode</h2>
-                      <p className="text-xs text-muted-foreground">Block all outbound traffic except whitelisted apps via Windows Firewall</p>
-                    </div>
-                    {isDataSaverMode && (
-                      <span className="ml-auto text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 animate-pulse">
-                        🔒 ACTIVE
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="pt-2 space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Whitelisted Executables (one per line)</label>
-                    <textarea
-                      value={allowedApps}
-                      onChange={e => setAllowedApps(e.target.value)}
-                      disabled={isDataSaverMode}
-                      rows={4}
-                      placeholder={`C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe`}
-                      className={`w-full font-mono text-xs p-3 rounded-xl border bg-background resize-none outline-none focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isDark ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'
-                      }`}
-                    />
-                    <p className="text-[10px] text-muted-foreground">⚠️ Requires Administrator privileges. Blocking all outbound will stop background updates, cloud sync, etc.</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 md:w-48">
-                  {!isDataSaverMode ? (
-                    <button
-                      onClick={handleEnableDataSaver}
-                      disabled={dataSaverLoading || tauriStatus !== 'connected'}
-                      className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold px-5 py-3 rounded-xl shadow-lg transition-all active:scale-95"
-                    >
-                      {dataSaverLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                      Enable Data Saver
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleDisableDataSaver}
-                      disabled={dataSaverLoading || tauriStatus !== 'connected'}
-                      className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold px-5 py-3 rounded-xl shadow-lg transition-all active:scale-95"
-                    >
-                      {dataSaverLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldOff className="w-4 h-4" />}
-                      Disable Data Saver
-                    </button>
-                  )}
-                  <button
-                    onClick={loadDailyTotals}
-                    disabled={analyticsLoading || tauriStatus !== 'connected'}
-                    className={`flex items-center justify-center gap-2 border text-xs font-semibold px-4 py-2 rounded-xl transition-all disabled:opacity-50 ${
-                      isDark ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${analyticsLoading ? 'animate-spin' : ''}`} />
-                    Refresh Analytics
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Historical Usage Chart */}
-            <div className={`bg-card border border-border rounded-2xl p-6 shadow-sm`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-border/60 pb-4">
-                <div>
-                  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
-                    <BarChart2 className="w-5 h-5 text-primary" />
-                    <span>Historical Bandwidth Usage</span>
-                  </h2>
-                  <p className="text-xs text-muted-foreground">Daily inbound + outbound totals (last 30 days, stored locally)</p>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-mono">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-                    <span className="text-muted-foreground">Inbound (MB)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <span className="text-muted-foreground">Outbound (MB)</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="h-72 w-full">
-                {analyticsLoading ? (
-                  <div className="h-full flex items-center justify-center">
-                    <RefreshCw className="w-8 h-8 text-primary/40 animate-spin" />
-                  </div>
-                ) : dailyTotals.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dailyTotals} barGap={4}>
-                      <XAxis dataKey="date" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} tickFormatter={v => v.slice(5)} />
-                      <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} label={{ value: 'MB', angle: -90, position: 'insideLeft', fill: 'currentColor' }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px', color: 'hsl(var(--foreground))' }}
-                        formatter={(value: number, name: string) => [`${value.toFixed(2)} MB`, name === 'total_inbound_mb' ? 'Inbound' : 'Outbound']}
-                      />
-                      <Bar dataKey="total_inbound_mb" name="Inbound" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="total_outbound_mb" name="Outbound" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center space-y-3 text-muted-foreground">
-                    <BarChart2 className="w-10 h-10 text-muted-foreground/30" />
-                    <p className="text-sm font-medium">No historical data yet</p>
-                    <p className="text-xs text-center max-w-xs">Usage is saved every 60 seconds. Come back after the app has been running for a minute, or click Refresh Analytics.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Summary table */}
-              {dailyTotals.length > 0 && (
-                <div className="mt-6 border-t border-border/60 pt-4">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className={`text-muted-foreground uppercase tracking-wider font-semibold border-b border-border/50`}>
-                        <th className="py-2 text-left">Date</th>
-                        <th className="py-2 text-right">Inbound</th>
-                        <th className="py-2 text-right">Outbound</th>
-                        <th className="py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/50">
-                      {[...dailyTotals].reverse().slice(0, 10).map(row => (
-                        <tr key={row.date} className="hover:bg-muted/20 transition-colors">
-                          <td className="py-2.5 font-mono">{row.date}</td>
-                          <td className="py-2.5 text-right font-mono text-primary">{row.total_inbound_mb.toFixed(2)} MB</td>
-                          <td className="py-2.5 text-right font-mono text-amber-500">{row.total_outbound_mb.toFixed(2)} MB</td>
-                          <td className="py-2.5 text-right font-mono font-bold">{(row.total_inbound_mb + row.total_outbound_mb).toFixed(2)} MB</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
+          <AnalyticsDashboard
+            processes={processes}
+            system={system}
+            dailyTotals={dailyTotals}
+            liveChartData={chartData}
+            isDark={isDark}
+            tauriStatus={tauriStatus}
+            isDataSaverMode={isDataSaverMode}
+            allowedApps={allowedApps}
+            setAllowedApps={setAllowedApps}
+            handleEnableDataSaver={handleEnableDataSaver}
+            handleDisableDataSaver={handleDisableDataSaver}
+            dataSaverLoading={dataSaverLoading}
+            loadDailyTotals={loadDailyTotals}
+            analyticsLoading={analyticsLoading}
+          />
         )}
 
       </main>
@@ -1501,7 +1629,7 @@ export default function NetSentryDashboard() {
                   <Eye className="w-5 h-5 text-primary" />
                   <span>Sockets Inspector: {selectedProcess.name}</span>
                 </h3>
-                <p className={`text-xs ${textMutedClass}`}>PID: {selectedProcess.pid} | Path: {selectedProcess.exe_path || 'System'}</p>
+                <p className={`text-xs ${textMutedClass}`}>PID: {'pids' in selectedProcess ? selectedProcess.pids[0] : selectedProcess.pid} | Path: {selectedProcess.exe_path || 'System'}</p>
               </div>
               <button 
                 onClick={() => setIsInspectorOpen(false)}
