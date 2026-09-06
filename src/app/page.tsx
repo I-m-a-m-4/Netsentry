@@ -58,6 +58,7 @@ import { Badge } from '@/components/ui/badge';
 import DonateModal from '@/components/donate/donate-modal';
 import { AppIcon, getProcessBrandMeta, SYSTEM_PROCESS_NAMES } from '@/components/desktop/app-icons';
 import AnalyticsDashboard from '@/components/desktop/analytics-dashboard';
+import AppDetailsDialog from '@/components/desktop/app-details-dialog';
 import { syncClientTelemetryToFirebase, logSecurityEventToFirebase } from '@/lib/firebase-telemetry';
 
 interface ConnectionInfo {
@@ -68,10 +69,11 @@ interface ConnectionInfo {
   pid: number;
 }
 
-interface ProcessNetworkData {
+export interface ProcessNetworkData {
   pid: number;
   name: string;
   exe_path: string;
+  icon?: string | null;
   inbound_rate: number;
   outbound_rate: number;
   cpu_usage?: number;
@@ -120,6 +122,7 @@ export interface GroupedProcess {
   key: string;
   name: string;
   exe_path: string;
+  icon?: string | null;
   pids: number[];
   total_data_mb: number;
   inbound_rate: number;
@@ -422,6 +425,7 @@ export default function NetSentryDashboard() {
         key: `proc-${p.pid}`,
         name: p.name,
         exe_path: p.exe_path,
+        icon: p.icon || null,
         pids: [p.pid],
         total_data_mb: p.total_data_mb || 0,
         inbound_rate: p.inbound_rate || 0,
@@ -441,13 +445,16 @@ export default function NetSentryDashboard() {
       const existing = map.get(normKey);
       if (existing) {
         existing.pids.push(p.pid);
-        existing.total_data_mb += (p.total_data_mb || 0);
+        // Correct aggregation: In Rust, total_data_mb is tracked per executable key.
+        // Child process instances must NEVER duplicate or multiply this cumulative usage.
+        existing.total_data_mb = Math.max(existing.total_data_mb, p.total_data_mb || 0);
         existing.inbound_rate += (p.inbound_rate || 0);
         existing.outbound_rate += (p.outbound_rate || 0);
         existing.connections_count += (p.connections_count || 0);
         existing.memory_usage += (p.memory_usage || 0);
         existing.cpu_usage = Math.max(existing.cpu_usage, p.cpu_usage || 0);
         existing.is_paused = existing.is_paused || p.is_paused;
+        existing.icon = existing.icon || p.icon || null;
         existing.instances.push(p);
         if (p.sockets && p.sockets.length > 0) {
           existing.sockets = existing.sockets.concat(p.sockets);
@@ -457,6 +464,7 @@ export default function NetSentryDashboard() {
           key: `group-${normKey}`,
           name: p.name,
           exe_path: p.exe_path,
+          icon: p.icon || null,
           pids: [p.pid],
           total_data_mb: p.total_data_mb || 0,
           inbound_rate: p.inbound_rate || 0,
@@ -516,7 +524,7 @@ export default function NetSentryDashboard() {
     };
 
     syncTelemetry();
-    const interval = setInterval(syncTelemetry, 30000);
+    const interval = setInterval(syncTelemetry, 60000);
     return () => clearInterval(interval);
   }, [tauriStatus, processes, system, isMetered, isWwan, isDataSaverMode, displayProcesses]);
 
@@ -551,11 +559,11 @@ export default function NetSentryDashboard() {
       if (tauriStatus === 'connected') {
         const { invoke } = await import('@tauri-apps/api/core');
         if (proc.is_paused) {
-          await invoke('resume_inbound_traffic', { exePath: proc.exe_path, name: proc.name });
-          addLog(`Inbound rules resumed for ${proc.name}`, 'info');
+          await invoke('resume_app_traffic', { exePath: proc.exe_path, name: proc.name });
+          addLog(`Network traffic resumed for ${proc.name}`, 'info');
         } else {
-          await invoke('pause_inbound_traffic', { exePath: proc.exe_path, name: proc.name });
-          addLog(`Firewall blocked inbound traffic for ${proc.name}`, 'warning');
+          await invoke('pause_app_traffic', { exePath: proc.exe_path, name: proc.name });
+          addLog(`Firewall blocked bidirectional network access for ${proc.name}`, 'warning');
         }
       }
     } catch (e) {
@@ -1213,11 +1221,13 @@ export default function NetSentryDashboard() {
                           return (
                             <React.Fragment key={proc.key}>
                               <tr 
-                                className={`transition-all ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isHighestDrain ? 'bg-amber-500/5' : ''}`}
+                                onClick={() => openInspector(proc)}
+                                className={`transition-all cursor-pointer ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isHighestDrain ? 'bg-amber-500/5' : ''}`}
+                                title="Click to view detailed bandwidth usage over time and sockets"
                               >
                                 <td className="px-6 py-4">
                                   <div className="flex items-center space-x-3">
-                                    <AppIcon name={proc.name} exePath={proc.exe_path} />
+                                    <AppIcon name={proc.name} exePath={proc.exe_path} iconUrl={'icon' in proc ? proc.icon : undefined} />
                                     <div>
                                       <div className="flex items-center space-x-1.5 flex-wrap gap-1">
                                         <span className="font-bold text-sm text-foreground">{brand.label || proc.name}</span>
@@ -1226,7 +1236,10 @@ export default function NetSentryDashboard() {
                                         </span>
                                         {proc.pids.length > 1 && (
                                           <button
-                                            onClick={() => toggleGroupExpand(proc.key)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleGroupExpand(proc.key);
+                                            }}
                                             className="bg-primary/10 border border-primary/30 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
                                             title="Click to view child process instances"
                                           >
@@ -1269,7 +1282,10 @@ export default function NetSentryDashboard() {
                                   <div className="inline-flex items-center space-x-2">
                                     {/* Open Location */}
                                     <button
-                                      onClick={() => handleOpenFileLocation(proc)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenFileLocation(proc);
+                                      }}
                                       className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                         isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
                                       }`}
@@ -1280,18 +1296,24 @@ export default function NetSentryDashboard() {
 
                                     {/* Connections Inspector */}
                                     <button
-                                      onClick={() => openInspector(proc)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openInspector(proc);
+                                      }}
                                       className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                         isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
                                       }`}
-                                      title="Inspect Active Sockets"
+                                      title="Inspect Active Sockets & History"
                                     >
                                       <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
                                     </button>
 
                                     {/* Force Kill */}
                                     <button
-                                      onClick={() => handleKillProcess(proc)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleKillProcess(proc);
+                                      }}
                                       disabled={isKillLoading || tauriStatus !== 'connected'}
                                       className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                         isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
@@ -1301,16 +1323,19 @@ export default function NetSentryDashboard() {
                                       <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
                                     </button>
 
-                                    {/* Toggle Inbound Traffic */}
+                                    {/* Toggle Traffic */}
                                     <button
-                                      onClick={() => handleTogglePause(proc)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleTogglePause(proc);
+                                      }}
                                       disabled={isToggleLoading || tauriStatus !== 'connected'}
                                       className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-all ${
                                         proc.is_paused 
                                           ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
                                           : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
                                       } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                      title={proc.is_paused ? 'Resume Inbound Data Flow' : 'Pause Inbound Data Flow'}
+                                      title={proc.is_paused ? 'Resume Network Access' : 'Pause & Block Network Access'}
                                     >
                                       {isToggleLoading ? (
                                         <RefreshCw className="w-3 h-3 animate-spin" />
@@ -1387,14 +1412,16 @@ export default function NetSentryDashboard() {
                       return (
                         <div 
                           key={proc.key}
-                          className={`relative border rounded-2xl p-5 shadow-sm transition-all hover:shadow-md ${
+                          onClick={() => openInspector(proc)}
+                          className={`relative border rounded-2xl p-5 shadow-sm transition-all hover:shadow-md cursor-pointer ${
                             isDark ? 'bg-slate-900/50 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
                           } ${proc.is_paused ? 'border-red-500/30 bg-red-500/5' : ''}`}
+                          title="Click to view detailed bandwidth usage over time and sockets"
                         >
                           {/* Top Brand & Title */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center space-x-3 min-w-0">
-                              <AppIcon name={proc.name} exePath={proc.exe_path} large />
+                              <AppIcon name={proc.name} exePath={proc.exe_path} iconUrl={'icon' in proc ? proc.icon : undefined} large />
                               <div className="min-w-0 flex-1">
                                 <h3 className="font-bold text-sm truncate text-foreground" title={proc.name}>
                                   {brand.label || proc.name}
@@ -1412,7 +1439,10 @@ export default function NetSentryDashboard() {
                               </span>
                               {proc.pids.length > 1 && (
                                 <button
-                                  onClick={() => toggleGroupExpand(proc.key)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleGroupExpand(proc.key);
+                                  }}
                                   className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
                                   title="Toggle sub-processes"
                                 >
@@ -1471,7 +1501,10 @@ export default function NetSentryDashboard() {
                                   <span className="text-primary">{formatVolume(inst.total_data_mb)}</span>
                                   <span className="text-emerald-500">{formatRate(inst.inbound_rate)}</span>
                                   <button
-                                    onClick={() => handleKillProcess(inst)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleKillProcess(inst);
+                                    }}
                                     className="text-slate-400 hover:text-red-500 p-1"
                                     title="Kill PID"
                                   >
@@ -1486,7 +1519,10 @@ export default function NetSentryDashboard() {
                           <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
                             <div className="flex items-center space-x-1.5">
                               <button
-                                onClick={() => handleOpenFileLocation(proc)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenFileLocation(proc);
+                                }}
                                 className={`p-2 rounded-xl border transition-all cursor-pointer ${
                                   isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
                                 }`}
@@ -1495,16 +1531,22 @@ export default function NetSentryDashboard() {
                                 <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
                               </button>
                               <button
-                                onClick={() => openInspector(proc)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openInspector(proc);
+                                }}
                                 className={`p-2 rounded-xl border transition-all cursor-pointer ${
                                   isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
                                 }`}
-                                title="Inspect Active Sockets"
+                                title="Inspect Active Sockets & History"
                               >
                                 <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
                               </button>
                               <button
-                                onClick={() => handleKillProcess(proc)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleKillProcess(proc);
+                                }}
                                 disabled={isKillLoading || tauriStatus !== 'connected'}
                                 className={`p-2 rounded-xl border transition-all cursor-pointer ${
                                   isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
@@ -1516,7 +1558,10 @@ export default function NetSentryDashboard() {
                             </div>
 
                             <button
-                              onClick={() => handleTogglePause(proc)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTogglePause(proc);
+                              }}
                               disabled={isToggleLoading || tauriStatus !== 'connected'}
                               className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer border transition-all ${
                                 proc.is_paused
@@ -1615,72 +1660,18 @@ export default function NetSentryDashboard() {
 
       </main>
 
-      {/* Sockets Details Modal */}
-      {isInspectorOpen && selectedProcess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden ${
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            <div className={`px-6 py-4 border-b flex items-center justify-between ${borderClass}`}>
-              <div>
-                <h3 className="font-bricolage text-base font-bold flex items-center space-x-2">
-                  <Eye className="w-5 h-5 text-primary" />
-                  <span>Sockets Inspector: {selectedProcess.name}</span>
-                </h3>
-                <p className={`text-xs ${textMutedClass}`}>PID: {'pids' in selectedProcess ? selectedProcess.pids[0] : selectedProcess.pid} | Path: {selectedProcess.exe_path || 'System'}</p>
-              </div>
-              <button 
-                onClick={() => setIsInspectorOpen(false)}
-                className={`p-1.5 rounded-lg border hover:bg-slate-900 transition-all ${
-                  isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="p-6 max-h-[400px] overflow-y-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className={`border-b ${borderClass} ${textMutedClass} uppercase tracking-wider font-semibold`}>
-                    <th className="py-2.5">Protocol</th>
-                    <th className="py-2.5">Local Address</th>
-                    <th className="py-2.5">Foreign Address</th>
-                    <th className="py-2.5 text-right">State</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${borderClass}`}>
-                  {selectedProcess.sockets && selectedProcess.sockets.length > 0 ? (
-                    selectedProcess.sockets.map((sock, i) => (
-                      <tr key={i} className="hover:bg-slate-900/10">
-                        <td className="py-3 font-semibold text-primary">{sock.protocol}</td>
-                        <td className="py-3 font-mono">{sock.local_address}</td>
-                        <td className="py-3 font-mono">{sock.foreign_address}</td>
-                        <td className="py-3 text-right font-mono text-slate-450">{sock.state}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="py-6 text-center text-slate-500">
-                        No active connection sockets found for this process.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className={`px-6 py-4 border-t flex justify-end bg-slate-950/20 ${borderClass}`}>
-              <button
-                onClick={() => setIsInspectorOpen(false)}
-                className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-semibold cursor-pointer transition-all"
-              >
-                Close Inspector
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* App Details & Historical Telemetry Inspector Modal */}
+      <AppDetailsDialog
+        isOpen={isInspectorOpen}
+        onClose={() => setIsInspectorOpen(false)}
+        process={selectedProcess}
+        isDark={isDark}
+        tauriStatus={tauriStatus}
+        actionLoading={actionLoading}
+        onTogglePause={handleTogglePause}
+        onKillProcess={handleKillProcess}
+        onOpenFileLocation={handleOpenFileLocation}
+      />
 
       <footer className={`mt-auto border-t px-6 py-6 text-center text-xs ${borderClass} ${textMutedClass} ${isDark ? 'bg-slate-950' : 'bg-white shadow-inner'}`}>
         <p>© 2026 NetSentry. All rights reserved. Administrator privileges required for firewall adjustments.</p>

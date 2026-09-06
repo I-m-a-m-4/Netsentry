@@ -844,7 +844,7 @@ export default function AdminDashboardPage() {
                       <div key={idx} className="p-3 rounded-xl border border-border bg-muted/10 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
-                            <AppIcon name={app.name} />
+                            <AppIcon name={app.name} iconUrl={app.icon} />
                             <div>
                               <div className="font-semibold text-xs text-foreground">
                                 {app.label || app.name}

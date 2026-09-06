@@ -15,6 +15,7 @@ pub struct ProcessNetworkData {
     pub pid: u32,
     pub name: String,
     pub exe_path: String,
+    pub icon: Option<String>,
     pub inbound_rate: f64,  // KB/s
     pub outbound_rate: f64, // KB/s
     pub cpu_usage: f64,
@@ -34,10 +35,229 @@ pub struct ConnectionInfo {
     pub pid: u32,
 }
 
-// Track active firewall block rules by program path
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppHistoryEntry {
+    pub date: String,
+    pub inbound_mb: f64,
+    pub outbound_mb: f64,
+    pub total_mb: f64,
+}
+
+// Track active firewall block rules by program path and cached app icons
 lazy_static::lazy_static! {
     static ref PAUSED_PROCESSES: Arc<Mutex<std::collections::HashSet<String>>> = Arc::new(Mutex::new(std::collections::HashSet::new()));
     static ref ANALYTICS_DB: Mutex<Option<Connection>> = Mutex::new(None);
+    static ref ICON_CACHE: Mutex<std::collections::HashMap<String, String>> = Mutex::new(std::collections::HashMap::new());
+}
+
+fn to_base64(data: &[u8]) -> String {
+    const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = if chunk.len() > 1 { chunk[1] } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] } else { 0 };
+
+        let n = ((b0 as u32) << 16) | ((b1 as u32) << 8) | (b2 as u32);
+        out.push(B64[((n >> 18) & 0x3F) as usize] as char);
+        out.push(B64[((n >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(B64[((n >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(B64[(n & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+#[cfg(target_os = "windows")]
+fn extract_exe_icon_base64(exe_path: &str) -> Option<String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::Shell::ExtractIconExW;
+    use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, DestroyIcon, HICON, ICONINFO};
+    use windows::Win32::Graphics::Gdi::{
+        CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW,
+        BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC, HGDIOBJ
+    };
+
+    if exe_path.is_empty() || !std::path::Path::new(exe_path).exists() {
+        return None;
+    }
+
+    let path_wide: Vec<u16> = OsStr::new(exe_path).encode_wide().chain(std::iter::once(0)).collect();
+    let mut hicon_large = HICON::default();
+    let count = unsafe {
+        ExtractIconExW(
+            PCWSTR(path_wide.as_ptr()),
+            0,
+            Some(&mut hicon_large),
+            None,
+            1,
+        )
+    };
+
+    if count == 0 || hicon_large.is_invalid() {
+        return None;
+    }
+
+    let hicon = hicon_large;
+    let mut icon_info = ICONINFO::default();
+    let got_info = unsafe { GetIconInfo(hicon, &mut icon_info) };
+
+    if got_info.is_err() {
+        unsafe { let _ = DestroyIcon(hicon); }
+        return None;
+    }
+
+    let hbm_color = icon_info.hbmColor;
+    let hbm_mask = icon_info.hbmMask;
+
+    let mut bmp = BITMAP::default();
+    let got_bmp = unsafe {
+        GetObjectW(
+            HGDIOBJ(hbm_color.0),
+            std::mem::size_of::<BITMAP>() as i32,
+            Some(&mut bmp as *mut _ as *mut _),
+        )
+    };
+
+    if got_bmp == 0 {
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(hbm_color.0));
+            let _ = DeleteObject(HGDIOBJ(hbm_mask.0));
+            let _ = DestroyIcon(hicon);
+        }
+        return None;
+    }
+
+    let width = bmp.bmWidth as i32;
+    let height = bmp.bmHeight as i32;
+    let abs_height = height.abs();
+
+    if width <= 0 || abs_height <= 0 || width > 256 || abs_height > 256 {
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(hbm_color.0));
+            let _ = DeleteObject(HGDIOBJ(hbm_mask.0));
+            let _ = DestroyIcon(hicon);
+        }
+        return None;
+    }
+
+    let hdc: HDC = unsafe { CreateCompatibleDC(None) };
+    let mut bi = BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width,
+            biHeight: abs_height,
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            biSizeImage: (width * abs_height * 4) as u32,
+            biXPelsPerMeter: 0,
+            biYPelsPerMeter: 0,
+            biClrUsed: 0,
+            biClrImportant: 0,
+        },
+        bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default(); 1],
+    };
+
+    let image_size = (width * abs_height * 4) as usize;
+    let mut raw_pixels: Vec<u8> = vec![0u8; image_size];
+
+    let lines = unsafe {
+        GetDIBits(
+            hdc,
+            hbm_color,
+            0,
+            abs_height as u32,
+            Some(raw_pixels.as_mut_ptr() as *mut _),
+            &mut bi,
+            DIB_RGB_COLORS,
+        )
+    };
+
+    unsafe {
+        let _ = DeleteDC(hdc);
+        let _ = DeleteObject(HGDIOBJ(hbm_color.0));
+        let _ = DeleteObject(HGDIOBJ(hbm_mask.0));
+        let _ = DestroyIcon(hicon);
+    }
+
+    if lines == 0 {
+        return None;
+    }
+
+    // Ensure alpha transparency is valid (some Windows icons have 0 in alpha channel for opaque pixels)
+    let mut has_non_zero_alpha = false;
+    for chunk in raw_pixels.chunks_exact(4) {
+        if chunk[3] != 0 {
+            has_non_zero_alpha = true;
+            break;
+        }
+    }
+    if !has_non_zero_alpha {
+        for chunk in raw_pixels.chunks_exact_mut(4) {
+            chunk[3] = 255;
+        }
+    }
+
+    // Construct 32-bit BMP in memory (Webview2 natively supports BMP data URLs)
+    let file_header_size = 14u32;
+    let info_header_size = 40u32;
+    let bf_off_bits = file_header_size + info_header_size;
+    let bf_size = bf_off_bits + image_size as u32;
+
+    let mut bmp_data = Vec::with_capacity(bf_size as usize);
+    bmp_data.extend_from_slice(&0x4D42u16.to_le_bytes()); // 'BM'
+    bmp_data.extend_from_slice(&bf_size.to_le_bytes());
+    bmp_data.extend_from_slice(&0u32.to_le_bytes()); // reserved
+    bmp_data.extend_from_slice(&bf_off_bits.to_le_bytes());
+
+    bmp_data.extend_from_slice(&info_header_size.to_le_bytes());
+    bmp_data.extend_from_slice(&width.to_le_bytes());
+    bmp_data.extend_from_slice(&abs_height.to_le_bytes());
+    bmp_data.extend_from_slice(&1u16.to_le_bytes()); // planes
+    bmp_data.extend_from_slice(&32u16.to_le_bytes()); // bpp
+    bmp_data.extend_from_slice(&0u32.to_le_bytes()); // compression BI_RGB
+    bmp_data.extend_from_slice(&(image_size as u32).to_le_bytes());
+    bmp_data.extend_from_slice(&0u32.to_le_bytes());
+    bmp_data.extend_from_slice(&0u32.to_le_bytes());
+    bmp_data.extend_from_slice(&0u32.to_le_bytes());
+    bmp_data.extend_from_slice(&0u32.to_le_bytes());
+
+    bmp_data.extend_from_slice(&raw_pixels);
+
+    let b64 = to_base64(&bmp_data);
+    Some(format!("data:image/bmp;base64,{}", b64))
+}
+
+pub fn get_cached_icon(exe_path: &str) -> Option<String> {
+    if exe_path.is_empty() {
+        return None;
+    }
+    if let Ok(cache) = ICON_CACHE.lock() {
+        if let Some(url) = cache.get(exe_path) {
+            return Some(url.clone());
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(extracted) = extract_exe_icon_base64(exe_path) {
+            if let Ok(mut cache) = ICON_CACHE.lock() {
+                cache.insert(exe_path.to_string(), extracted.clone());
+            }
+            return Some(extracted);
+        }
+    }
+    None
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -71,9 +291,15 @@ pub struct NetworkDataPayload {
 }
 
 fn init_analytics_db(db_path: PathBuf) {
+    if let Some(parent) = db_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     match Connection::open(&db_path) {
         Ok(conn) => {
             let _ = conn.execute_batch("
+                PRAGMA journal_mode = WAL;
+                PRAGMA synchronous = NORMAL;
+
                 CREATE TABLE IF NOT EXISTS daily_totals (
                     date TEXT PRIMARY KEY,
                     total_inbound_mb REAL NOT NULL DEFAULT 0.0,
@@ -85,6 +311,17 @@ fn init_analytics_db(db_path: PathBuf) {
                     total_inbound_kb REAL NOT NULL,
                     total_outbound_kb REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS app_daily_totals (
+                    date TEXT NOT NULL,
+                    app_key TEXT NOT NULL,
+                    app_name TEXT NOT NULL,
+                    exe_path TEXT NOT NULL,
+                    inbound_mb REAL NOT NULL DEFAULT 0.0,
+                    outbound_mb REAL NOT NULL DEFAULT 0.0,
+                    PRIMARY KEY (date, app_key)
+                );
+                CREATE INDEX IF NOT EXISTS idx_app_daily_date ON app_daily_totals(date);
+                CREATE INDEX IF NOT EXISTS idx_app_daily_key ON app_daily_totals(app_key, date);
             ");
             if let Ok(mut db) = ANALYTICS_DB.lock() {
                 *db = Some(conn);
@@ -93,6 +330,44 @@ fn init_analytics_db(db_path: PathBuf) {
         }
         Err(e) => println!("NetSentry: Failed to open analytics DB: {}", e),
     }
+}
+
+fn record_batch_app_usage_to_db(items: &std::collections::HashMap<String, (String, String, f64, f64)>) {
+    if let Ok(mut db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_mut() {
+            if let Ok(tx) = conn.transaction() {
+                for (app_key, (app_name, exe_path, in_mb, out_mb)) in items {
+                    let _ = tx.execute(
+                        "INSERT INTO app_daily_totals (date, app_key, app_name, exe_path, inbound_mb, outbound_mb)
+                         VALUES (date('now', 'localtime'), ?1, ?2, ?3, ?4, ?5)
+                         ON CONFLICT(date, app_key) DO UPDATE SET
+                           inbound_mb = inbound_mb + excluded.inbound_mb,
+                           outbound_mb = outbound_mb + excluded.outbound_mb,
+                           app_name = excluded.app_name,
+                           exe_path = excluded.exe_path",
+                        params![app_key.to_lowercase(), app_name, exe_path, in_mb, out_mb],
+                    );
+                }
+                let _ = tx.commit();
+            }
+        }
+    }
+}
+
+fn load_today_app_totals() -> std::collections::HashMap<String, f64> {
+    let mut map = std::collections::HashMap::new();
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            if let Ok(mut stmt) = conn.prepare("SELECT app_key, (inbound_mb + outbound_mb) FROM app_daily_totals WHERE date = date('now', 'localtime')") {
+                if let Ok(rows) = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))) {
+                    for r in rows.filter_map(|x| x.ok()) {
+                        map.insert(r.0, r.1);
+                    }
+                }
+            }
+        }
+    }
+    map
 }
 
 /// Flush pending MB to the DB. Takes MB directly (no /1024 inside).
@@ -199,21 +474,49 @@ fn run_firewall_command(args: &[&str]) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn pause_inbound_traffic(exe_path: String, name: String) -> Result<bool, String> {
-    let rule_name = format!("NetSentry - Block - {}", name);
-    let _ = run_firewall_command(&[
-        "advfirewall", "firewall", "delete", "rule",
-        &format!("name={}", rule_name)
-    ]);
-    
-    run_firewall_command(&[
+fn pause_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
+    if exe_path.is_empty() {
+        return Err("Cannot block network: executable path is missing".to_string());
+    }
+
+    let rule_out = format!("NetSentry - Block - Out - {}", name);
+    let rule_in = format!("NetSentry - Block - In - {}", name);
+    let legacy_rule = format!("NetSentry - Block - {}", name);
+
+    // Clean up any existing rules for this app
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_out)]);
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_in)]);
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", legacy_rule)]);
+
+    // 1. Block OUTBOUND traffic (crucial: prevents browsers and apps from initiating network requests)
+    let out_res = run_firewall_command(&[
         "advfirewall", "firewall", "add", "rule",
-        &format!("name={}", rule_name),
+        &format!("name={}", rule_out),
+        "dir=out",
+        "action=block",
+        &format!("program={}", exe_path),
+        "enable=yes"
+    ]);
+
+    // 2. Block INBOUND traffic
+    let in_res = run_firewall_command(&[
+        "advfirewall", "firewall", "add", "rule",
+        &format!("name={}", rule_in),
         "dir=in",
         "action=block",
         &format!("program={}", exe_path),
         "enable=yes"
-    ])?;
+    ]);
+
+    // Robust fallback using PowerShell NetSecurity module if netsh encountered any error
+    if out_res.is_err() || in_res.is_err() {
+        let ps_cmd = format!(
+            "New-NetFirewallRule -DisplayName '{}' -Direction Outbound -Action Block -Program '{}' -Enabled True -ErrorAction SilentlyContinue; \
+             New-NetFirewallRule -DisplayName '{}' -Direction Inbound -Action Block -Program '{}' -Enabled True -ErrorAction SilentlyContinue",
+            rule_out, exe_path, rule_in, exe_path
+        );
+        let _ = create_cmd("powershell").args(&["-Command", &ps_cmd]).output();
+    }
 
     if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
         paused.insert(exe_path);
@@ -223,18 +526,38 @@ fn pause_inbound_traffic(exe_path: String, name: String) -> Result<bool, String>
 }
 
 #[tauri::command]
-fn resume_inbound_traffic(exe_path: String, name: String) -> Result<bool, String> {
-    let rule_name = format!("NetSentry - Block - {}", name);
-    run_firewall_command(&[
-        "advfirewall", "firewall", "delete", "rule",
-        &format!("name={}", rule_name)
-    ])?;
+fn resume_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
+    let rule_out = format!("NetSentry - Block - Out - {}", name);
+    let rule_in = format!("NetSentry - Block - In - {}", name);
+    let legacy_rule = format!("NetSentry - Block - {}", name);
+
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_out)]);
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_in)]);
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", legacy_rule)]);
+
+    let ps_cmd = format!(
+        "Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
+         Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
+         Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue",
+        rule_out, rule_in, legacy_rule
+    );
+    let _ = create_cmd("powershell").args(&["-Command", &ps_cmd]).output();
 
     if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
         paused.remove(&exe_path);
     }
     
     Ok(true)
+}
+
+#[tauri::command]
+fn pause_inbound_traffic(exe_path: String, name: String) -> Result<bool, String> {
+    pause_app_traffic(exe_path, name)
+}
+
+#[tauri::command]
+fn resume_inbound_traffic(exe_path: String, name: String) -> Result<bool, String> {
+    resume_app_traffic(exe_path, name)
 }
 
 #[tauri::command]
@@ -323,6 +646,43 @@ fn get_daily_totals(days: u32) -> Vec<DailyTotal> {
         }
     }
     vec![]
+}
+
+#[tauri::command]
+fn get_app_history(app_key: String, days: u32) -> Vec<AppHistoryEntry> {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let limit = days.max(1).min(90) as i64;
+            let norm_key = app_key.to_lowercase();
+            let mut stmt = match conn.prepare(
+                "SELECT date, inbound_mb, outbound_mb, (inbound_mb + outbound_mb) as total_mb 
+                 FROM app_daily_totals 
+                 WHERE LOWER(app_key) = ?1 OR LOWER(exe_path) = ?1 OR LOWER(app_name) = ?1
+                 ORDER BY date DESC LIMIT ?2"
+            ) {
+                Ok(s) => s,
+                Err(_) => return vec![],
+            };
+            let rows = match stmt.query_map(params![norm_key, limit], |row| {
+                Ok(AppHistoryEntry {
+                    date: row.get(0)?,
+                    inbound_mb: (row.get::<_, f64>(1)? * 100.0).round() / 100.0,
+                    outbound_mb: (row.get::<_, f64>(2)? * 100.0).round() / 100.0,
+                    total_mb: (row.get::<_, f64>(3)? * 100.0).round() / 100.0,
+                })
+            }) {
+                Ok(iter) => iter,
+                Err(_) => return vec![],
+            };
+            return rows.filter_map(|r| r.ok()).collect();
+        }
+    }
+    vec![]
+}
+
+#[tauri::command]
+fn get_app_icon(exe_path: String) -> Option<String> {
+    get_cached_icon(&exe_path)
 }
 
 #[tauri::command]
@@ -550,11 +910,15 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       pause_inbound_traffic,
       resume_inbound_traffic,
+      pause_app_traffic,
+      resume_app_traffic,
       resume_all_traffic,
       kill_process,
       open_file_location,
       is_metered_connection,
       get_daily_totals,
+      get_app_history,
+      get_app_icon,
       enable_data_saver_mode,
       disable_data_saver_mode
     ])
@@ -677,8 +1041,10 @@ pub fn run() {
 
             let mut last_tick = Instant::now();
 
-            // Track cumulative MB transferred by each process key
-            let mut process_accumulated_mb: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+            // Track cumulative MB transferred by each process key, seeded from SQLite today totals
+            let mut process_accumulated_mb: std::collections::HashMap<String, f64> = load_today_app_totals();
+            // Track pending per-app usage to flush periodically in batch
+            let mut pending_app_mb: std::collections::HashMap<String, (String, String, f64, f64)> = std::collections::HashMap::new();
 
             loop {
                 let tick_start = Instant::now();
@@ -760,6 +1126,11 @@ pub fn run() {
                         pending_rx_mb = 0.0;
                         pending_tx_mb = 0.0;
                     }
+                    if !pending_app_mb.is_empty() {
+                        record_batch_app_usage_to_db(&pending_app_mb);
+                        pending_app_mb.clear();
+                    }
+                    process_accumulated_mb.clear();
                     today_rx_mb = 0.0;
                     today_tx_mb = 0.0;
                     current_date = now_day;
@@ -780,10 +1151,16 @@ pub fn run() {
                 tick_count += 1;
 
                 // Flush to SQLite every 15 ticks (~15 s) — crash costs at most 15 s of data
-                if tick_count % 15 == 0 && (pending_rx_mb > 0.0 || pending_tx_mb > 0.0) {
-                    record_usage_to_db(pending_rx_mb, pending_tx_mb);
-                    pending_rx_mb = 0.0;
-                    pending_tx_mb = 0.0;
+                if tick_count % 15 == 0 {
+                    if pending_rx_mb > 0.0 || pending_tx_mb > 0.0 {
+                        record_usage_to_db(pending_rx_mb, pending_tx_mb);
+                        pending_rx_mb = 0.0;
+                        pending_tx_mb = 0.0;
+                    }
+                    if !pending_app_mb.is_empty() {
+                        record_batch_app_usage_to_db(&pending_app_mb);
+                        pending_app_mb.clear();
+                    }
                 }
 
                 let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
@@ -829,17 +1206,27 @@ pub fn run() {
                     let proc_key = if !exe_path.is_empty() { exe_path.clone() } else { proc_name.clone() };
                     
                     // Accumulate MB for this process based on throughput & tick duration
-                    let tick_proc_mb = ((inbound_rate + outbound_rate) * elapsed_secs) / 1024.0;
-                    let accum_entry = process_accumulated_mb.entry(proc_key).or_insert(0.0);
+                    let proc_rx_mb = (inbound_rate * elapsed_secs) / 1024.0;
+                    let proc_tx_mb = (outbound_rate * elapsed_secs) / 1024.0;
+                    let tick_proc_mb = proc_rx_mb + proc_tx_mb;
+                    let accum_entry = process_accumulated_mb.entry(proc_key.clone()).or_insert(0.0);
                     *accum_entry += tick_proc_mb;
                     let total_data_mb = *accum_entry;
 
+                    if tick_proc_mb > 0.00001 {
+                        let entry = pending_app_mb.entry(proc_key.clone()).or_insert_with(|| (proc_name.clone(), exe_path.clone(), 0.0, 0.0));
+                        entry.2 += proc_rx_mb;
+                        entry.3 += proc_tx_mb;
+                    }
+
                     let mem_mb = process.memory() / (1024 * 1024);
+                    let app_icon = get_cached_icon(&exe_path);
 
                     process_data.push(ProcessNetworkData {
                         pid: pid_u32,
                         name: proc_name,
                         exe_path,
+                        icon: app_icon,
                         inbound_rate: (inbound_rate * 10.0).round() / 10.0,
                         outbound_rate: (outbound_rate * 10.0).round() / 10.0,
                         cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,

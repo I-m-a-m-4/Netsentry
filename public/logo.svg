@@ -1,9 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <rect width="1024" height="1024" fill="#FF5700"/>
-  <g transform="translate(0, -20)">
-    <!-- Central Ring: Center (512, 470), Outer Radius: 260, Inner Radius: 155 -->
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M512 210C368.406 210 252 326.406 252 470C252 613.594 368.406 730 512 730C655.594 730 772 613.594 772 470C772 326.406 655.594 210 512 210ZM512 315C426.396 315 357 384.396 357 470C357 555.604 426.396 625 512 625C597.604 625 667 555.604 667 470C667 384.396 597.604 315 512 315Z" fill="#FFFFFF"/>
-    <!-- Bottom Cradle Arc -->
-    <path d="M255 685C330 770 418 815 512 815C606 815 694 770 769 685L795 725C712 825 615 875 512 875C409 875 312 825 229 725L255 685Z" fill="#FFFFFF"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
+  <!-- Vibrant NetSentry Orange Background (Squircle) -->
+  <rect width="1024" height="1024" rx="220" fill="#f97316" />
+  
+  <!-- Gauge Track (Dotted background meter) -->
+  <path d="M192 768 A 384 384 0 1 1 832 768" stroke="#ffffff" stroke-width="88" stroke-linecap="round" stroke-dasharray="24 136" opacity="0.35" />
+  
+  <!-- Active Usage Gauge Arc -->
+  <path d="M192 768 A 384 384 0 0 1 704 192" stroke="#ffffff" stroke-width="88" stroke-linecap="round" opacity="1" />
+  
+  <!-- Center Dial Hub -->
+  <circle cx="512" cy="480" r="92" fill="#ffffff" />
+  
+  <!-- Needle pointing to live data usage -->
+  <path d="M512 480 L768 224" stroke="#ffffff" stroke-width="76" stroke-linecap="round" />
+  
+  <!-- Bandwidth Limit / Lock End Marker -->
+  <path d="M832 768 L928 768" stroke="#ffffff" stroke-width="88" stroke-linecap="round" opacity="0.6" />
 </svg>

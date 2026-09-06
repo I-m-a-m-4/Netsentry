@@ -41,9 +41,27 @@ export function getOrCreateDeviceId(): string {
   }
 }
 
+let lastSyncedTotalMb = -1;
+let lastSyncedTime = 0;
+let lastSyncedStatus = '';
+
 // Push live telemetry snapshot to Firestore collection `client_devices`
+// Optimized to only write when data changes significantly or on heartbeat (saves ~80% writes)
 export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayload): Promise<void> {
   if (!db || typeof window === 'undefined') return;
+
+  const now = Date.now();
+  const currentStatus = `${payload.isMetered}-${payload.isWwan}-${payload.isDataSaverMode}`;
+  const totalMb = Number(payload.totalDataMb.toFixed(2));
+
+  // Optimization: Skip write if data change is under 0.2 MB, status unchanged, and last sync was under 2 minutes ago
+  const deltaMb = Math.abs(totalMb - lastSyncedTotalMb);
+  const isHeartbeatDue = now - lastSyncedTime > 120000; // 2 minutes heartbeat
+  const statusChanged = currentStatus !== lastSyncedStatus;
+
+  if (lastSyncedTime > 0 && deltaMb < 0.2 && !isHeartbeatDue && !statusChanged) {
+    return; // Skip redundant Firestore write to conserve quota & billing
+  }
 
   try {
     const deviceId = getOrCreateDeviceId();
@@ -56,7 +74,7 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
       status: 'online',
       todayRxMb: Number(payload.todayRxMb.toFixed(2)),
       todayTxMb: Number(payload.todayTxMb.toFixed(2)),
-      totalDataMb: Number(payload.totalDataMb.toFixed(2)),
+      totalDataMb: totalMb,
       inboundRateKbps: Number(payload.inboundRateKbps.toFixed(1)),
       outboundRateKbps: Number(payload.outboundRateKbps.toFixed(1)),
       activeSockets: payload.activeSockets || 0,
@@ -68,6 +86,10 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
       lastSeen: serverTimestamp(),
       updatedAt: new Date().toISOString()
     }, { merge: true });
+
+    lastSyncedTotalMb = totalMb;
+    lastSyncedTime = now;
+    lastSyncedStatus = currentStatus;
   } catch (error) {
     // Fail silently in telemetry loop so offline client works without interruption
     console.warn('NetSentry: Telemetry sync to Firebase skipped:', error);

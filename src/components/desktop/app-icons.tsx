@@ -500,23 +500,37 @@ export function getProcessBrandMeta(name: string, path: string): ProcessBrandMet
 }
 
 /**
- * Universal App Icon Component with fallback
+ * Universal App Icon Component with native binary extraction and SVG fallback
  */
 export function AppIcon({ 
   name, 
   exePath, 
+  iconUrl,
   className = "w-6 h-6",
   large = false 
 }: { 
   name: string; 
   exePath?: string; 
+  iconUrl?: string | null;
   className?: string;
   large?: boolean;
 }) {
+  const [imgError, setImgError] = React.useState(false);
   const meta = getProcessBrandMeta(name, exePath || '');
+  const hasCustomIcon = Boolean(iconUrl && !imgError);
+
   return (
-    <div className={`relative flex items-center justify-center shrink-0 transition-transform ${large ? 'p-2.5 rounded-2xl' : 'p-1.5 rounded-xl'} ${meta.badgeBg}`}>
-      {meta.icon}
+    <div className={`relative flex items-center justify-center shrink-0 transition-transform ${large ? 'p-2 rounded-2xl w-12 h-12' : 'p-1.5 rounded-xl w-9 h-9'} ${meta.badgeBg}`}>
+      {hasCustomIcon ? (
+        <img 
+          src={iconUrl!} 
+          alt={name} 
+          className={`${large ? 'w-8 h-8' : 'w-6 h-6'} object-contain rounded drop-shadow-sm`}
+          onError={() => setImgError(true)} 
+        />
+      ) : (
+        meta.icon
+      )}
     </div>
   );
 }
