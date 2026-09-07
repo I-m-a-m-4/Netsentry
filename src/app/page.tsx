@@ -184,10 +184,14 @@ export default function NetSentryDashboard() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isMetered, setIsMetered] = useState<boolean>(false);
   const [isWwan, setIsWwan] = useState<boolean>(false);
-  const [isDataSaverMode, setIsDataSaverMode] = useState<boolean>(false);
-  const [dataSaverLoading, setDataSaverLoading] = useState<boolean>(false);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+  const [focusModeLoading, setFocusModeLoading] = useState<boolean>(false);
   const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+
+  // New features
+  const [autoCutoffEnabled, setAutoCutoffEnabled] = useState<boolean>(false);
+  const [smartProfilesEnabled, setSmartProfilesEnabled] = useState<boolean>(false);
 
   const toggleGroupExpand = (key: string) => {
     setExpandedGroups(prev => {
@@ -221,32 +225,32 @@ export default function NetSentryDashboard() {
     }
   };
 
-  const handleEnableDataSaver = async () => {
-    setDataSaverLoading(true);
+  const handleEnableFocusMode = async () => {
+    setFocusModeLoading(true);
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const paths = allowedApps.split('\n').map(s => s.trim()).filter(Boolean);
       await invoke('enable_data_saver_mode', { allowedExePaths: paths });
-      setIsDataSaverMode(true);
-      addLog(`Data Saver Mode ENABLED. Whitelisted ${paths.length} app(s).`, 'warning');
+      setIsFocusMode(true);
+      addLog(`Focus Mode ENABLED. Whitelisted ${paths.length} app(s).`, 'warning');
     } catch (e) {
-      alert(`Failed to enable Data Saver Mode: ${e}`);
+      alert(`Failed to enable Focus Mode: ${e}`);
     } finally {
-      setDataSaverLoading(false);
+      setFocusModeLoading(false);
     }
   };
 
-  const handleDisableDataSaver = async () => {
-    setDataSaverLoading(true);
+  const handleDisableFocusMode = async () => {
+    setFocusModeLoading(true);
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('disable_data_saver_mode');
-      setIsDataSaverMode(false);
-      addLog('Data Saver Mode DISABLED. Normal outbound traffic restored.', 'info');
+      setIsFocusMode(false);
+      addLog('Focus Mode DISABLED. Normal outbound traffic restored.', 'info');
     } catch (e) {
-      alert(`Failed to disable Data Saver Mode: ${e}`);
+      alert(`Failed to disable Focus Mode: ${e}`);
     } finally {
-      setDataSaverLoading(false);
+      setFocusModeLoading(false);
     }
   };
 
@@ -265,6 +269,20 @@ export default function NetSentryDashboard() {
   useEffect(() => {
     quotaRef.current = quotaLimit;
   }, [quotaLimit]);
+
+  const autoCutoffEnabledRef = useRef<boolean>(false);
+  useEffect(() => { autoCutoffEnabledRef.current = autoCutoffEnabled; }, [autoCutoffEnabled]);
+
+  const smartProfilesEnabledRef = useRef<boolean>(false);
+  useEffect(() => { smartProfilesEnabledRef.current = smartProfilesEnabled; }, [smartProfilesEnabled]);
+
+  const allowedAppsRef = useRef<string>(allowedApps);
+  useEffect(() => { allowedAppsRef.current = allowedApps; }, [allowedApps]);
+
+  const isFocusModeRef = useRef<boolean>(isFocusMode);
+  useEffect(() => { isFocusModeRef.current = isFocusMode; }, [isFocusMode]);
+
+  const previousIsMeteredRef = useRef<boolean>(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -285,6 +303,25 @@ export default function NetSentryDashboard() {
             const status = await invoke<{ is_metered: boolean; is_wwan: boolean }>('is_metered_connection');
             setIsMetered(status.is_metered);
             setIsWwan(status.is_wwan);
+
+            // Smart Profiles Auto-Switching logic
+            if (smartProfilesEnabledRef.current && status.is_metered !== previousIsMeteredRef.current) {
+              if (status.is_metered && !isFocusModeRef.current) {
+                // Switched to a metered connection -> Enable Focus Mode automatically
+                const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
+                invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
+                  setIsFocusMode(true);
+                  addLog(`Smart Profiles: Switched to Metered connection. Focus Mode ENABLED.`, 'warning');
+                }).catch(e => console.error(e));
+              } else if (!status.is_metered && isFocusModeRef.current) {
+                // Switched to a non-metered connection -> Disable Focus Mode automatically
+                invoke('disable_data_saver_mode').then(() => {
+                  setIsFocusMode(false);
+                  addLog(`Smart Profiles: Switched to Home network. Focus Mode DISABLED.`, 'info');
+                }).catch(e => console.error(e));
+              }
+            }
+            previousIsMeteredRef.current = status.is_metered;
           } catch (e) {
             console.error('Failed to check connection status', e);
           }
@@ -311,6 +348,17 @@ export default function NetSentryDashboard() {
             if (!alertedRef.current) {
               alertedRef.current = true;
               addLog(`Alert: Bandwidth quota of ${limit} MB exceeded!`, 'alert');
+
+              // Auto-Cutoff Logic
+              if (autoCutoffEnabledRef.current && !isFocusModeRef.current) {
+                import('@tauri-apps/api/core').then(({ invoke }) => {
+                  const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
+                  invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
+                    setIsFocusMode(true);
+                    addLog(`Auto-Cutoff Activated: Quota exceeded. Focus Mode ENABLED.`, 'alert');
+                  }).catch(console.error);
+                });
+              }
             }
           } else {
             alertedRef.current = false;
@@ -518,7 +566,7 @@ export default function NetSentryDashboard() {
         activeProcesses: processes.length,
         isMetered,
         isWwan,
-        isDataSaverMode,
+        isFocusMode,
         topApps
       }).catch(() => {});
     };
@@ -526,7 +574,7 @@ export default function NetSentryDashboard() {
     syncTelemetry();
     const interval = setInterval(syncTelemetry, 60000);
     return () => clearInterval(interval);
-  }, [tauriStatus, processes, system, isMetered, isWwan, isDataSaverMode, displayProcesses]);
+  }, [tauriStatus, processes, system, isMetered, isWwan, isFocusMode, displayProcesses]);
 
   const overallStats = useMemo(() => {
     let totalConnections = 0;
@@ -669,7 +717,7 @@ export default function NetSentryDashboard() {
               NetSentry
             </h1>
             <p className="text-[10px] text-muted-foreground tracking-wider uppercase font-semibold">
-              Data Saver & Windows Bandwidth Monitor
+              Focus Mode & Windows Bandwidth Monitor
             </p>
           </div>
         </div>
@@ -809,6 +857,21 @@ export default function NetSentryDashboard() {
                   <Badge variant="outline" className="border-primary/40 text-primary text-xs px-2.5 py-1">
                     {tauriStatus === 'connected' ? '● Engine Active' : '○ Web Mode'}
                   </Badge>
+                  
+                  {/* Smart Profiles Toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer ml-2">
+                    <div className="relative">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only" 
+                        checked={smartProfilesEnabled}
+                        onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
+                      />
+                      <div className={`block w-8 h-5 rounded-full transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
+                      <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
+                    </div>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Smart Switch</span>
+                  </label>
                 </div>
               </div>
 
@@ -878,6 +941,21 @@ export default function NetSentryDashboard() {
                       onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
                       className="w-20 px-2 py-0.5 text-xs text-center border border-border rounded-lg bg-background text-foreground outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono"
                     />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground">Auto-Cutoff</span>
+                    <label className="flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only" 
+                          checked={autoCutoffEnabled}
+                          onChange={(e) => setAutoCutoffEnabled(e.target.checked)}
+                        />
+                        <div className={`block w-6 h-3.5 rounded-full transition-colors ${autoCutoffEnabled ? 'bg-red-500' : 'bg-muted-foreground/30'}`}></div>
+                        <div className={`absolute left-0.5 top-0.5 bg-white w-2.5 h-2.5 rounded-full transition-transform ${autoCutoffEnabled ? 'translate-x-2.5' : ''}`}></div>
+                      </div>
+                    </label>
                   </div>
                 </div>
 
@@ -1324,29 +1402,37 @@ export default function NetSentryDashboard() {
                                     </button>
 
                                     {/* Toggle Traffic */}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleTogglePause(proc);
-                                      }}
-                                      disabled={isToggleLoading || tauriStatus !== 'connected'}
-                                      className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-all ${
-                                        proc.is_paused 
-                                          ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
-                                          : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
-                                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                      title={proc.is_paused ? 'Resume Network Access' : 'Pause & Block Network Access'}
-                                    >
-                                      {isToggleLoading ? (
-                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                      ) : proc.is_paused ? (
-                                        <Play className="w-3 h-3" />
-                                      ) : (
-                                        <Pause className="w-3 h-3" />
-                                      )}
-                                      <span>{proc.is_paused ? 'Resume Data' : 'Pause Data'}</span>
-                                    </button>
+                                    {!brand.isSystem ? (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTogglePause(proc);
+                                        }}
+                                        disabled={isToggleLoading || tauriStatus !== 'connected'}
+                                        className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-all ${
+                                          proc.is_paused 
+                                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
+                                            : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        title={proc.is_paused ? 'Resume Network Access' : 'Pause & Block Network Access'}
+                                      >
+                                        {isToggleLoading ? (
+                                          <RefreshCw className="w-3 h-3 animate-spin" />
+                                        ) : proc.is_paused ? (
+                                          <Play className="w-3 h-3" />
+                                        ) : (
+                                          <Pause className="w-3 h-3" />
+                                        )}
+                                        <span>{proc.is_paused ? 'Resume Data' : 'Pause Data'}</span>
+                                      </button>
+                                    ) : (
+                                      <div title="System critical processes cannot be paused" className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-slate-500/10 text-slate-500 border-slate-500/30 cursor-not-allowed">
+                                        <Shield className="w-3 h-3" />
+                                        <span>Protected</span>
+                                      </div>
+                                    )}
                                   </div>
+
                                 </td>
                               </tr>
 
@@ -1557,27 +1643,34 @@ export default function NetSentryDashboard() {
                               </button>
                             </div>
 
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTogglePause(proc);
-                              }}
-                              disabled={isToggleLoading || tauriStatus !== 'connected'}
-                              className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer border transition-all ${
-                                proc.is_paused
-                                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
-                                  : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20'
-                              } disabled:opacity-50`}
-                            >
-                              {isToggleLoading ? (
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              ) : proc.is_paused ? (
-                                <Play className="w-3.5 h-3.5" />
-                              ) : (
-                                <Pause className="w-3.5 h-3.5" />
-                              )}
-                              <span>{proc.is_paused ? 'Resume' : 'Pause Data'}</span>
-                            </button>
+                            {!brand.isSystem ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTogglePause(proc);
+                                }}
+                                disabled={isToggleLoading || tauriStatus !== 'connected'}
+                                className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer border transition-all ${
+                                  proc.is_paused
+                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
+                                    : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20'
+                                } disabled:opacity-50`}
+                              >
+                                {isToggleLoading ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : proc.is_paused ? (
+                                  <Play className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Pause className="w-3.5 h-3.5" />
+                                )}
+                                <span>{proc.is_paused ? 'Resume' : 'Pause Data'}</span>
+                              </button>
+                            ) : (
+                              <div title="System critical processes cannot be paused" className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-slate-500/10 text-slate-500 border-slate-500/30 cursor-not-allowed">
+                                <Shield className="w-3.5 h-3.5" />
+                                <span>Protected</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -1647,12 +1740,12 @@ export default function NetSentryDashboard() {
             liveChartData={chartData}
             isDark={isDark}
             tauriStatus={tauriStatus}
-            isDataSaverMode={isDataSaverMode}
+            isFocusMode={isFocusMode}
             allowedApps={allowedApps}
             setAllowedApps={setAllowedApps}
-            handleEnableDataSaver={handleEnableDataSaver}
-            handleDisableDataSaver={handleDisableDataSaver}
-            dataSaverLoading={dataSaverLoading}
+            handleEnableFocusMode={handleEnableFocusMode}
+            handleDisableFocusMode={handleDisableFocusMode}
+            focusModeLoading={focusModeLoading}
             loadDailyTotals={loadDailyTotals}
             analyticsLoading={analyticsLoading}
           />

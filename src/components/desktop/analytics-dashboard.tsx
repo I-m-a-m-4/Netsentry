@@ -85,12 +85,12 @@ interface AnalyticsDashboardProps {
   liveChartData: { time: string; inbound: number; outbound: number }[];
   isDark: boolean;
   tauriStatus: string;
-  isDataSaverMode: boolean;
+  isFocusMode: boolean;
   allowedApps: string;
   setAllowedApps: (val: string) => void;
-  handleEnableDataSaver: () => void;
-  handleDisableDataSaver: () => void;
-  dataSaverLoading: boolean;
+  handleEnableFocusMode: () => void;
+  handleDisableFocusMode: () => void;
+  focusModeLoading: boolean;
   loadDailyTotals: () => void;
   analyticsLoading: boolean;
 }
@@ -108,12 +108,12 @@ export default function AnalyticsDashboard({
   liveChartData,
   isDark,
   tauriStatus,
-  isDataSaverMode,
+  isFocusMode,
   allowedApps,
   setAllowedApps,
-  handleEnableDataSaver,
-  handleDisableDataSaver,
-  dataSaverLoading,
+  handleEnableFocusMode,
+  handleDisableFocusMode,
+  focusModeLoading,
   loadDailyTotals,
   analyticsLoading
 }: AnalyticsDashboardProps) {
@@ -289,7 +289,7 @@ export default function AnalyticsDashboard({
   // Chart 20: Hourly Average Speed
   const hourlySpeedData = useMemo(() => [] as any[], []);
 
-  // Chart 21: Data Saver Conservation
+  // Chart 21: Focus Mode Conservation
   const conservationData = useMemo(() => [] as any[], []);
 
   // Chart 18: Adapter Interface Share
@@ -465,7 +465,7 @@ export default function AnalyticsDashboard({
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
           </div>
           <div className="text-xl font-extrabold font-mono text-emerald-400 mt-2">
-            {isDataSaverMode ? '1.2 GB' : '380 MB'}
+            {isFocusMode ? '1.2 GB' : '380 MB'}
           </div>
           <div className="text-[10px] text-muted-foreground mt-1">Firewall blocked noise</div>
         </div>
@@ -484,18 +484,18 @@ export default function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* Data Saver Mode Control Center */}
-      <div className={`border rounded-2xl p-6 shadow-sm ${isDataSaverMode ? 'border-amber-500/40 bg-amber-500/5' : cardBase}`}>
+      {/* Focus Mode Control Center */}
+      <div className={`border rounded-2xl p-6 shadow-sm ${isFocusMode ? 'border-amber-500/40 bg-amber-500/5' : cardBase}`}>
         <div className="flex flex-col md:flex-row md:items-start gap-6">
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl border ${isDataSaverMode ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-primary/10 border-primary/20 text-primary'}`}>
-                {isDataSaverMode ? <ShieldOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+              <div className={`p-2.5 rounded-xl border ${isFocusMode ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-primary/10 border-primary/20 text-primary'}`}>
+                {isFocusMode ? <ShieldOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
               </div>
               <div>
                 <h2 className="font-bricolage text-base font-bold flex items-center gap-2">
-                  <span>Windows Firewall Data Saver Engine</span>
-                  {isDataSaverMode && (
+                  <span>Windows Firewall Focus Mode Engine</span>
+                  {isFocusMode && (
                     <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse">
                       Active
                     </span>
@@ -510,7 +510,7 @@ export default function AnalyticsDashboard({
               <textarea
                 value={allowedApps}
                 onChange={e => setAllowedApps(e.target.value)}
-                disabled={isDataSaverMode}
+                disabled={isFocusMode}
                 rows={3}
                 placeholder={`C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe\nC:\\Program Files\\Google\\Chrome\\Application\\chrome.exe`}
                 className={`w-full font-mono text-xs p-3 rounded-xl border bg-background resize-none outline-none focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 ${
@@ -521,23 +521,23 @@ export default function AnalyticsDashboard({
           </div>
 
           <div className="flex flex-col gap-2.5 md:w-48 shrink-0">
-            {!isDataSaverMode ? (
+            {!isFocusMode ? (
               <button
-                onClick={handleEnableDataSaver}
-                disabled={dataSaverLoading || tauriStatus !== 'connected'}
+                onClick={handleEnableFocusMode}
+                disabled={focusModeLoading || tauriStatus !== 'connected'}
                 className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition-all cursor-pointer"
               >
-                {dataSaverLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                Enable Data Saver
+                {focusModeLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                Enable Focus Mode
               </button>
             ) : (
               <button
-                onClick={handleDisableDataSaver}
-                disabled={dataSaverLoading || tauriStatus !== 'connected'}
+                onClick={handleDisableFocusMode}
+                disabled={focusModeLoading || tauriStatus !== 'connected'}
                 className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition-all cursor-pointer"
               >
-                {dataSaverLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldOff className="w-3.5 h-3.5" />}
-                Disable Data Saver
+                {focusModeLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldOff className="w-3.5 h-3.5" />}
+                Disable Focus Mode
               </button>
             )}
             <p className="text-[10px] text-muted-foreground text-center">
@@ -1047,11 +1047,11 @@ export default function AnalyticsDashboard({
           </div>
         </div>
 
-        {/* Chart 21: Data Saver & Firewall Conservation */}
+        {/* Chart 21: Focus Mode & Firewall Conservation */}
         <div className={cardBase}>
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/40">
             <div>
-              <h3 className="font-bold text-sm">Chart 21: Data Saver & Firewall Conservation</h3>
+              <h3 className="font-bold text-sm">Chart 21: Focus Mode & Firewall Conservation</h3>
               <p className="text-[11px] text-muted-foreground">Volume of data conserved via firewall outbound blocking vs allowed traffic</p>
             </div>
             <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/30 font-semibold">
