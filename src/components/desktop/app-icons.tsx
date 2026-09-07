@@ -25,12 +25,25 @@ export interface ProcessBrandMeta {
 
 // System daemon process names to identify Windows background noise
 export const SYSTEM_PROCESS_NAMES = new Set([
-  'svchost.exe', 'system', 'idle', 'tagsrv.exe', 'nimdnsresponder.exe', 
-  'qkactivedefense.exe', 'services.exe', 'lsass.exe', 'csrss.exe', 'smss.exe', 
-  'wininit.exe', 'winlogon.exe', 'spoolsv.exe', 'searchhost.exe', 'ctfmon.exe', 
-  'taskhostw.exe', 'runtimebroker.exe', 'sihost.exe', 'fontdrvhost.exe', 
+  // Core Windows OS processes
+  'svchost.exe', 'system', 'idle', 'services.exe', 'lsass.exe', 'csrss.exe', 'smss.exe',
+  'wininit.exe', 'winlogon.exe', 'spoolsv.exe', 'searchhost.exe', 'ctfmon.exe',
+  'taskhostw.exe', 'runtimebroker.exe', 'sihost.exe', 'fontdrvhost.exe',
   'dwmp.exe', 'dwm.exe', 'conhost.exe', 'wmiusr.exe', 'wmiprvse.exe', 'registry',
-  'explorer.exe', 'securityhealthservice.exe', 'smartscreen.exe'
+  'explorer.exe', 'securityhealthservice.exe', 'smartscreen.exe',
+  'wudfhost', 'wudfhost.exe', 'lockapp', 'lockapp.exe',
+  // Windows Session/Device Host services (no .exe suffix from Rust)
+  'audiodg', 'audiodg.exe', 'dashost', 'dashost.exe', 'devicecensus',
+  'msiexec', 'msiexec.exe', 'searchindexer', 'searchindexer.exe',
+  'backgroundtaskhost', 'textinputhost', 'startmenuexperiencehost',
+  // National Instruments / LabVIEW infrastructure
+  'nimxs', 'nimxs.exe', 'nidiscsvc', 'nidiscsvc.exe', 'nidmsrv', 'nidmsrv.exe',
+  'nisvcloc', 'nisvcloc.exe', 'nimdnsresponder', 'nimdnsresponder.exe',
+  'systemwebserver', 'applicationwebserver',
+  // Erlang/OTP (RabbitMQ)
+  'erl.exe', 'erl', 'epmd', 'epmd.exe',
+  // Antivirus / Security
+  'qkactivedefense.exe', 'tagsrv.exe',
 ]);
 
 // Official Brave Lion Logo SVG
@@ -290,7 +303,17 @@ export function LanguageServerIcon({ className = "w-6 h-6" }: { className?: stri
 export function getProcessBrandMeta(name: string, path: string): ProcessBrandMeta {
   const n = (name || '').toLowerCase();
   const p = (path || '').toLowerCase();
-  const isSystem = SYSTEM_PROCESS_NAMES.has(n) || p.includes('windows\\system32') || p.includes('windows\\syswow64');
+  const isSystem = 
+    SYSTEM_PROCESS_NAMES.has(n) || 
+    p.includes('windows\\system32') || 
+    p.includes('windows\\syswow64') ||
+    p.includes('windows\\systemapps') ||
+    p.includes('national instruments') ||
+    p.includes('ni network discovery') ||
+    p.includes('ni webserver') ||
+    p.includes('nisvcloc') ||
+    p.includes('rabbitmq') ||
+    p.includes('skyline');
 
   // 1. Brave Browser
   if (n.includes('brave')) {

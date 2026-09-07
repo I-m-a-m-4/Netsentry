@@ -433,7 +433,7 @@ export default function NetSentryDashboard() {
         // Category filter
         if (filterCategory === 'user' && meta.isSystem) return false;
         if (filterCategory === 'system' && !meta.isSystem) return false;
-        if (filterCategory === 'active' && (p.inbound_rate + p.outbound_rate) <= 0 && (p.total_data_mb || 0) <= 0) return false;
+        if (filterCategory === 'active' && (p.inbound_rate + p.outbound_rate) <= 0 && (p.connections_count || 0) <= 0) return false;
         if (filterCategory === 'paused' && !p.is_paused) return false;
 
         // Search query
@@ -880,7 +880,10 @@ export default function NetSentryDashboard() {
                 {/* Card 1: Total Data Consumed */}
                 <div className="p-4 rounded-xl border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
                   <div className="flex items-center justify-between text-muted-foreground gap-2">
-                    <span className="text-xs font-semibold">Total Data Used</span>
+                    <span 
+                      className="text-xs font-semibold cursor-help underline decoration-dotted underline-offset-2" 
+                      title="Measured at the physical adapter — includes OS kernel traffic, hidden services, and VPN overhead. The per-app table below only accounts for visible tracked processes, so the sum will be lower."
+                    >Total Data Used ⓘ</span>
                     <select
                       value={timeRangeFilter}
                       onChange={(e) => setTimeRangeFilter(e.target.value as any)}
