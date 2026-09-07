@@ -4,11 +4,11 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminRedirect() {
-  const router = useRouter();
+ const router = useRouter();
 
-  useEffect(() => {
-    router.replace('/admin-imamshaffy');
-  }, [router]);
+ useEffect(() => {
+ router.replace('/admin-imamshaffy');
+ }, [router]);
 
-  return null;
+ return null;
 }
