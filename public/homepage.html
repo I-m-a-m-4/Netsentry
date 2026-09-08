@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FormFlow - Visual Form Builder | Engineered for Aesthetics</title>
+  <meta name="description" content="Build forms like you design art. The visual-first form builder engineered for developers and designers with high visual fidelity.">
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#ff005e',
+            'brand-glow': 'rgba(255, 0, 94, 0.4)',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons & Iconify CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+
+  <style>
+    /* -------------------------------------------------------------
+       GLOBAL STYLES & TRACING BEAMS
+       ------------------------------------------------------------- */
+    @property --angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Grid Pattern (50px repeating squares) */
+    .grid-pattern {
+      background-size: 50px 50px;
+      background-image: 
+        linear-gradient(to right, rgba(150, 150, 150, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(150, 150, 150, 0.07) 1px, transparent 1px);
+    }
+    .dark .grid-pattern {
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    }
+
+    /* Dot Canvas Pattern */
+    .canvas-dots {
+      background-image: radial-gradient(rgba(100, 100, 100, 0.25) 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+    .dark .canvas-dots {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+    }
+
+    /* Gradient Swirls */
+    .swirl-1 {
+      animation: swirlRotate 24s linear infinite, swirlFloat 14s ease-in-out infinite;
+      background: conic-gradient(from 0deg at 50% 50%, #ff005e 0deg, #7928ca 120deg, #0070f3 240deg, #ff005e 360deg);
+    }
+    .swirl-2 {
+      animation: swirlRotate 32s linear infinite reverse, swirlFloat 18s ease-in-out infinite alternate;
+      background: conic-gradient(from 180deg at 50% 50%, #00dfd8 0deg, #ff005e 150deg, #7928ca 290deg, #00dfd8 360deg);
+    }
+    .swirl-3 {
+      animation: swirlRotate 28s linear infinite, swirlFloat 16s ease-in-out infinite alternate;
+      background: conic-gradient(from 90deg at 50% 50%, #7928ca 0deg, #ff005e 180deg, #ff4e50 360deg);
+    }
+
+    @keyframes swirlRotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes swirlFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(40px, -30px) scale(1.15); }
+    }
+
+    /* Text Transitions */
+    .text-transition {
+      transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Text Shine Gradient */
+    .animate-shine {
+      background: linear-gradient(110deg, #ff005e 0%, #ffffff 40%, #ff005e 60%, #a855f7 100%);
+      background-size: 200% auto;
+      color: transparent;
+      -webkit-background-clip: text;
+      animation: shine 4s linear infinite;
+    }
+    .dark .animate-shine {
+      background: linear-gradient(110deg, #ff005e 0%, #ffffff 35%, #ff005e 65%, #f43f5e 100%);
+      background-size: 200% auto;
+      color: transparent;
+      -webkit-background-clip: text;
+      animation: shine 4s linear infinite;
+    }
+
+    @keyframes shine {
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+
+    /* Extended Borders */
+    @keyframes extendH {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+    @keyframes extendV {
+      from { transform: scaleY(0); }
+      to { transform: scaleY(1); }
+    }
+    .animate-extend-h {
+      transform-origin: center;
+      animation: extendH 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-extend-v {
+      transform-origin: center;
+      animation: extendV 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Tracing Beam */
+    .tracing-beam {
+      position: relative;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .tracing-beam::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      padding: 2px;
+      background: conic-gradient(from var(--angle), transparent 70%, #ff005e 92%, #ffffff 100%);
+      -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box, 
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      animation: traceBorder 4s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes traceBorder {
+      0% { --angle: 0deg; }
+      100% { --angle: 360deg; }
+    }
+
+    /* Border Glow */
+    .animate-border-glow {
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+    @keyframes borderGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 0, 94, 0.35), inset 0 0 15px rgba(255, 0, 94, 0.2);
+      }
+      50% {
+        box-shadow: 0 0 35px rgba(255, 0, 94, 0.65), inset 0 0 25px rgba(255, 0, 94, 0.35);
+      }
+    }
+
+    /* Beam Runner */
+    .beam-runner-line {
+      position: relative;
+      overflow: hidden;
+    }
+    .beam-runner-line::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      bottom: -2px;
+      width: 80px;
+      background: linear-gradient(90deg, transparent, #ff005e, #ffffff, transparent);
+      animation: beamRunner 3.5s ease-in-out infinite;
+    }
+    @keyframes beamRunner {
+      0% { left: -80px; }
+      100% { left: 100%; }
+    }
+
+    /* Card Hover Glow */
+    .card-glow {
+      position: relative;
+      overflow: hidden;
+    }
+    .card-glow::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255, 0, 94, 0.12) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+    .card-glow:hover::after {
+      opacity: 1;
+    }
+
+    /* Marquee Track */
+    .marquee-track {
+      display: flex;
+      width: max-content;
+      animation: marqueeScroll 28s linear infinite;
+    }
+    .marquee-track:hover {
+      animation-play-state: paused;
+    }
+    @keyframes marqueeScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+  </style>
+</head>
+<body class="antialiased bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 selection:bg-[#ff005e] selection:text-white transition-colors duration-300 min-h-screen">
+
+  <!-- =============================================================
+       LAYER 1: BACKGROUND GRADIENTS & GRID (z-0)
+       ============================================================= -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <!-- 3 Conic Gradient Swirls -->
+    <div class="swirl-1 absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[100px] opacity-35 dark:opacity-30"></div>
+    <div class="swirl-2 absolute top-1/3 -right-48 w-[700px] h-[700px] rounded-full blur-[120px] opacity-30 dark:opacity-25"></div>
+    <div class="swirl-3 absolute -bottom-48 left-1/4 w-[650px] h-[650px] rounded-full blur-[110px] opacity-30 dark:opacity-25"></div>
+    <!-- 50px Grid Pattern Overlay -->
+    <div class="absolute inset-0 grid-pattern opacity-60"></div>
+  </div>
+
+  <!-- =============================================================
+       LAYER 2: NOISE OVERLAY (z-50)
+       ============================================================= -->
+  <div class="fixed inset-0 pointer-events-none z-50 opacity-[0.035] mix-blend-overlay">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+      <filter id="noiseFilter">
+        <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#noiseFilter)"/>
+    </svg>
+  </div>
+
+  <!-- =============================================================
+       LAYER 3: NAVIGATION (z-50)
+       ============================================================= -->
+  <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-white/80 dark:bg-neutral-950/80 border-b border-neutral-200/60 dark:border-neutral-800/60 transition-colors duration-300">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <!-- Brand Logo -->
+      <a href="#" class="flex items-center gap-2.5 group">
+        <div class="w-9 h-9 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
+          <i data-lucide="layers" class="w-5 h-5 text-[#ff005e]"></i>
+        </div>
+        <div class="flex flex-col">
+          <span class="font-extrabold tracking-widest text-sm text-neutral-900 dark:text-white uppercase font-mono">FORM<span class="text-[#ff005e]">FLOW</span></span>
+          <span class="text-[9px] uppercase tracking-[0.2em] text-neutral-400 font-semibold -mt-1">Visual Builder</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <div class="hidden md:flex items-center gap-8 text-xs font-medium text-neutral-600 dark:text-neutral-300">
+        <a href="#features" class="hover:text-[#ff005e] transition-colors hover:scale-105 transform duration-200 text-transition">Features</a>
+        <a href="#components" class="hover:text-[#ff005e] transition-colors hover:scale-105 transform duration-200 text-transition">Components</a>
+        <a href="#how-it-works" class="hover:text-[#ff005e] transition-colors hover:scale-105 transform duration-200 text-transition">How It Works</a>
+        <a href="#pricing" class="hover:text-[#ff005e] transition-colors hover:scale-105 transform duration-200 text-transition">Pricing</a>
+      </div>
+
+      <!-- Action Items & Theme Toggle -->
+      <div class="flex items-center gap-4">
+        <!-- 56px x 28px Theme Toggle Pill -->
+        <button 
+          id="theme-toggle"
+          aria-label="Toggle Theme"
+          class="w-14 h-7 rounded-full bg-neutral-200 dark:bg-neutral-800 p-0.5 relative transition-colors duration-300 flex items-center cursor-pointer border border-neutral-300 dark:border-neutral-700"
+        >
+          <div id="theme-thumb" class="w-6 h-6 rounded-full bg-white dark:bg-neutral-900 shadow-sm flex items-center justify-center transform transition-transform duration-300 translate-x-7 dark:translate-x-7">
+            <i id="theme-icon" data-lucide="moon" class="w-3.5 h-3.5 text-[#ff005e]"></i>
+          </div>
+        </button>
+
+        <!-- CTA Start Building Button with Tracing Beam -->
+        <a 
+          href="#builder"
+          class="tracing-beam px-4 py-2 rounded-xl text-xs font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-950 hover:bg-[#ff005e] hover:text-white dark:hover:bg-[#ff005e] dark:hover:text-white transition-all duration-300 shadow-md flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>Start Building</span>
+          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- =============================================================
+       LAYER 4: MAIN CONTENT (z-10)
+       ============================================================= -->
+  <main class="relative z-10 pt-28 pb-20 space-y-28 md:space-y-36">
+
+    <!-- ===========================================================
+         SECTION 2 - HERO WITH EXTENDED BORDERS & INTERFACE SIMULATION
+         =========================================================== -->
+    <section class="relative max-w-7xl mx-auto px-6">
+      <!-- Section Extended Border System (Top / Bottom) -->
+      <div class="absolute -top-6 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-800 to-transparent animate-extend-h"></div>
+      <div class="absolute -bottom-10 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-800 to-transparent animate-extend-h"></div>
+
+      <!-- Hero Header -->
+      <div class="text-center max-w-3xl mx-auto space-y-5">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 backdrop-blur-md shadow-sm">
+          <span class="flex h-2 w-2 rounded-full bg-[#ff005e] animate-pulse"></span>
+          <span class="text-xs font-semibold text-neutral-600 dark:text-neutral-300">FormFlow 3.0 Engine Released</span>
+          <span class="text-xs text-neutral-400">|</span>
+          <a href="#features" class="text-xs font-semibold text-[#ff005e] hover:underline flex items-center gap-1">Explore Bento <i data-lucide="arrow-right" class="w-3 h-3"></i></a>
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
+          Build forms like <br>
+          <span class="animate-shine font-black">you design art.</span>
+        </h1>
+
+        <p class="text-base sm:text-lg text-neutral-600 dark:text-neutral-400 leading-relaxed font-normal max-w-2xl mx-auto">
+          The visual-first form builder engineered for developers and designers who refuse to compromise on aesthetics, micro-interactions, and code purity.
+        </p>
+
+        <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+          <a href="#builder" class="tracing-beam px-6 py-3 rounded-xl text-sm font-bold bg-[#ff005e] text-white hover:bg-[#ff005e]/90 transition-all shadow-lg shadow-[#ff005e]/25 flex items-center gap-2">
+            <i data-lucide="zap" class="w-4 h-4"></i>
+            <span>Start Building Free</span>
+          </a>
+          <a href="#demo" class="px-6 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-750 bg-white/60 dark:bg-neutral-900/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all flex items-center gap-2">
+            <i data-lucide="play-circle" class="w-4 h-4 text-[#ff005e]"></i>
+            <span>Interactive Demo</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Simulated Visual Builder Window -->
+      <div id="builder" class="mt-16 relative rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-2xl overflow-hidden backdrop-blur-xl">
+        
+        <!-- 20px x 20px L-Shaped Corner Accents in #ff005e -->
+        <div class="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-[#ff005e] pointer-events-none z-30"></div>
+        <div class="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-[#ff005e] pointer-events-none z-30"></div>
+        <div class="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-[#ff005e] pointer-events-none z-30"></div>
+        <div class="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-[#ff005e] pointer-events-none z-30"></div>
+
+        <!-- Window TitleBar -->
+        <div class="h-11 px-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-900/70 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-rose-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+            <span class="ml-3 font-mono text-xs text-neutral-400 font-medium">checkout-flow.form</span>
+          </div>
+          <div class="flex items-center gap-2 font-mono text-[11px] text-neutral-400">
+            <span class="px-2 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">PREVIEW MODE</span>
+            <span class="text-emerald-500 font-semibold">● LIVE SYNC</span>
+          </div>
+        </div>
+
+        <!-- Simulated Workspace 3-Pane Layout -->
+        <div class="grid grid-cols-1 md:grid-cols-12 min-h-[540px]">
+          
+          <!-- Left Sidebar: Draggable Components Palette -->
+          <div class="md:col-span-3 border-r border-neutral-200 dark:border-neutral-800 p-4 space-y-3 bg-neutral-50/50 dark:bg-neutral-900/30">
+            <div class="flex items-center justify-between pb-1">
+              <span class="font-mono text-xs uppercase font-bold text-neutral-400">Components</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 font-mono">14 Elements</span>
+            </div>
+            
+            <div class="space-y-2">
+              <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex items-center gap-2.5 text-xs font-medium cursor-grab hover:border-[#ff005e]/50 hover:bg-[#ff005e]/5 transition-all">
+                <i data-lucide="type" class="w-4 h-4 text-[#ff005e]"></i>
+                <span>Text Field</span>
+                <span class="ml-auto font-mono text-[9px] text-neutral-400">Input</span>
+              </div>
+              <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex items-center gap-2.5 text-xs font-medium cursor-grab hover:border-[#ff005e]/50 hover:bg-[#ff005e]/5 transition-all">
+                <i data-lucide="mail" class="w-4 h-4 text-[#ff005e]"></i>
+                <span>Email Address</span>
+                <span class="ml-auto font-mono text-[9px] text-neutral-400">Validated</span>
+              </div>
+              <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex items-center gap-2.5 text-xs font-medium cursor-grab hover:border-[#ff005e]/50 hover:bg-[#ff005e]/5 transition-all">
+                <i data-lucide="credit-card" class="w-4 h-4 text-[#ff005e]"></i>
+                <span>Credit Card / Stripe</span>
+                <span class="ml-auto font-mono text-[9px] text-neutral-400">Payment</span>
+              </div>
+              <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex items-center gap-2.5 text-xs font-medium cursor-grab hover:border-[#ff005e]/50 hover:bg-[#ff005e]/5 transition-all">
+                <i data-lucide="columns" class="w-4 h-4 text-[#ff005e]"></i>
+                <span>Two-Column Grid</span>
+                <span class="ml-auto font-mono text-[9px] text-neutral-400">Layout</span>
+              </div>
+              <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex items-center gap-2.5 text-xs font-medium cursor-grab hover:border-[#ff005e]/50 hover:bg-[#ff005e]/5 transition-all">
+                <i data-lucide="calendar" class="w-4 h-4 text-[#ff005e]"></i>
+                <span>Date & Time Picker</span>
+                <span class="ml-auto font-mono text-[9px] text-neutral-400">Select</span>
+              </div>
+              <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex items-center gap-2.5 text-xs font-medium cursor-grab hover:border-[#ff005e]/50 hover:bg-[#ff005e]/5 transition-all">
+                <i data-lucide="check-square" class="w-4 h-4 text-[#ff005e]"></i>
+                <span>Consent Checkbox</span>
+                <span class="ml-auto font-mono text-[9px] text-neutral-400">Boolean</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center Canvas: Radial Dot Grid with Selected Form Card -->
+          <div class="md:col-span-6 p-6 sm:p-10 canvas-dots flex items-center justify-center relative bg-neutral-100/30 dark:bg-neutral-950/40">
+            
+            <!-- Selected Form Card with #ff005e Active Border -->
+            <div class="w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl border-2 border-[#ff005e] shadow-2xl p-6 relative">
+              
+              <!-- Selected Badge Accent -->
+              <div class="absolute -top-3 left-4 bg-[#ff005e] text-white text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow">
+                Selected: FormLayout [Pro Plan]
+              </div>
+
+              <!-- Form Header -->
+              <div class="space-y-1 mb-5">
+                <h3 class="font-bold text-base text-neutral-900 dark:text-white flex items-center gap-2">
+                  <span>Complete Purchase</span>
+                  <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-bold">$49/mo</span>
+                </h3>
+                <p class="text-xs text-neutral-400">Enter your billing info to activate license instantly.</p>
+              </div>
+
+              <!-- Form Fields -->
+              <div class="space-y-3.5">
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Full Name</label>
+                  <input type="text" value="Alexander Wright" readonly class="w-full px-3 py-2 rounded-lg text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 outline-none text-neutral-800 dark:text-neutral-200 font-medium">
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Work Email</label>
+                  <input type="email" value="alex@acmecorp.design" readonly class="w-full px-3 py-2 rounded-lg text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 outline-none text-neutral-800 dark:text-neutral-200 font-medium">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Card Number</label>
+                    <input type="text" value="•••• 4242" readonly class="w-full px-3 py-2 rounded-lg text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 outline-none font-mono">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">CVC / Exp</label>
+                    <input type="text" value="09/28 • 882" readonly class="w-full px-3 py-2 rounded-lg text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 outline-none font-mono">
+                  </div>
+                </div>
+
+                <button type="button" class="w-full py-2.5 rounded-lg bg-[#ff005e] hover:bg-[#ff005e]/90 text-white font-semibold text-xs transition-all shadow-md mt-2 flex items-center justify-center gap-2">
+                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                  <span>Confirm Subscription</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Absolute Floating Code Snippet Card -->
+            <div class="absolute bottom-4 right-4 bg-neutral-900 text-white font-mono text-[11px] p-3.5 rounded-xl border border-neutral-750 shadow-xl hidden sm:block backdrop-blur-md opacity-90 hover:opacity-100 transition-opacity">
+              <span class="text-neutral-400">&lt;</span><span class="text-[#ff005e]">FormLayout</span> 
+              <span class="text-sky-400">theme</span>=<span class="text-emerald-400">"dark"</span> 
+              <span class="text-sky-400">radius</span>=<span class="text-amber-400">"lg"</span> 
+              <span class="text-sky-400">accent</span>=<span class="text-[#ff005e]">"#ff005e"</span> 
+              <span class="text-neutral-400">/&gt;</span>
+            </div>
+          </div>
+
+          <!-- Right Sidebar: Properties & Theming Engine -->
+          <div class="md:col-span-3 border-l border-neutral-200 dark:border-neutral-800 p-4 space-y-5 bg-neutral-50/50 dark:bg-neutral-900/30">
+            <div class="flex items-center justify-between pb-1">
+              <span class="font-mono text-xs uppercase font-bold text-neutral-400">Properties</span>
+              <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-neutral-400"></i>
+            </div>
+
+            <div class="space-y-4">
+              <!-- Slider 1 -->
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-1.5">
+                  <span>Border Radius</span>
+                  <span class="font-mono text-neutral-400">16px</span>
+                </div>
+                <input type="range" min="0" max="32" value="16" class="w-full accent-[#ff005e] cursor-pointer">
+              </div>
+
+              <!-- Slider 2 -->
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-1.5">
+                  <span>Card Padding</span>
+                  <span class="font-mono text-neutral-400">24px</span>
+                </div>
+                <input type="range" min="8" max="48" value="24" class="w-full accent-[#ff005e] cursor-pointer">
+              </div>
+
+              <!-- Color Palette Swatches -->
+              <div>
+                <span class="block text-xs font-semibold mb-2">Accent Color</span>
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-[#ff005e] ring-2 ring-offset-2 ring-[#ff005e] cursor-pointer"></div>
+                  <div class="w-7 h-7 rounded-full bg-blue-600 hover:scale-110 transition-transform cursor-pointer"></div>
+                  <div class="w-7 h-7 rounded-full bg-emerald-500 hover:scale-110 transition-transform cursor-pointer"></div>
+                  <div class="w-7 h-7 rounded-full bg-amber-500 hover:scale-110 transition-transform cursor-pointer"></div>
+                  <div class="w-7 h-7 rounded-full bg-purple-600 hover:scale-110 transition-transform cursor-pointer"></div>
+                </div>
+              </div>
+
+              <!-- Validation Switches -->
+              <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                <div class="flex items-center justify-between text-xs font-medium">
+                  <span>Strict Validation</span>
+                  <span class="w-8 h-4 bg-[#ff005e] rounded-full p-0.5 flex items-center justify-end"><span class="w-3 h-3 bg-white rounded-full"></span></span>
+                </div>
+                <div class="flex items-center justify-between text-xs font-medium">
+                  <span>Auto-Submit on Valid</span>
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 rounded-full p-0.5 flex items-center"><span class="w-3 h-3 bg-white rounded-full"></span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         SECTION 3 - COMPONENTS MARQUEE
+         =========================================================== -->
+    <section id="components" class="relative overflow-hidden py-6">
+      <div class="text-center mb-6">
+        <h2 class="text-xs font-bold uppercase tracking-[0.25em] text-neutral-400 dark:text-neutral-500">
+          40+ Production Ready Components
+        </h2>
+      </div>
+
+      <!-- Gradient Masks for Left and Right Edges -->
+      <div class="absolute left-0 inset-y-0 w-24 bg-gradient-to-r from-neutral-50 dark:from-neutral-950 to-transparent z-20 pointer-events-none"></div>
+      <div class="absolute right-0 inset-y-0 w-24 bg-gradient-to-l from-neutral-50 dark:from-neutral-950 to-transparent z-20 pointer-events-none"></div>
+
+      <!-- Scrolling Marquee Track -->
+      <div class="marquee-track flex items-center gap-4">
+        <!-- Item 1 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="type" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Rich Text Input</span>
+        </div>
+        <!-- Item 2 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="mail" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Verified Email</span>
+        </div>
+        <!-- Item 3 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="credit-card" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Stripe Elements</span>
+        </div>
+        <!-- Item 4 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="calendar" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Date Range Picker</span>
+        </div>
+        <!-- Item 5 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="upload-cloud" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Multi-file Uploader</span>
+        </div>
+        <!-- Item 6 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="toggle-left" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Micro-Toggle Switch</span>
+        </div>
+        <!-- Item 7 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="table" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Dynamic Repeater Table</span>
+        </div>
+        <!-- Item 8 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Stepped Range Slider</span>
+        </div>
+        <!-- Item 9 -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="code-2" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Custom JS Validator</span>
+        </div>
+        <!-- Duplicate Sequence for seamless continuous loop -->
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="type" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Rich Text Input</span>
+        </div>
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="mail" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Verified Email</span>
+        </div>
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="credit-card" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Stripe Elements</span>
+        </div>
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="calendar" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Date Range Picker</span>
+        </div>
+        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm shrink-0">
+          <i data-lucide="upload-cloud" class="w-4 h-4 text-[#ff005e]"></i>
+          <span class="text-xs font-semibold">Multi-file Uploader</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         SECTION 4 - FEATURES BENTO GRID
+         =========================================================== -->
+    <section id="features" class="relative max-w-7xl mx-auto px-6">
+      <!-- Section Extended Border System -->
+      <div class="absolute -top-10 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-800 to-transparent animate-extend-h"></div>
+
+      <div class="text-center max-w-2xl mx-auto mb-12 space-y-3">
+        <h2 class="text-xs font-mono uppercase font-bold tracking-widest text-[#ff005e]">Architecture & Engine</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Crafted for perfectionists.</h3>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">Everything needed to ship enterprise forms without writing boilerplate code.</p>
+      </div>
+
+      <!-- Bento Grid (3-columns, auto-rows-[300px]) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Bento 1: Shadcn UI Native (md:col-span-2, row-span-2) -->
+        <div class="md:col-span-2 md:row-span-2 rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 sm:p-10 relative overflow-hidden card-glow shadow-lg flex flex-col justify-between">
+          <!-- Massive Blurred Accent Circle in Background -->
+          <div class="absolute -bottom-20 -right-20 w-[420px] h-[420px] rounded-full bg-[#ff005e]/10 blur-[90px] pointer-events-none"></div>
+
+          <div class="space-y-4 max-w-lg z-10">
+            <div class="w-10 h-10 rounded-xl bg-[#ff005e]/10 border border-[#ff005e]/30 flex items-center justify-center text-[#ff005e]">
+              <i data-lucide="layout-template" class="w-5 h-5"></i>
+            </div>
+            <h4 class="text-2xl font-bold tracking-tight">Shadcn UI & Radix Native</h4>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              Every component outputs clean, accessible, zero-runtime React components using Tailwind CSS and Radix UI primitives. No proprietary vendor lock-in.
+            </p>
+          </div>
+
+          <!-- Code Mockup Preview -->
+          <div class="mt-8 rounded-xl bg-neutral-950 p-4 border border-neutral-800 font-mono text-xs text-neutral-300 shadow-inner z-10 overflow-x-auto">
+            <div class="flex items-center gap-2 pb-3 mb-3 border-b border-neutral-800 text-[10px] text-neutral-500">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+              <span>form-schema.tsx</span>
+            </div>
+            <pre class="leading-relaxed"><code><span class="text-purple-400">import</span> { useForm } <span class="text-purple-400">from</span> <span class="text-emerald-400">"react-hook-form"</span>;
+<span class="text-purple-400">import</span> { zodResolver } <span class="text-purple-400">from</span> <span class="text-emerald-400">"@hookform/resolvers/zod"</span>;
+<span class="text-purple-400">export const</span> FormSchema = z.object({
+  email: z.string().email(),
+  tier: z.enum([<span class="text-emerald-400">"starter"</span>, <span class="text-emerald-400">"pro"</span>, <span class="text-emerald-400">"enterprise"</span>])
+});</code></pre>
+          </div>
+        </div>
+
+        <!-- Bento 2: Logic Builder Card -->
+        <div class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 relative overflow-hidden card-glow shadow-md flex flex-col justify-between">
+          <div class="space-y-3 z-10">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500">
+              <i data-lucide="webhook" class="w-5 h-5"></i>
+            </div>
+            <h4 class="text-lg font-bold">Visual Conditional Logic</h4>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              Show/hide fields, recalculate totals, and trigger webhooks based on real-time user inputs.
+            </p>
+          </div>
+          <div class="mt-4 p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 font-mono text-[11px] text-[#ff005e] border border-neutral-200 dark:border-neutral-700">
+            IF role == "engineer" SHOW &lt;GithubProfile /&gt;
+          </div>
+        </div>
+
+        <!-- Bento 3: One-Click Export Card -->
+        <div class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 relative overflow-hidden card-glow shadow-md flex flex-col justify-between">
+          <div class="space-y-3 z-10">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500">
+              <i data-lucide="code-2" class="w-5 h-5"></i>
+            </div>
+            <h4 class="text-lg font-bold">Export to Next.js & Vite</h4>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              Copy pure JSX/TSX straight into your codebase, or deploy standalone hosted landing pages with 1 click.
+            </p>
+          </div>
+          <div class="mt-4 flex items-center justify-between text-xs font-mono text-neutral-400">
+            <span>npm i @formflow/core</span>
+            <i data-lucide="arrow-right" class="w-4 h-4 text-emerald-500"></i>
+          </div>
+        </div>
+
+        <!-- Bento 4: Theming Engine Card (col-span-3 or full row) -->
+        <div class="md:col-span-3 rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 relative overflow-hidden card-glow shadow-md flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div class="space-y-2 max-w-xl">
+            <div class="inline-flex items-center gap-2 text-xs font-mono text-[#ff005e] uppercase font-bold">
+              <i data-lucide="palette" class="w-4 h-4"></i>
+              <span>Infinite Theming Engine</span>
+            </div>
+            <h4 class="text-xl font-bold">Dark Mode, Brand Tokens, & CSS Variables</h4>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              FormFlow seamlessly binds to your design system's CSS variables, ensuring every radio button and modal matches your brand colors.
+            </p>
+          </div>
+          <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow">
+              <i data-lucide="check" class="w-4 h-4"></i>
+            </div>
+            <div class="text-left font-mono text-xs">
+              <div class="font-bold text-neutral-900 dark:text-white">Primary: #3b82f6</div>
+              <div class="text-[10px] text-neutral-400">Radius: 0.75rem (12px)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         SECTION 5 - HOW IT WORKS (WITH BEAM RUNNER)
+         =========================================================== -->
+    <section id="how-it-works" class="relative max-w-7xl mx-auto px-6">
+      <!-- Section Extended Border System -->
+      <div class="absolute -top-10 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-800 to-transparent animate-extend-h"></div>
+
+      <div class="text-center max-w-2xl mx-auto mb-16 space-y-3">
+        <h2 class="text-xs font-mono uppercase font-bold tracking-widest text-[#ff005e]">Workflow</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Ship in under three minutes.</h3>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">From blank canvas to production-ready API integration in 3 simple steps.</p>
+      </div>
+
+      <!-- Connecting Line Container with beam-runner animation -->
+      <div class="relative">
+        <div class="hidden md:block absolute top-12 inset-x-16 h-[2px] border-t-2 border-dashed border-neutral-300 dark:border-neutral-800 beam-runner-line z-0"></div>
+
+        <!-- 3 Steps Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-10 relative z-10">
+          
+          <!-- Step 1 -->
+          <div class="flex flex-col items-center text-center space-y-4">
+            <div class="w-24 h-24 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl flex items-center justify-center relative tracing-beam">
+              <i data-lucide="pen-tool" class="w-8 h-8 text-[#ff005e]"></i>
+              <span class="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-[#ff005e] text-white font-mono text-xs font-bold flex items-center justify-center shadow">1</span>
+            </div>
+            <h4 class="text-lg font-bold">1. Drag & Compose</h4>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xs">
+              Select from over 40 battle-tested inputs, multi-step wizards, and card layouts with magnetic grid alignment.
+            </p>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="flex flex-col items-center text-center space-y-4">
+            <div class="w-24 h-24 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl flex items-center justify-center relative tracing-beam">
+              <i data-lucide="webhook" class="w-8 h-8 text-[#ff005e]"></i>
+              <span class="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-[#ff005e] text-white font-mono text-xs font-bold flex items-center justify-center shadow">2</span>
+            </div>
+            <h4 class="text-lg font-bold">2. Wire Logic & APIs</h4>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xs">
+              Connect webhooks, configure Stripe payments, set up Zod validation schemas, and define branch conditions visually.
+            </p>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="flex flex-col items-center text-center space-y-4">
+            <div class="w-24 h-24 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl flex items-center justify-center relative tracing-beam">
+              <i data-lucide="zap" class="w-8 h-8 text-[#ff005e]"></i>
+              <span class="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-[#ff005e] text-white font-mono text-xs font-bold flex items-center justify-center shadow">3</span>
+            </div>
+            <h4 class="text-lg font-bold">3. Export & Embed</h4>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xs">
+              Copy-paste into your Next.js project as native JSX, or embed with a tiny 3KB script tag that renders instantly.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         SECTION 6 - PRICING WITH PRO CARD GLOW
+         =========================================================== -->
+    <section id="pricing" class="relative max-w-7xl mx-auto px-6">
+      <!-- Section Extended Border System -->
+      <div class="absolute -top-10 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-800 to-transparent animate-extend-h"></div>
+
+      <div class="text-center max-w-2xl mx-auto mb-16 space-y-3">
+        <h2 class="text-xs font-mono uppercase font-bold tracking-widest text-[#ff005e]">Simple Pricing</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Fair pricing for every stage.</h3>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">Start free, upgrade when your submission volume demands scale.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+        
+        <!-- Tier 1: Starter -->
+        <div class="tracing-beam rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 space-y-6 shadow-md hover:scale-[1.02] transition-transform duration-300">
+          <div class="space-y-1">
+            <h4 class="text-lg font-bold">Hobby Starter</h4>
+            <p class="text-xs text-neutral-400">Ideal for side-projects & experiments.</p>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-4xl font-extrabold font-mono">$0</span>
+            <span class="text-xs text-neutral-400">/ month free forever</span>
+          </div>
+          <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Up to 3 active forms</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> 1,000 monthly submissions</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Pure JSX / React export</li>
+            <li class="flex items-center gap-2 text-neutral-400"><i data-lucide="check" class="w-4 h-4 text-neutral-400"></i> Community Discord support</li>
+          </ul>
+          <button class="w-full py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold transition-all">
+            Get Started Free
+          </button>
+        </div>
+
+        <!-- Tier 2: Pro (Center, Scaled 1.05x, Animate Border Glow, Most Popular) -->
+        <div class="relative lg:scale-105 rounded-3xl border-2 border-[#ff005e]/70 bg-white dark:bg-neutral-900 p-8 space-y-6 shadow-2xl animate-border-glow z-20">
+          <!-- Most Popular Badge -->
+          <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#ff005e] text-white font-mono text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
+            <i data-lucide="zap" class="w-3 h-3"></i>
+            <span>Most Popular</span>
+          </div>
+
+          <div class="space-y-1 pt-1">
+            <h4 class="text-xl font-extrabold text-neutral-900 dark:text-white">Professional</h4>
+            <p class="text-xs text-neutral-400">For fast-growing design studios & SaaS teams.</p>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-5xl font-black font-mono text-[#ff005e]">$29</span>
+            <span class="text-xs text-neutral-400">/ month billed yearly</span>
+          </div>
+          <ul class="space-y-3.5 text-xs text-neutral-700 dark:text-neutral-200">
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-[#ff005e]"></i> <strong>Unlimited forms & inputs</strong></li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-[#ff005e]"></i> 50,000 monthly submissions</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-[#ff005e]"></i> Full Visual Conditional Logic Builder</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-[#ff005e]"></i> Custom Domains & zero branding</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-[#ff005e]"></i> Webhooks + Zapier + Slack sync</li>
+          </ul>
+          <button class="tracing-beam w-full py-3 rounded-xl bg-[#ff005e] hover:bg-[#ff005e]/90 text-white text-xs font-bold transition-all shadow-lg shadow-[#ff005e]/30">
+            Start 14-Day Free Trial
+          </button>
+        </div>
+
+        <!-- Tier 3: Enterprise -->
+        <div class="tracing-beam rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 space-y-6 shadow-md hover:scale-[1.02] transition-transform duration-300">
+          <div class="space-y-1">
+            <h4 class="text-lg font-bold">Enterprise</h4>
+            <p class="text-xs text-neutral-400">Custom security, SOC2 & dedicated clusters.</p>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-4xl font-extrabold font-mono">$99</span>
+            <span class="text-xs text-neutral-400">/ month starting</span>
+          </div>
+          <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Everything in Pro unlimited</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Dedicated isolated database clusters</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> SAML SSO & team workspace roles</li>
+            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> 99.99% SLA & 1-hour response</li>
+          </ul>
+          <button class="w-full py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold transition-all">
+            Contact Enterprise Sales
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         SECTION 7 - FOOTER
+         =========================================================== -->
+    <footer class="relative max-w-7xl mx-auto px-6 pt-16 pb-12">
+      <!-- Section Extended Border System -->
+      <div class="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-800 to-transparent animate-extend-h"></div>
+
+      <!-- 4 Columns Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-10 mb-16">
+        
+        <!-- Column 1: Brand -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 flex items-center justify-center">
+              <i data-lucide="layers" class="w-4 h-4 text-[#ff005e]"></i>
+            </div>
+            <span class="font-bold tracking-widest text-sm uppercase font-mono">FORM<span class="text-[#ff005e]">FLOW</span></span>
+          </div>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+            The next-generation visual builder that outputs pixel-perfect Shadcn UI form layouts for modern web development.
+          </p>
+          <div class="flex items-center gap-2 text-xs font-mono text-emerald-500">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>All Systems Operational</span>
+          </div>
+        </div>
+
+        <!-- Column 2: Product -->
+        <div class="space-y-3 text-xs">
+          <h5 class="font-bold uppercase tracking-wider text-neutral-400 font-mono text-[11px]">Product</h5>
+          <ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
+            <li><a href="#features" class="hover:text-[#ff005e] transition-colors">Visual Form Studio</a></li>
+            <li><a href="#components" class="hover:text-[#ff005e] transition-colors">Component Library</a></li>
+            <li><a href="#features" class="hover:text-[#ff005e] transition-colors">Conditional Logic</a></li>
+            <li><a href="#pricing" class="hover:text-[#ff005e] transition-colors">Stripe Integration</a></li>
+            <li><a href="#features" class="hover:text-[#ff005e] transition-colors">Shadcn UI Generator</a></li>
+          </ul>
+        </div>
+
+        <!-- Column 3: Company -->
+        <div class="space-y-3 text-xs">
+          <h5 class="font-bold uppercase tracking-wider text-neutral-400 font-mono text-[11px]">Company</h5>
+          <ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
+            <li><a href="#" class="hover:text-[#ff005e] transition-colors">About Us</a></li>
+            <li><a href="#" class="hover:text-[#ff005e] transition-colors">Customer Stories</a></li>
+            <li><a href="#" class="hover:text-[#ff005e] transition-colors">Careers (Hiring!)</a></li>
+            <li><a href="#" class="hover:text-[#ff005e] transition-colors">Brand Guidelines</a></li>
+            <li><a href="#" class="hover:text-[#ff005e] transition-colors">Security & SOC2</a></li>
+          </ul>
+        </div>
+
+        <!-- Column 4: Stay Updated with Tracing Beam Button -->
+        <div class="space-y-3 text-xs">
+          <h5 class="font-bold uppercase tracking-wider text-neutral-400 font-mono text-[11px]">Stay Updated</h5>
+          <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">
+            Subscribe for monthly component releases, UI kits, and design engineering updates.
+          </p>
+          <form onsubmit="event.preventDefault(); alert('Subscribed to FormFlow release updates!');" class="space-y-2">
+            <div class="flex items-center gap-1.5 p-1 rounded-xl border border-neutral-300 dark:border-neutral-750 bg-white dark:bg-neutral-900 focus-within:border-[#ff005e] transition-colors">
+              <input 
+                type="email" 
+                required 
+                placeholder="developer@company.com" 
+                class="w-full px-2.5 py-1.5 bg-transparent text-xs outline-none text-neutral-800 dark:text-neutral-200 placeholder-neutral-400"
+              >
+              <button 
+                type="submit" 
+                class="tracing-beam p-2 rounded-lg bg-[#ff005e] text-white hover:bg-[#ff005e]/90 transition-all shrink-0 cursor-pointer"
+                title="Subscribe"
+              >
+                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Base Footer Links -->
+      <div class="pt-8 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-400">
+        <div>
+          &copy; 2026 FormFlow Visual Builder Inc. All rights reserved.
+        </div>
+        <div class="flex items-center gap-6">
+          <a href="#" class="hover:text-[#ff005e] transition-colors">Privacy Policy</a>
+          <a href="#" class="hover:text-[#ff005e] transition-colors">Terms of Service</a>
+          <a href="#" class="hover:text-[#ff005e] transition-colors">Twitter / X</a>
+          <a href="#" class="hover:text-[#ff005e] transition-colors">GitHub Repository</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <!-- =============================================================
+       THEME TOGGLE JAVASCRIPT & ICON INITIALIZATION
+       ============================================================= -->
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Theme Toggle State & Logic
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const themeThumb = document.getElementById('theme-thumb');
+    const themeIcon = document.getElementById('theme-icon');
+
+    function applyTheme(isDark) {
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        themeThumb.classList.remove('translate-x-0');
+        themeThumb.classList.add('translate-x-7');
+        themeIcon.setAttribute('data-lucide', 'moon');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        themeThumb.classList.remove('translate-x-7');
+        themeThumb.classList.add('translate-x-0');
+        themeIcon.setAttribute('data-lucide', 'sun');
+        localStorage.setItem('theme', 'light');
+      }
+      lucide.createIcons();
+    }
+
+    // Detect initial theme preference
+    const savedTheme = localStorage.getItem('theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialIsDark = savedTheme ? savedTheme === 'dark' : true;
+    applyTheme(initialIsDark);
+
+    // Click handler for toggle button
+    themeToggleBtn.addEventListener('click', () => {
+      const isCurrentlyDark = document.documentElement.classList.contains('dark');
+      applyTheme(!isCurrentlyDark);
+    });
+  </script>
+</body>
+</html>

@@ -702,22 +702,23 @@ export default function NetSentryDashboard() {
  };
 
   const handleResumeAll = async () => {
-  setActionLoading('resume-all');
-  try {
-  if (tauriStatus === 'connected') {
-  const { invoke } = await import('@tauri-apps/api/core');
-  await invoke('emergency_clear_all_firewall_rules');
-  setProcesses(prev => prev.map(p => ({ ...p, is_paused: false })));
-  setIsFocusMode(false);
-  addLog(`Global reset: Purged all NetSentry firewall rules and restored network.`, 'info');
-  }
-  alert('Successfully cleared all NetSentry firewall rules! Normal network access fully restored.');
-  } catch (e) {
-  console.error(e);
-  alert(`Reset action failed: ${e}`);
-  } finally {
-  setActionLoading(null);
-  }
+    if (!confirm('This will safely unblock any apps paused by NetSentry and restore standard internet access for all programs on your PC. Proceed?')) return;
+    setActionLoading('resume-all');
+    try {
+      if (tauriStatus === 'connected') {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('emergency_clear_all_firewall_rules');
+        setProcesses(prev => prev.map(p => ({ ...p, is_paused: false })));
+        setIsFocusMode(false);
+        addLog(`All applications unblocked. Normal internet access restored.`, 'info');
+      }
+      alert('All applications unblocked! Normal internet access has been restored.');
+    } catch (e) {
+      console.error(e);
+      alert(`Action failed: ${e}`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
  const openInspector = (proc: ProcessNetworkData | GroupedProcess) => {
@@ -824,23 +825,15 @@ export default function NetSentryDashboard() {
  {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
  </button>
 
- <div className={`flex items-center space-x-2 text-xs border rounded-md px-3 py-1.5 ${
- isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 '
- }`}>
- <span className={`w-2 h-2 rounded-md ${tauriStatus === 'connected' ? 'bg-primary animate-pulse' : 'bg-orange-400'}`} />
- <span className={textMutedClass}>
- {tauriStatus === 'connected' ? 'Tauri Service Active' : 'Web Sandbox'}
- </span>
- </div>
-
- <button 
- onClick={handleResumeAll}
- disabled={actionLoading !== null || tauriStatus !== 'connected'}
- className="flex items-center space-x-2 bg-primary hover:bg-primary/90 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer transition-all"
- >
- <RotateCcw className="w-3.5 h-3.5" />
- <span>Reset Firewall Rules</span>
- </button>
+					<button 
+						onClick={handleResumeAll}
+						disabled={actionLoading !== null || tauriStatus !== 'connected'}
+						className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer transition-all shadow-sm"
+						title="Safely unblocks any paused applications and restores normal internet connectivity"
+					>
+						<RotateCcw className="w-3.5 h-3.5" />
+						<span>Unblock All Apps</span>
+					</button>
  </div>
  </header>
 
