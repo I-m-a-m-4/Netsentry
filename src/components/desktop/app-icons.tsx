@@ -526,34 +526,43 @@ export function getProcessBrandMeta(name: string, path: string): ProcessBrandMet
  * Universal App Icon Component with native binary extraction and SVG fallback
  */
 export function AppIcon({ 
- name, 
- exePath, 
- iconUrl,
- className = "w-6 h-6",
- large = false 
+	name, 
+	exePath, 
+	iconUrl,
+	className,
+	large = false 
 }: { 
- name: string; 
- exePath?: string; 
- iconUrl?: string | null;
- className?: string;
- large?: boolean;
+	name: string; 
+	exePath?: string; 
+	iconUrl?: string | null;
+	className?: string;
+	large?: boolean;
 }) {
- const [imgError, setImgError] = React.useState(false);
- const meta = getProcessBrandMeta(name, exePath || '');
- const hasCustomIcon = Boolean(iconUrl && !imgError);
+	const [imgError, setImgError] = React.useState(false);
+	const meta = getProcessBrandMeta(name, exePath || '');
+	const hasCustomIcon = Boolean(iconUrl && !imgError);
 
- return (
- <div className={`relative flex items-center justify-center shrink-0 transition-transform ${large ? 'p-2 rounded-lg w-12 h-12' : 'p-1.5 rounded-md w-9 h-9'} ${meta.badgeBg}`}>
- {hasCustomIcon ? (
- <img 
- src={iconUrl!} 
- alt={name} 
- className={`${large ? 'w-8 h-8' : 'w-6 h-6'} object-contain rounded drop-`}
- onError={() => setImgError(true)} 
- />
- ) : (
- meta.icon
- )}
- </div>
- );
+	const defaultSize = large ? 'w-11 h-11' : 'w-8 h-8';
+	const sizeClass = className || defaultSize;
+
+	return (
+		<div className="relative flex items-center justify-center shrink-0 select-none">
+			{hasCustomIcon ? (
+				<img 
+					src={iconUrl!} 
+					alt={name} 
+					className={`${sizeClass} object-contain transition-transform hover:scale-105`}
+					onError={() => setImgError(true)} 
+				/>
+			) : (
+				<div className={`flex items-center justify-center ${sizeClass}`}>
+					{React.isValidElement(meta.icon)
+						? React.cloneElement(meta.icon as React.ReactElement<any>, {
+								className: `${sizeClass} ${meta.accentColor ? '' : 'text-primary'}`
+							})
+						: meta.icon}
+				</div>
+			)}
+		</div>
+	);
 }

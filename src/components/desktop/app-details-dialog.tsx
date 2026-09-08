@@ -167,7 +167,7 @@ export default function AppDetailsDialog({
  {exePath || 'System Process'}
  </div>
  <div className="flex items-center gap-3 text-xs text-muted-foreground pt-0.5">
- <span>{pidsList.length > 1 ? `${pidsList.length} Running Instances` : `PID ${primaryPid}`}</span>
+ <span>{pidsList.length > 1 ? `${pidsList.length} Running Instances` : `Task #${primaryPid}`}</span>
  <span>•</span>
  <span>{sockets.length} Active Sockets</span>
  <span>•</span>
@@ -423,7 +423,7 @@ export default function AppDetailsDialog({
  <div className="flex items-center justify-between text-xs font-bold">
  <span className="flex items-center gap-2">
  <Layers className="w-4 h-4 text-primary" />
- Active Process Instances ({pidsList.length} PIDs)
+ Active Running Tasks ({pidsList.length})
  </span>
  </div>
  <div className="flex items-center gap-2 flex-wrap">
@@ -434,7 +434,7 @@ export default function AppDetailsDialog({
  isDark ? 'border-slate-800 bg-slate-900 text-slate-300' : 'border-slate-200 bg-white text-slate-700'
  }`}
  >
- PID {pid}
+ Task #{pid}
  </span>
  ))}
  </div>
@@ -497,9 +497,9 @@ export default function AppDetailsDialog({
  </div>
  ) : (
  <div className="py-12 text-center text-muted-foreground text-xs space-y-2">
- 	<Zap className="w-6 h-6 mx-auto text-muted-foreground/30" />
-	<p>No active network connections currently open by this app.</p>
-	</div>
+ <Zap className="w-6 h-6 mx-auto text-muted-foreground/30" />
+ <p>No active network sockets currently open by this application.</p>
+ </div>
  )}
  </div>
  )}
@@ -508,3 +508,4 @@ export default function AppDetailsDialog({
  </div>
  );
 }
+   

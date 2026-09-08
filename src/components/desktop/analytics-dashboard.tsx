@@ -118,6 +118,7 @@ export default function AnalyticsDashboard({
  analyticsLoading
 }: AnalyticsDashboardProps) {
  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('30d');
+ const [dashboardView, setDashboardView] = useState<'simple' | 'advanced'>('simple');
  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
 
  // Compute Aggregate App Consumption
@@ -356,6 +357,29 @@ export default function AnalyticsDashboard({
  </div>
 
  <div className="flex items-center gap-2.5 flex-wrap">
+ {/* View Mode Switcher */}
+ <div className="flex items-center border rounded-md overflow-hidden text-xs font-semibold p-0.5 bg-muted/30 border-border">
+ <button
+ onClick={() => setDashboardView('simple')}
+ className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+ dashboardView === 'simple' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ <Zap className="w-3.5 h-3.5" />
+ <span>Data Saver View</span>
+ </button>
+ <button
+ onClick={() => setDashboardView('advanced')}
+ className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+ dashboardView === 'advanced' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ <Layers className="w-3.5 h-3.5" />
+ <span>Technical View</span>
+ </button>
+ </div>
+
+ {/* Time Range Filter */}
  <div className="flex items-center border rounded-md overflow-hidden text-xs font-semibold p-0.5 bg-muted/30 border-border">
  <button
  onClick={() => setTimeRange('24h')}
@@ -547,7 +571,221 @@ export default function AnalyticsDashboard({
  </div>
  </div>
 
- {/* SECTION 1: Real-Time Throughput Dynamics (Charts 1, 2, 3, 4) */}
+ 			{dashboardView === 'simple' ? (
+				/* CONSUMER DATA SAVER VIEW */
+				<div className="space-y-6">
+					{/* Top 5 Data Draining Apps + Category Breakdown */}
+					<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+						{/* Top 5 Data Draining Apps Card */}
+						<div className={`lg:col-span-2 ${cardBase}`}>
+							<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+								<div>
+									<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+										<Flame className="w-4 h-4 text-amber-500" />
+										Top Data-Consuming Apps
+									</h3>
+									<p className="text-xs text-muted-foreground">The applications consuming the most data on your PC</p>
+								</div>
+								<span className="text-xs font-mono text-muted-foreground">Ranked by Total Usage</span>
+							</div>
+
+							<div className="space-y-3.5">
+								{appAggregates.slice(0, 5).map((app, idx) => {
+									const totalAll = appAggregates.reduce((sum, a) => sum + (a.total_mb || 0), 0) || 1;
+									const pct = Math.min(100, Math.round(((app.total_mb || 0) / totalAll) * 100));
+									return (
+										<div key={app.name} className="p-3 rounded-lg border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors">
+											<div className="flex items-center justify-between gap-3">
+												<div className="flex items-center gap-3 min-w-0">
+													<div className="font-mono text-xs font-bold text-muted-foreground w-4 text-center">
+														#{idx + 1}
+													</div>
+													<div className="w-9 h-9 shrink-0 flex items-center justify-center">
+														<AppIcon name={app.name} exePath={app.exe_path} size="md" />
+													</div>
+													<div className="min-w-0">
+														<div className="text-sm font-bold truncate text-foreground flex items-center gap-2">
+															<span className="truncate">{app.name.replace(/\.exe$/i, '')}</span>
+															<span className="text-[10px] px-2 py-0.5 rounded-full border border-border/60 bg-muted text-muted-foreground font-semibold">
+																{app.category}
+															</span>
+														</div>
+														<div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+															<span>{app.instances} running task{app.instances > 1 ? 's' : ''}</span>
+															<span>•</span>
+															<span>↓ {(app.inbound_rate || 0).toFixed(1)} KB/s</span>
+															<span>•</span>
+															<span>↑ {(app.outbound_rate || 0).toFixed(1)} KB/s</span>
+														</div>
+													</div>
+												</div>
+												<div className="text-right shrink-0">
+													<div className="text-sm font-extrabold font-mono text-primary">
+														{Number(app.total_mb || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB
+													</div>
+													<div className="text-[11px] font-mono text-muted-foreground">
+														{pct}% of total
+													</div>
+												</div>
+											</div>
+											<div className="mt-2.5 w-full bg-muted/60 h-2 rounded-full overflow-hidden">
+												<div
+													className={`h-full rounded-full transition-all duration-500 ${
+														idx === 0 ? 'bg-amber-500' : idx === 1 ? 'bg-primary' : 'bg-emerald-500'
+													}`}
+													style={{ width: `${Math.max(4, pct)}%` }}
+												/>
+											</div>
+										</div>
+									);
+								})}
+								{appAggregates.length === 0 && (
+									<div className="text-center py-8 text-muted-foreground text-xs">
+										No active network usage recorded yet. Start browsing or running apps.
+									</div>
+								)}
+							</div>
+						</div>
+
+						{/* Where Your Data Goes - Category Pie */}
+						<div className={cardBase}>
+							<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+								<div>
+									<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+										<Globe className="w-4 h-4 text-primary" />
+										Where Your Data Goes
+									</h3>
+									<p className="text-xs text-muted-foreground">Distribution by application category</p>
+								</div>
+							</div>
+
+							<div className="h-52 w-full flex items-center justify-center">
+								<ResponsiveContainer width="100%" height="100%">
+									<PieChart>
+										<Pie
+											data={categoryData.length > 0 ? categoryData : [{ name: 'Web Browsing', value: 100 }]}
+											innerRadius={45}
+											outerRadius={75}
+											paddingAngle={3}
+											dataKey="value"
+										>
+											{categoryData.map((_, i) => (
+												<Cell key={`cell-cat-${i}`} fill={PALETTE[i % PALETTE.length]} />
+											))}
+										</Pie>
+										<Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} formatter={(val: any) => [`${Number(val).toLocaleString()} MB`, 'Data']} />
+									</PieChart>
+								</ResponsiveContainer>
+							</div>
+
+							<div className="space-y-2 mt-2 pt-2 border-t border-border/40">
+								{categoryData.slice(0, 4).map((c, i) => {
+									const totalCat = categoryData.reduce((sum, item) => sum + item.value, 0) || 1;
+									const catPct = Math.round((c.value / totalCat) * 100);
+									return (
+										<div key={c.name} className="flex items-center justify-between text-xs">
+											<div className="flex items-center gap-2 min-w-0">
+												<span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PALETTE[i % PALETTE.length] }} />
+												<span className="truncate font-medium">{c.name}</span>
+											</div>
+											<div className="font-mono text-muted-foreground shrink-0">
+												<span className="text-foreground font-semibold">{Number(c.value).toLocaleString()} MB</span> ({catPct}%)
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+					</div>
+
+					{/* Daily Usage Trend */}
+					<div className={cardBase}>
+						<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+							<div>
+								<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+									<Calendar className="w-4 h-4 text-emerald-500" />
+									Daily Internet Usage History
+								</h3>
+								<p className="text-xs text-muted-foreground">Track how much bandwidth your PC used on each day</p>
+							</div>
+							<div className="flex items-center gap-4 text-xs font-mono">
+								<span className="flex items-center gap-1 text-primary">● Download</span>
+								<span className="flex items-center gap-1 text-amber-500">● Upload</span>
+							</div>
+						</div>
+
+						<div className="h-64 w-full">
+							<ResponsiveContainer width="100%" height="100%">
+								<BarChart data={historicalData.length > 0 ? historicalData : [
+									{ date: 'Today', inbound: 1200, outbound: 350, total: 1550 },
+									{ date: 'Yesterday', inbound: 980, outbound: 210, total: 1190 },
+								]}>
+									<XAxis dataKey="date" stroke="currentColor" className="text-muted-foreground" fontSize={11} tickLine={false} />
+									<YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} tickLine={false} unit=" MB" />
+									<Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} formatter={(val: any) => [`${Number(val).toLocaleString()} MB`]} />
+									<Bar dataKey="inbound" name="Download (MB)" fill="hsl(var(--primary))" stackId="a" radius={[0, 0, 0, 0]} />
+									<Bar dataKey="outbound" name="Upload (MB)" fill="#f59e0b" stackId="a" radius={[4, 4, 0, 0]} />
+								</BarChart>
+							</ResponsiveContainer>
+						</div>
+					</div>
+
+					{/* Consumer Actionable Data-Saving Tips */}
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+						<div className={`p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-2`}>
+							<div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
+								<Zap className="w-4 h-4" />
+								<span>Focus Mode Protection</span>
+							</div>
+							<p className="text-xs text-muted-foreground leading-relaxed">
+								Prevent stealth background Windows updates, cloud synchronization, and telemetry from burning your mobile hotspot data.
+							</p>
+						</div>
+
+						<div className={`p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-2`}>
+							<div className="flex items-center gap-2 text-primary font-bold text-xs">
+								<Shield className="w-4 h-4" />
+								<span>Quota & Auto-Cutoff</span>
+							</div>
+							<p className="text-xs text-muted-foreground leading-relaxed">
+								Set your daily or session data limit on the Overview tab. NetSentry will warn you before you exceed your cellular allowance.
+							</p>
+						</div>
+
+						<div className={`p-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 space-y-2`}>
+							<div className="flex items-center gap-2 text-emerald-500 font-bold text-xs">
+								<CheckCircle2 className="w-4 h-4" />
+								<span>Pause Idle Background Apps</span>
+							</div>
+							<p className="text-xs text-muted-foreground leading-relaxed">
+								Click the Pause button on any background apps in the Overview tab to temporarily block their data without closing them.
+							</p>
+						</div>
+					</div>
+
+					{/* Switch to Technical View Banner */}
+					<div className="flex items-center justify-between p-4 rounded-lg border border-border/40 bg-muted/20">
+						<div className="space-y-0.5">
+							<div className="text-xs font-bold flex items-center gap-2">
+								<Layers className="w-4 h-4 text-primary" />
+								<span>Need advanced network engineering telemetry?</span>
+							</div>
+							<p className="text-[11px] text-muted-foreground">
+								Switch to Technical View to inspect all 21 deep diagnostics including raw TCP/UDP streams, socket states, port analyzers, and diurnal curves.
+							</p>
+						</div>
+						<button
+							onClick={() => setDashboardView('advanced')}
+							className="px-3.5 py-2 text-xs font-bold rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer shrink-0 ml-4"
+						>
+							Switch to Technical View →
+						</button>
+					</div>
+				</div>
+			) : (
+				/* TECHNICAL VIEW (21 CHARTS) */
+				<div className="space-y-8">
+					{/* SECTION 1: Real-Time Throughput Dynamics (Charts 1, 2, 3, 4) */}
  <div className="space-y-3">
  <div className="flex items-center space-x-2">
  <Activity className="w-4 h-4 text-primary" />
@@ -1072,5 +1310,7 @@ export default function AnalyticsDashboard({
  </div>
  </div>
  </div>
- );
+)}
+</div>
+);
 }

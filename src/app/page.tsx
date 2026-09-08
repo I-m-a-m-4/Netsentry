@@ -144,11 +144,27 @@ const formatRate = (kbps: number) => {
  return `${kbps.toFixed(1)} KB/s`;
 };
 
-const formatVolume = (mb: number) =>
- mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+const formatVolume = (mb: number, forceUnit?: 'auto' | 'mb') => {
+	if (!Number.isFinite(mb) || mb <= 0) return '0 MB';
+	if (forceUnit === 'mb') {
+		const formatted = mb >= 10
+			? Math.round(mb).toLocaleString()
+			: mb.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+		return `${formatted} MB`;
+	}
+	if (mb >= 1024) {
+		const gb = mb / 1024;
+		return `${gb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GB`;
+	}
+	const formatted = mb >= 10
+		? Math.round(mb).toLocaleString()
+		: mb.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+	return `${formatted} MB`;
+};
 
 export default function NetSentryDashboard() {
  const [isClient, setIsClient] = useState(false);
+ const [volumeUnit, setVolumeUnit] = useState<'auto' | 'mb'>('auto');
  const [processes, setProcesses] = useState<ProcessNetworkData[]>([]);
  const [searchQuery, setSearchQuery] = useState('');
  const [chartData, setChartData] = useState<{ time: string; inbound: number; outbound: number }[]>([]);
@@ -264,11 +280,27 @@ export default function NetSentryDashboard() {
  }
  };
 
- // Keep the ref in sync so the telemetry listener can read the current quota
- // without needing to be re-registered when the limit changes.
- useEffect(() => {
- quotaRef.current = quotaLimit;
- }, [quotaLimit]);
+ 	// Keep the ref in sync so the telemetry listener can read the current quota
+	// without needing to be re-registered when the limit changes.
+	useEffect(() => {
+		quotaRef.current = quotaLimit;
+	}, [quotaLimit]);
+
+	useEffect(() => {
+		if (typeof window !== 'undefined') {
+			const saved = localStorage.getItem('netsentry_volume_unit') as 'auto' | 'mb';
+			if (saved === 'mb' || saved === 'auto') {
+				setVolumeUnit(saved);
+			}
+		}
+	}, []);
+
+	const handleSetVolumeUnit = (unit: 'auto' | 'mb') => {
+		setVolumeUnit(unit);
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('netsentry_volume_unit', unit);
+		}
+	};
 
  const autoCutoffEnabledRef = useRef<boolean>(false);
  useEffect(() => { autoCutoffEnabledRef.current = autoCutoffEnabled; }, [autoCutoffEnabled]);
@@ -389,7 +421,7 @@ export default function NetSentryDashboard() {
  if (!suspicious) return;
  nowFlagged.add(p.pid);
  if (!previouslyFlagged.has(p.pid)) {
- addLog(`Warning: Process ${p.name} (PID ${p.pid}) shows suspicious socket counts (${p.connections_count}) and high CPU usage (${p.cpu_usage}%).`, 'warning');
+ 					addLog(`Warning: Process ${p.name} (Task #${p.pid}) shows suspicious socket counts (${p.connections_count}) and high CPU usage (${p.cpu_usage}%).`, 'warning');
  }
  });
  flaggedPidsRef.current = nowFlagged;
@@ -634,8 +666,8 @@ export default function NetSentryDashboard() {
  };
 
  const handleKillProcess = async (proc: ProcessNetworkData | GroupedProcess) => {
- const pidsToKill = 'pids' in proc ? proc.pids : [proc.pid];
- if (!confirm(`Are you sure you want to force terminate ${proc.name} (${pidsToKill.length > 1 ? `${pidsToKill.length} processes` : `PID ${pidsToKill[0]}`})?`)) return;
+ 		const pidsToKill = 'pids' in proc ? proc.pids : [proc.pid];
+		if (!confirm(`Are you sure you want to force terminate ${proc.name} (${pidsToKill.length > 1 ? `${pidsToKill.length} processes` : `Task #${pidsToKill[0]}`})?`)) return;
  
  const key = `kill-${pidsToKill[0]}`;
  setActionLoading(key);
@@ -914,7 +946,7 @@ export default function NetSentryDashboard() {
   </div>
   <div>
   <div className="text-2xl font-black text-foreground">
-  {formatVolume(usedMb)}
+  {formatVolume(usedMb, volumeUnit)}
   </div>
   <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
   {timeRangeFilter === 'today' && 'Today · since 00:00'}
@@ -1167,6 +1199,26 @@ export default function NetSentryDashboard() {
  </button>
  </div>
 
+ {/* Volume Unit Selector (Auto vs Always MB) */}
+ <div className={`flex items-center border rounded-md overflow-hidden p-0.5 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`} title="Display data usage in MB or automatically in GB">
+ <button
+ onClick={() => handleSetVolumeUnit('auto')}
+ className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+ volumeUnit === 'auto' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ Auto
+ </button>
+ <button
+ onClick={() => handleSetVolumeUnit('mb')}
+ className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+ volumeUnit === 'mb' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ MB Only
+ </button>
+ </div>
+
  {/* Sort Selector */}
  <div className="flex items-center gap-2 w-full sm:w-auto">
  <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Sort:</span>
@@ -1181,7 +1233,7 @@ export default function NetSentryDashboard() {
  <option value="inbound">⬇️ Inbound Speed</option>
  <option value="outbound">⬆️ Outbound Speed</option>
  <option value="name">🔤 App Name</option>
- <option value="pid">🔢 Process ID (PID)</option>
+ <option value="pid">🔢 App ID</option>
  </select>
  </div>
 
@@ -1194,7 +1246,7 @@ export default function NetSentryDashboard() {
  type="text"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
- placeholder="Search app, path, PID..."
+ placeholder="Search apps by name..."
  className={`w-full border focus:ring-1 rounded-md pl-9 pr-4 py-2 text-xs outline-none transition-all ${
  isDark 
  ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-primary focus:ring-primary focus:bg-slate-950 placeholder-slate-500' 
@@ -1217,10 +1269,10 @@ export default function NetSentryDashboard() {
  ? 'bg-primary/10 border-primary/30 text-primary' 
  : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/70'
  }`}
- title={groupByApp ? "Application Grouping ON: Merges duplicate instances" : "Showing raw individual PIDs"}
+ title={groupByApp ? "Application Grouping ON: Merges duplicate instances" : "Showing individual tasks"}
  >
  <Layers className="w-3.5 h-3.5" />
- <span>{groupByApp ? 'Grouped by App' : 'Raw PIDs'}</span>
+ <span>{groupByApp ? 'Group Apps' : 'All Tasks'}</span>
  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/20 text-primary font-extrabold">
  {displayProcesses.length}
  </span>
@@ -1300,7 +1352,7 @@ export default function NetSentryDashboard() {
  <thead>
  <tr className={`border-b border-border/50 text-xs font-semibold uppercase tracking-wider ${tableHeaderBg} ${textMutedClass}`}>
  <th className="px-6 py-4">Application / App</th>
- <th className="px-6 py-4">PID</th>
+ <th className="px-6 py-4">Task ID</th>
  <th className="px-6 py-4" title="Total network data transferred by this application in this session">Data Used</th>
  <th className="px-6 py-4" title="Live download speed">Download</th>
  <th className="px-6 py-4" title="Live upload speed">Upload</th>
@@ -1361,14 +1413,14 @@ export default function NetSentryDashboard() {
  </td>
  <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>
  {proc.pids.length > 1 ? (
- <span className="font-bold text-primary">{proc.pids[0]} +{proc.pids.length - 1}</span>
+ <span className="font-bold text-primary">#{proc.pids[0]} +{proc.pids.length - 1}</span>
  ) : (
- proc.pids[0]
+ `#${proc.pids[0]}`
  )}
  </td>
  <td className="px-6 py-4 font-mono text-xs font-bold text-primary">
  <span className="bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg">
- {formatVolume(proc.total_data_mb || 0)}
+ {formatVolume(proc.total_data_mb || 0, volumeUnit)}
  </span>
  </td>
  <td className="px-6 py-4 font-mono text-xs text-emerald-500 font-semibold">
@@ -1465,21 +1517,21 @@ export default function NetSentryDashboard() {
  <div className="space-y-1.5">
  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
  <Layers className="w-3 h-3 text-primary" />
- <span>Consolidated Instances ({proc.instances.length} Sub-Processes)</span>
+ <span>Consolidated Instances ({proc.instances.length} Sub-Tasks)</span>
  </div>
  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
  {proc.instances.map(inst => (
  <div key={inst.pid} className="flex items-center justify-between p-2 rounded-lg border border-border/60 bg-background/60 font-mono text-xs">
  <div>
- <span className="font-bold text-foreground">PID {inst.pid}</span>
+ <span className="font-bold text-foreground">Task #{inst.pid}</span>
  <span className="text-[10px] text-muted-foreground ml-2">({inst.connections_count} connections)</span>
  </div>
  <div className="flex items-center gap-2">
- <span className="text-primary font-semibold text-[11px]">{formatVolume(inst.total_data_mb)}</span>
+ <span className="text-primary font-semibold text-[11px]">{formatVolume(inst.total_data_mb, volumeUnit)}</span>
  <button
  onClick={() => handleKillProcess(inst)}
  className="p-1 text-slate-400 hover:text-red-500 transition-colors"
- title={`Close PID ${inst.pid}`}
+ title={`Close Task ${inst.pid}`}
  >
  <Trash2 className="w-3 h-3" />
  </button>
@@ -1524,7 +1576,7 @@ export default function NetSentryDashboard() {
  className={`relative border rounded-lg p-5 transition-all hover: cursor-pointer ${
  isDark ? 'bg-slate-900/50 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
  } ${proc.is_paused ? 'border-red-500/30 bg-red-500/5' : ''}`}
- title="Click to view detailed bandwidth usage over time and sockets"
+ title="Click to view daily data usage and connection history"
  >
  {/* Top Brand & Title */}
  <div className="flex items-start justify-between gap-3">
@@ -1552,9 +1604,9 @@ export default function NetSentryDashboard() {
  toggleGroupExpand(proc.key);
  }}
  className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
- title="Toggle sub-processes"
+ title="Toggle sub-tasks"
  >
- <span>{proc.pids.length} PIDs</span>
+ <span>{proc.pids.length} Tasks</span>
  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
  </button>
  )}
@@ -1567,7 +1619,7 @@ export default function NetSentryDashboard() {
  <div className="flex items-baseline justify-between">
  <span className="text-xs text-muted-foreground font-medium">Data Used:</span>
  <span className="font-mono text-lg font-extrabold text-primary">
- {formatVolume(proc.total_data_mb || 0)}
+ {formatVolume(proc.total_data_mb || 0, volumeUnit)}
  </span>
  </div>
 
@@ -1595,18 +1647,18 @@ export default function NetSentryDashboard() {
  <Radio className="w-3 h-3 text-sky-400" />
  <span>{proc.connections_count} Active Connections</span>
  </span>
- <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : `PID: ${proc.pids[0]}`}</span>
+ <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : 'Running'}</span>
  </div>
  </div>
 
  {/* Expanded Sub-Processes Drawer */}
  {isExpanded && proc.instances.length > 1 && (
  <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5 max-h-40 overflow-y-auto font-mono text-[10px]">
- <div className="text-muted-foreground font-semibold uppercase text-[9px]">Sub-Processes ({proc.instances.length})</div>
+ <div className="text-muted-foreground font-semibold uppercase text-[9px]">Sub-Tasks ({proc.instances.length})</div>
  {proc.instances.map(inst => (
  <div key={inst.pid} className="flex items-center justify-between p-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
- <span>PID: {inst.pid}</span>
- <span className="text-primary">{formatVolume(inst.total_data_mb)}</span>
+ <span>Task #{inst.pid}</span>
+ <span className="text-primary">{formatVolume(inst.total_data_mb, volumeUnit)}</span>
  <span className="text-emerald-500">{formatRate(inst.inbound_rate)}</span>
  <button
  onClick={(e) => {
@@ -1614,7 +1666,7 @@ export default function NetSentryDashboard() {
  handleKillProcess(inst);
  }}
  className="text-slate-400 hover:text-red-500 p-1"
- title="Close PID"
+ title="Close Task"
  >
  <Trash2 className="w-3 h-3" />
  </button>
@@ -1786,6 +1838,7 @@ export default function NetSentryDashboard() {
  onTogglePause={handleTogglePause}
  onKillProcess={handleKillProcess}
  onOpenFileLocation={handleOpenFileLocation}
+ volumeUnit={volumeUnit}
  />
 
  <footer className={`mt-auto border-t px-6 py-6 text-center text-xs ${borderClass} ${textMutedClass} ${isDark ? 'bg-slate-950' : 'bg-white '}`}>
