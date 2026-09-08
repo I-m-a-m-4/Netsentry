@@ -348,10 +348,10 @@ export default function AnalyticsDashboard({
  <span className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20">
  <BarChart2 className="w-5 h-5" />
  </span>
- <h1 className="font-bricolage text-2xl font-bold tracking-tight">Executive Network Intelligence</h1>
+ <h1 className="font-bricolage text-2xl font-bold tracking-tight">Network Analytics & Insights</h1>
  </div>
  <p className="text-xs text-muted-foreground mt-1">
- 21 deep-dive telemetry metrics & behavioral bandwidth analytics across processes, protocols, and diurnal cycles
+ Detailed data usage metrics, daily patterns, and internet traffic analytics
  </p>
  </div>
 
@@ -795,12 +795,12 @@ export default function AnalyticsDashboard({
  </div>
  </div>
 
- {/* SECTION 3: Application & Process Intelligence (Charts 10, 11, 12, 13, 14) */}
+ {/* SECTION 3: Application & Process Usage (Charts 10, 11, 12, 13, 14) */}
  <div className="space-y-3 pt-2">
  <div className="flex items-center space-x-2">
  <Cpu className="w-4 h-4 text-orange-500" />
  <h2 className="font-bricolage text-sm font-bold uppercase tracking-wider text-muted-foreground">
- Section 3: Application & Process Telemetry
+ Section 3: Application & Process Usage
  </h2>
  </div>
 

@@ -235,7 +235,7 @@ export default function AppDetailsDialog({
  } disabled:opacity-50`}
  >
  <Trash2 className="w-3.5 h-3.5" />
- <span>Terminate Process</span>
+ <span>Close App</span>
  </button>
  </div>
 
@@ -255,7 +255,7 @@ export default function AppDetailsDialog({
  activeTab === 'sockets' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
  }`}
  >
- <span>Active Sockets</span>
+ <span>Active Connections</span>
  <span className="px-1.5 py-0.2 bg-primary/20 text-primary text-[10px] rounded-md font-bold">
  {sockets.length}
  </span>
@@ -270,49 +270,49 @@ export default function AppDetailsDialog({
  {/* Telemetry Metric KPI Cards */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
  <div className={`p-4 rounded-lg border space-y-1.5 ${isDark ? 'border-slate-850 bg-slate-900/30' : 'border-slate-200/80 bg-slate-50/70'}`}>
- <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
- <span>Total Transferred</span>
- <HardDrive className="w-3.5 h-3.5 text-primary" />
- </div>
- <div className="text-2xl font-black text-primary font-mono">
- {process.total_data_mb >= 1024 
- ? `${(process.total_data_mb / 1024).toFixed(2)} GB` 
- : `${process.total_data_mb.toFixed(1)} MB`}
- </div>
- <p className="text-[10px] text-muted-foreground">Cumulative session & recorded</p>
+ 	<div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+	<span>Total Data Used</span>
+	<HardDrive className="w-3.5 h-3.5 text-primary" />
+	</div>
+	<div className="text-2xl font-black text-primary font-mono">
+	{process.total_data_mb >= 1024 
+	? `${(process.total_data_mb / 1024).toFixed(2)} GB` 
+	: `${process.total_data_mb.toFixed(1)} MB`}
+	</div>
+	<p className="text-[10px] text-muted-foreground">Total data recorded</p>
  </div>
 
  <div className={`p-4 rounded-lg border space-y-1.5 ${isDark ? 'border-slate-850 bg-slate-900/30' : 'border-slate-200/80 bg-slate-50/70'}`}>
  <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
- <span>Inbound Download</span>
+ <span>Download Speed</span>
  <ArrowDown className="w-3.5 h-3.5 text-emerald-500" />
  </div>
  <div className="text-2xl font-black text-emerald-500 font-mono">
  {process.inbound_rate.toFixed(1)} <span className="text-xs font-normal">KB/s</span>
  </div>
- <p className="text-[10px] text-muted-foreground">Live incoming packet stream</p>
+ <p className="text-[10px] text-muted-foreground">Current incoming speed</p>
  </div>
 
  <div className={`p-4 rounded-lg border space-y-1.5 ${isDark ? 'border-slate-850 bg-slate-900/30' : 'border-slate-200/80 bg-slate-50/70'}`}>
  <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
- <span>Outbound Upload</span>
+ <span>Upload Speed</span>
  <ArrowUp className="w-3.5 h-3.5 text-primary" />
  </div>
  <div className="text-2xl font-black text-primary font-mono">
  {process.outbound_rate.toFixed(1)} <span className="text-xs font-normal">KB/s</span>
  </div>
- <p className="text-[10px] text-muted-foreground">Live outgoing packet stream</p>
+ <p className="text-[10px] text-muted-foreground">Current outgoing speed</p>
  </div>
 
  <div className={`p-4 rounded-lg border space-y-1.5 ${isDark ? 'border-slate-850 bg-slate-900/30' : 'border-slate-200/80 bg-slate-50/70'}`}>
  <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
- <span>Hardware Usage</span>
+ <span>CPU & Memory</span>
  <Cpu className="w-3.5 h-3.5 text-amber-500" />
  </div>
  <div className="text-2xl font-black text-foreground font-mono">
  {process.cpu_usage.toFixed(1)}%
  </div>
- <p className="text-[10px] text-muted-foreground">{process.memory_usage} MB Working Memory</p>
+ <p className="text-[10px] text-muted-foreground">{process.memory_usage} MB RAM used</p>
  </div>
  </div>
 
@@ -410,8 +410,8 @@ export default function AppDetailsDialog({
  </ResponsiveContainer>
  ) : (
  <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs space-y-2">
- <Activity className="w-6 h-6 text-muted-foreground/40 animate-pulse" />
- <span>{loadingHistory ? 'Loading historical bandwidth telemetry...' : 'No historical data recorded yet for this application today.'}</span>
+ 	<Activity className="w-6 h-6 text-muted-foreground/40 animate-pulse" />
+	<span>{loadingHistory ? 'Loading historical usage data...' : 'No historical data recorded yet for this application today.'}</span>
  </div>
  )}
  </div>
@@ -448,11 +448,11 @@ export default function AppDetailsDialog({
  <div>
  <h3 className="font-bricolage text-sm font-bold flex items-center gap-2">
  <Radio className="w-4 h-4 text-primary" />
- Open Network Sockets & Ports
+ Open Network Connections & Ports
  </h3>
- <p className="text-xs text-muted-foreground">Real-time TCP/UDP socket telemetry for this program</p>
+ <p className="text-xs text-muted-foreground">Live network connections and remote servers for this app</p>
  </div>
- <span className="text-xs font-mono text-muted-foreground">{sockets.length} Sockets Open</span>
+ <span className="text-xs font-mono text-muted-foreground">{sockets.length} Connections Open</span>
  </div>
 
  {sockets.length > 0 ? (
@@ -497,9 +497,9 @@ export default function AppDetailsDialog({
  </div>
  ) : (
  <div className="py-12 text-center text-muted-foreground text-xs space-y-2">
- <Zap className="w-6 h-6 mx-auto text-muted-foreground/30" />
- <p>No active network sockets currently open by this application.</p>
- </div>
+ 	<Zap className="w-6 h-6 mx-auto text-muted-foreground/30" />
+	<p>No active network connections currently open by this app.</p>
+	</div>
  )}
  </div>
  )}

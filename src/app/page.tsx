@@ -823,9 +823,9 @@ export default function NetSentryDashboard() {
  <AlertTriangle className="w-6 h-6" />
  </div>
  <div>
- <h3 className="font-bricolage text-sm font-bold text-primary">Local Telemetry Offline</h3>
+ <h3 className="font-bricolage text-sm font-bold text-primary">Desktop App Required for Live Tracking</h3>
  <p className={`text-xs mt-1 ${textMutedClass}`}>
- NetSentry requires process-level socket tracing and administrative capabilities to manage firewall rules and monitor network traffic. These components cannot run inside standard web browsers.
+ You are viewing NetSentry in a web browser. To track live internet speeds, monitor app data usage, and pause data hogs, launch NetSentry as a Windows desktop application.
  </p>
  </div>
  </div>
@@ -834,253 +834,256 @@ export default function NetSentryDashboard() {
 
  {currentTab === 'monitor' ? (
  <>
- {/* Platform Overview Command Container */}
- <div className="bg-card border border-border rounded-lg p-6 space-y-6">
- <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
- <div className="flex items-center gap-2.5">
- <div className="p-2 bg-primary/10 text-primary border border-primary/20 rounded-md">
- <Shield className="w-5 h-5" />
- </div>
- <div>
- <h2 className="font-bricolage text-lg font-bold text-foreground">
- Network Overview Command
- </h2>
- <p className="text-xs text-muted-foreground">
- Real-time telemetry, session quota tracking, and socket inspection
- </p>
- </div>
- </div>
+  <div className="bg-card border border-border rounded-lg p-6 space-y-6">
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+  <div className="flex items-center gap-2.5">
+  <div className="p-2 bg-primary/10 text-primary border border-primary/20 rounded-md">
+  <Shield className="w-5 h-5" />
+  </div>
+  <div>
+  <h2 className="font-bricolage text-lg font-bold text-foreground">
+  Network Dashboard
+  </h2>
+  <p className="text-xs text-muted-foreground">
+  Live internet speeds, daily data limit tracking, and connected apps
+  </p>
+  </div>
+  </div>
 
- <div className="flex items-center gap-2">
- {tauriStatus === 'connected' && (
- <Badge variant="outline" className={`text-xs px-2.5 py-1 ${
- isWwan
- ? 'border-amber-500 text-amber-500 bg-amber-500/5'
- : isMetered
- ? 'border-orange-500 text-orange-500 bg-orange-500/5'
- : 'border-emerald-500 text-emerald-500 bg-emerald-500/5'
- }`}>
- {isWwan
- ? '📶 Mobile Data Active'
- : isMetered
- ? '⚡ Metered Connection'
- : '🌐 Unmetered'}
- </Badge>
- )}
- <Badge variant="outline" className="border-primary/40 text-primary text-xs px-2.5 py-1">
- {tauriStatus === 'connected' ? '● Engine Active' : '○ Web Mode'}
- </Badge>
- 
- {/* Smart Profiles Toggle */}
- <label 
- className="flex items-center gap-2 cursor-pointer ml-2"
- title="Smart Switch: Automatically enables Focus Mode (pausing background bandwidth hogs) when on a Metered Hotspot/Cellular network, and restores them on Home Wi-Fi."
- >
- <div className="relative">
- <input 
- type="checkbox" 
- className="sr-only" 
- checked={smartProfilesEnabled}
- onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
- />
- <div className={`block w-8 h-5 rounded-md transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
- <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-md transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
- </div>
- <span className="text-[10px] font-semibold text-muted-foreground uppercase">Smart Switch</span>
- </label>
- </div>
- </div>
+  <div className="flex items-center gap-2">
+  {tauriStatus === 'connected' && (
+  <Badge variant="outline" className={`text-xs px-2.5 py-1 ${
+  isWwan
+  ? 'border-amber-500 text-amber-500 bg-amber-500/5'
+  : isMetered
+  ? 'border-orange-500 text-orange-500 bg-orange-500/5'
+  : 'border-emerald-500 text-emerald-500 bg-emerald-500/5'
+  }`}>
+  {isWwan
+  ? '📶 Mobile Hotspot Active'
+  : isMetered
+  ? '⚡ Metered / Limited Data'
+  : '🌐 Standard Wi-Fi / LAN'}
+  </Badge>
+  )}
+  <Badge variant="outline" className="border-primary/40 text-primary text-xs px-2.5 py-1">
+  {tauriStatus === 'connected' ? '● Live Monitoring Active' : '○ Web Preview (Offline)'}
+  </Badge>
+  
+  {/* Smart Profiles Toggle */}
+  <label 
+  className="flex items-center gap-2 cursor-pointer ml-2"
+  title="Smart Data Saver: Automatically pauses background apps when on a phone hotspot or limited mobile data, and restores them on Home Wi-Fi."
+  >
+  <div className="relative">
+  <input 
+  type="checkbox" 
+  className="sr-only" 
+  checked={smartProfilesEnabled}
+  onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
+  />
+  <div className={`block w-8 h-5 rounded-md transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
+  <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-md transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
+  </div>
+  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Smart Data Saver</span>
+  </label>
+  </div>
+  </div>
 
- {/* Row 1: Primary Telemetry & Data Usage Cards */}
- <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
- {/* Card 1: Total Data Consumed */}
- <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
- <div className="flex items-center justify-between text-muted-foreground gap-2">
- <span 
- className="text-xs font-semibold cursor-help underline decoration-dotted underline-offset-2" 
- title="Measured at the physical adapter — includes OS kernel traffic, hidden services, and VPN overhead. The per-app table below only accounts for visible tracked processes, so the sum will be lower."
- >Total Data Used ⓘ</span>
- <select
- value={timeRangeFilter}
- onChange={(e) => setTimeRangeFilter(e.target.value as any)}
- className={`text-[11px] font-semibold border rounded-lg px-2 py-0.5 outline-none cursor-pointer transition-all ${
- isDark ? 'bg-slate-900 border-slate-750 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
- }`}
- >
- <option value="today">Today (00:00)</option>
- <option value="session">Live Session</option>
- <option value="week">7 Days (Week)</option>
- <option value="month">30 Days (Month)</option>
- </select>
- </div>
- <div>
- <div className="text-2xl font-black text-foreground">
- {formatVolume(usedMb)}
- </div>
- <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
- {timeRangeFilter === 'today' && 'Today · since 00:00'}
- {timeRangeFilter === 'session' && 'Session · since launch'}
- {timeRangeFilter === 'week' && 'Past 7 Days aggregate'}
- {timeRangeFilter === 'month' && 'Past 30 Days aggregate'}
- </p>
- </div>
- <div className="space-y-1.5 pt-1">
- <div className="flex justify-between text-[10px] text-muted-foreground">
- <span>Quota Usage</span>
- <span className="font-semibold">{Math.min(Math.round((usedMb / quotaLimit) * 100), 100)}%</span>
- </div>
- <div className="w-full bg-muted rounded-md h-1.5 overflow-hidden">
- <div
- className={`h-full rounded-md transition-all duration-300 ${usedMb >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
- style={{ width: `${Math.min((usedMb / quotaLimit) * 100, 100)}%` }}
- />
- </div>
- </div>
- </div>
+  {/* Row 1: Primary Data Usage & Speeds Cards */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  {/* Card 1: Total Data Used */}
+  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+  <div className="flex items-center justify-between text-muted-foreground gap-2">
+  <span 
+  className="text-xs font-semibold cursor-help underline decoration-dotted underline-offset-2" 
+  title="Total network data (downloads + uploads) recorded across your Wi-Fi and network adapters."
+  >Total Data Used ⓘ</span>
+  <select
+  value={timeRangeFilter}
+  onChange={(e) => setTimeRangeFilter(e.target.value as any)}
+  className={`text-[11px] font-semibold border rounded-lg px-2 py-0.5 outline-none cursor-pointer transition-all ${
+  isDark ? 'bg-slate-900 border-slate-750 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
+  }`}
+  >
+  <option value="today">Today (since 00:00)</option>
+  <option value="session">Live Session</option>
+  <option value="week">Past 7 Days</option>
+  <option value="month">Past 30 Days</option>
+  </select>
+  </div>
+  <div>
+  <div className="text-2xl font-black text-foreground">
+  {formatVolume(usedMb)}
+  </div>
+  <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
+  {timeRangeFilter === 'today' && 'Today · since 00:00'}
+  {timeRangeFilter === 'session' && 'Current session · since app launch'}
+  {timeRangeFilter === 'week' && 'Total past 7 days aggregate'}
+  {timeRangeFilter === 'month' && 'Total past 30 days aggregate'}
+  </p>
+  </div>
+  <div className="space-y-1.5 pt-1">
+  <div className="flex justify-between text-[10px] text-muted-foreground">
+  <span>Daily Limit Used</span>
+  <span className="font-semibold">{Math.min(Math.round((usedMb / quotaLimit) * 100), 100)}%</span>
+  </div>
+  <div className="w-full bg-muted rounded-md h-1.5 overflow-hidden">
+  <div
+  className={`h-full rounded-md transition-all duration-300 ${usedMb >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
+  style={{ width: `${Math.min((usedMb / quotaLimit) * 100, 100)}%` }}
+  />
+  </div>
+  </div>
+  </div>
 
- {/* Card 2: Quota Limit Control */}
- <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
- <div className="flex items-center justify-between text-muted-foreground">
- <span className="text-xs font-semibold">Bandwidth Quota</span>
- <TrendingUp className="w-4 h-4 text-primary" />
- </div>
- <div>
- <div className="text-2xl font-black text-foreground">
- {quotaLimit} MB
- </div>
- <p className="text-[11px] text-muted-foreground mt-0.5">
- {Math.max(0, quotaLimit - usedMb).toFixed(1)} MB buffer remaining
- </p>
- </div>
- <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
- <span className="text-[10px] uppercase font-bold text-muted-foreground">Set Limit:</span>
- <input 
- type="number"
- value={quotaLimit}
- onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
- className="w-20 px-2 py-0.5 text-xs text-center border border-border rounded-lg bg-background text-foreground outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono"
- />
- </div>
- <div className="flex items-center justify-between gap-2 pt-1">
- <span className="text-[10px] font-semibold text-muted-foreground">Auto-Cutoff</span>
- <label className="flex items-center cursor-pointer">
- <div className="relative">
- <input 
- type="checkbox" 
- className="sr-only" 
- checked={autoCutoffEnabled}
- onChange={(e) => setAutoCutoffEnabled(e.target.checked)}
- />
- <div className={`block w-6 h-3.5 rounded-md transition-colors ${autoCutoffEnabled ? 'bg-red-500' : 'bg-muted-foreground/30'}`}></div>
- <div className={`absolute left-0.5 top-0.5 bg-white w-2.5 h-2.5 rounded-md transition-transform ${autoCutoffEnabled ? 'translate-x-2.5' : ''}`}></div>
- </div>
- </label>
- </div>
- </div>
+  {/* Card 2: Daily Data Limit Control */}
+  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+  <div className="flex items-center justify-between text-muted-foreground">
+  <span className="text-xs font-semibold">Daily Data Limit</span>
+  <TrendingUp className="w-4 h-4 text-primary" />
+  </div>
+  <div>
+  <div className="text-2xl font-black text-foreground">
+  {quotaLimit} MB
+  </div>
+  <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
+  {usedMb >= quotaLimit ? (
+    <span className="text-red-500 font-bold">Daily limit reached</span>
+  ) : (
+    <span>{Math.max(0, quotaLimit - usedMb).toFixed(1)} MB left today</span>
+  )}
+  </p>
+  </div>
+  <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+  <span className="text-[10px] uppercase font-bold text-muted-foreground">Set Limit:</span>
+  <input 
+  type="number"
+  value={quotaLimit}
+  onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
+  className="w-20 px-2 py-0.5 text-xs text-center border border-border rounded-lg bg-background text-foreground outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono"
+  />
+  </div>
+  <div className="flex items-center justify-between gap-2 pt-1" title="Auto-Pause on Limit: Automatically pauses background apps when your daily data limit is reached to prevent surprise data charges.">
+  <span className="text-[10px] font-semibold text-muted-foreground">Auto-Pause on Limit</span>
+  <label className="flex items-center cursor-pointer">
+  <div className="relative">
+  <input 
+  type="checkbox" 
+  className="sr-only" 
+  checked={autoCutoffEnabled}
+  onChange={(e) => setAutoCutoffEnabled(e.target.checked)}
+  />
+  <div className={`block w-6 h-3.5 rounded-md transition-colors ${autoCutoffEnabled ? 'bg-red-500' : 'bg-muted-foreground/30'}`}></div>
+  <div className={`absolute left-0.5 top-0.5 bg-white w-2.5 h-2.5 rounded-md transition-transform ${autoCutoffEnabled ? 'translate-x-2.5' : ''}`}></div>
+  </div>
+  </label>
+  </div>
+  </div>
 
- {/* Card 3: Download Flow */}
- <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
- <div className="flex items-center justify-between text-muted-foreground">
- <span className="text-xs font-semibold">Inbound Download</span>
- <ArrowDown className="w-4 h-4 text-emerald-500" />
- </div>
- <div>
- <div className="text-2xl font-black text-emerald-500">
- {formatRate(overallStats.inbound)}
- </div>
- <p className="text-[11px] text-muted-foreground mt-0.5">
- Live incoming packet stream
- </p>
- </div>
- <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
- Measured at the physical adapter
- </div>
- </div>
+  {/* Card 3: Download Speed */}
+  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+  <div className="flex items-center justify-between text-muted-foreground">
+  <span className="text-xs font-semibold">Download Speed</span>
+  <ArrowDown className="w-4 h-4 text-emerald-500" />
+  </div>
+  <div>
+  <div className="text-2xl font-black text-emerald-500">
+  {formatRate(overallStats.inbound)}
+  </div>
+  <p className="text-[11px] text-muted-foreground mt-0.5">
+  Current incoming speed
+  </p>
+  </div>
+  <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
+  Wi-Fi / Ethernet adapter
+  </div>
+  </div>
 
- {/* Card 4: Upload Flow */}
- <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
- <div className="flex items-center justify-between text-muted-foreground">
- <span className="text-xs font-semibold">Outbound Upload</span>
- <ArrowUp className="w-4 h-4 text-primary" />
- </div>
- <div>
- <div className="text-2xl font-black text-primary">
- {formatRate(overallStats.outbound)}
- </div>
- <p className="text-[11px] text-muted-foreground mt-0.5">
- Live outgoing packet stream
- </p>
- </div>
- <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
- {system ? `Sampled every ${system.interval_ms.toLocaleString()}ms` : 'Awaiting telemetry'}
- </div>
- </div>
- </div>
+  {/* Card 4: Upload Speed */}
+  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
+  <div className="flex items-center justify-between text-muted-foreground">
+  <span className="text-xs font-semibold">Upload Speed</span>
+  <ArrowUp className="w-4 h-4 text-primary" />
+  </div>
+  <div>
+  <div className="text-2xl font-black text-primary">
+  {formatRate(overallStats.outbound)}
+  </div>
+  <p className="text-[11px] text-muted-foreground mt-0.5">
+  Current outgoing speed
+  </p>
+  </div>
+  <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
+  Updated live every second
+  </div>
+  </div>
+  </div>
 
- {/* Row 2: Secondary Metric Stack */}
- <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
- <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
- <div className="flex items-center justify-between text-muted-foreground text-xs">
- <span>Active Sockets</span>
- <Network className="w-3.5 h-3.5" />
- </div>
- <div className="text-xl font-bold text-foreground">{overallStats.totalConnections}</div>
- <p className="text-[10px] text-muted-foreground">Open TCP/UDP ports</p>
- </div>
+  {/* Row 2: Secondary Quick Stats */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
+  <div className="flex items-center justify-between text-muted-foreground text-xs">
+  <span>Active Connections</span>
+  <Network className="w-3.5 h-3.5" />
+  </div>
+  <div className="text-xl font-bold text-foreground">{overallStats.totalConnections}</div>
+  <p className="text-[10px] text-muted-foreground">Live internet connections</p>
+  </div>
 
- <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
- <div className="flex items-center justify-between text-muted-foreground text-xs">
- <span>Processes Tracked</span>
- <Terminal className="w-3.5 h-3.5" />
- </div>
- <div className="text-xl font-bold text-foreground">{processes.length}</div>
- <p className="text-[10px] text-muted-foreground">System application handles</p>
- </div>
+  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
+  <div className="flex items-center justify-between text-muted-foreground text-xs">
+  <span>Monitored Apps</span>
+  <Terminal className="w-3.5 h-3.5" />
+  </div>
+  <div className="text-xl font-bold text-foreground">{processes.length}</div>
+  <p className="text-[10px] text-muted-foreground">Apps with network access</p>
+  </div>
 
- <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
- <div className="flex items-center justify-between text-muted-foreground text-xs">
- <span>Paused Inbound Rules</span>
- <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
- </div>
- <div className="text-xl font-bold text-amber-500">
- {processes.filter(p => p.is_paused).length}
- </div>
- <p className="text-[10px] text-muted-foreground">Firewall-blocked programs</p>
- </div>
+  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
+  <div className="flex items-center justify-between text-muted-foreground text-xs">
+  <span>Paused Apps</span>
+  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+  </div>
+  <div className="text-xl font-bold text-amber-500">
+  {processes.filter(p => p.is_paused).length}
+  </div>
+  <p className="text-[10px] text-muted-foreground">Blocked from using data</p>
+  </div>
 
- <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
- <div className="flex items-center justify-between text-muted-foreground text-xs">
- <span>Audit Events</span>
- <Eye className="w-3.5 h-3.5" />
- </div>
- <div className="text-xl font-bold text-foreground">{securityLogs.length}</div>
- <p className="text-[10px] text-muted-foreground">Logged telemetry signals</p>
- </div>
- </div>
- </div>
+  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
+  <div className="flex items-center justify-between text-muted-foreground text-xs">
+  <span>Activity Logs</span>
+  <Eye className="w-3.5 h-3.5" />
+  </div>
+  <div className="text-xl font-bold text-foreground">{securityLogs.length}</div>
+  <p className="text-[10px] text-muted-foreground">Recorded network events</p>
+  </div>
+  </div>
+  </div>
 
- {/* Real-Time Traffic Telemetry Area Chart */}
- <div className={cardClass}>
- <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-border/60 pb-4">
- <div>
- <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
- <Activity className="w-5 h-5 text-primary animate-pulse" />
- <span>Real-Time Traffic Telemetry</span>
- </h2>
- <p className="text-xs text-muted-foreground">Live throughput telemetry and bandwidth volume</p>
- </div>
+  {/* Live Network Speed Chart */}
+  <div className={cardClass}>
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-border/60 pb-4">
+  <div>
+  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
+  <Activity className="w-5 h-5 text-primary animate-pulse" />
+  <span>Live Network Speed Chart</span>
+  </h2>
+  <p className="text-xs text-muted-foreground">Real-time download and upload speeds over time</p>
+  </div>
 
- <div className="flex items-center gap-3 text-xs font-mono">
- <div className="flex items-center gap-1.5">
- <span className="w-2.5 h-2.5 rounded-md bg-primary" />
- <span className="text-muted-foreground">Inbound: <strong className="text-foreground">{formatRate(overallStats.inbound)}</strong></span>
- </div>
- <div className="flex items-center gap-1.5">
- <span className="w-2.5 h-2.5 rounded-md bg-amber-500" />
- <span className="text-muted-foreground">Outbound: <strong className="text-foreground">{formatRate(overallStats.outbound)}</strong></span>
- </div>
- </div>
- </div>
+  <div className="flex items-center gap-3 text-xs font-mono">
+  <div className="flex items-center gap-1.5">
+  <span className="w-2.5 h-2.5 rounded-md bg-primary" />
+  <span className="text-muted-foreground">Download: <strong className="text-foreground">{formatRate(overallStats.inbound)}</strong></span>
+  </div>
+  <div className="flex items-center gap-1.5">
+  <span className="w-2.5 h-2.5 rounded-md bg-amber-500" />
+  <span className="text-muted-foreground">Upload: <strong className="text-foreground">{formatRate(overallStats.outbound)}</strong></span>
+  </div>
+  </div>
+  </div>
 
  <div className="h-64 w-full">
  {chartData.length > 0 ? (
@@ -1107,8 +1110,8 @@ export default function NetSentryDashboard() {
  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
  }}
  />
- <Area type="monotone" dataKey="inbound" name="Inbound Rate (KB/s)" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
- <Area type="monotone" dataKey="outbound" name="Outbound Rate (KB/s)" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
+ <Area type="monotone" dataKey="inbound" name="Download (KB/s)" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
+ <Area type="monotone" dataKey="outbound" name="Upload (KB/s)" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
  </AreaChart>
  </ResponsiveContainer>
  ) : (
@@ -1119,23 +1122,23 @@ export default function NetSentryDashboard() {
  ? (isWwan || isMetered)
  ? 'Awaiting live traffic signals from the mobile data connection...'
  : 'No metered/mobile connection detected. Connect via mobile hotspot or cellular to track data usage.'
- : 'Connect Tauri Desktop client to capture real-time traffic statistics.'}
+ : 'Connect NetSentry Desktop to capture real-time traffic statistics.'}
  </span>
  </div>
  )}
  </div>
  </div>
 
- {/* Controller Table */}
+ {/* App Data Manager */}
  <div className={cardClassNoPadding}>
  <div className={`p-6 border-b space-y-4 ${borderClass}`}>
  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
  <div>
  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
  <Terminal className="w-5 h-5 text-primary" />
- <span>Process Network Controller</span>
+ <span>App Data Manager</span>
  </h2>
- <p className={`text-xs ${textMutedClass}`}>Monitor live bandwidth consumption & manage per-app firewall rules</p>
+ <p className={`text-xs ${textMutedClass}`}>Track data usage per application and pause data hogs</p>
  </div>
  
  {/* View Switcher, Sort Dropdown & Search Bar */}
@@ -1263,7 +1266,7 @@ export default function NetSentryDashboard() {
  : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
  }`}
  >
- 🚫 Blocked ({processes.filter(p => p.is_paused).length})
+ 🚫 Paused ({processes.filter(p => p.is_paused).length})
  </button>
  <button
  onClick={() => setFilterCategory('system')}
@@ -1273,7 +1276,7 @@ export default function NetSentryDashboard() {
  : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
  }`}
  >
- ⚙️ Daemons
+ ⚙️ System Services
  </button>
  </div>
 
@@ -1285,7 +1288,7 @@ export default function NetSentryDashboard() {
  onChange={(e) => setHideSystemNoise(e.target.checked)}
  className="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
  />
- <span>Hide System Background Noise</span>
+ <span>Hide background system traffic</span>
  </label>
  </div>
  </div>
@@ -1296,12 +1299,12 @@ export default function NetSentryDashboard() {
  <table className="w-full text-left border-collapse">
  <thead>
  <tr className={`border-b border-border/50 text-xs font-semibold uppercase tracking-wider ${tableHeaderBg} ${textMutedClass}`}>
- <th className="px-6 py-4">Application / Process</th>
+ <th className="px-6 py-4">Application / App</th>
  <th className="px-6 py-4">PID</th>
- <th className="px-6 py-4" title="Cumulative network data transferred by this application in this session">Data Usage</th>
- <th className="px-6 py-4" title="Live inbound download rate">Inbound Rate</th>
- <th className="px-6 py-4" title="Live outbound upload rate">Outbound Rate</th>
- <th className="px-6 py-4">Sockets</th>
+ <th className="px-6 py-4" title="Total network data transferred by this application in this session">Data Used</th>
+ <th className="px-6 py-4" title="Live download speed">Download</th>
+ <th className="px-6 py-4" title="Live upload speed">Upload</th>
+ <th className="px-6 py-4" title="Active network connections">Connections</th>
  <th className="px-6 py-4 text-right">Actions</th>
  </tr>
  </thead>
@@ -1346,7 +1349,7 @@ export default function NetSentryDashboard() {
  )}
  {isHighestDrain && (
  <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider uppercase flex items-center gap-0.5">
- 🔥 Data Drain
+ 🔥 High Usage
  </span>
  )}
  </div>
@@ -1400,7 +1403,7 @@ export default function NetSentryDashboard() {
  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
  }`}
- title="Inspect Active Sockets & History"
+ title="Inspect Connections & History"
  >
  <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
  </button>
@@ -1415,7 +1418,7 @@ export default function NetSentryDashboard() {
  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
  } disabled:opacity-50 disabled:cursor-not-allowed`}
- title="Force Terminate Process"
+ title="Close App"
  >
  <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
  </button>
@@ -1469,14 +1472,14 @@ export default function NetSentryDashboard() {
  <div key={inst.pid} className="flex items-center justify-between p-2 rounded-lg border border-border/60 bg-background/60 font-mono text-xs">
  <div>
  <span className="font-bold text-foreground">PID {inst.pid}</span>
- <span className="text-[10px] text-muted-foreground ml-2">({inst.connections_count} sockets)</span>
+ <span className="text-[10px] text-muted-foreground ml-2">({inst.connections_count} connections)</span>
  </div>
  <div className="flex items-center gap-2">
  <span className="text-primary font-semibold text-[11px]">{formatVolume(inst.total_data_mb)}</span>
  <button
  onClick={() => handleKillProcess(inst)}
  className="p-1 text-slate-400 hover:text-red-500 transition-colors"
- title={`Terminate PID ${inst.pid}`}
+ title={`Close PID ${inst.pid}`}
  >
  <Trash2 className="w-3 h-3" />
  </button>
@@ -1573,24 +1576,24 @@ export default function NetSentryDashboard() {
  <div className="p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-between">
  <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
  <ArrowDown className="w-3 h-3 text-emerald-500" />
- Down
+ Download
  </span>
  <span className="font-bold text-emerald-500">{formatRate(proc.inbound_rate)}</span>
  </div>
  <div className="p-2 rounded-md bg-primary/5 border border-primary/20 flex items-center justify-between">
  <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
  <ArrowUp className="w-3 h-3 text-primary" />
- Up
+ Upload
  </span>
  <span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
  </div>
  </div>
 
- {/* Concurrency & Sockets */}
+ {/* Concurrency & Connections */}
  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
  <span className="flex items-center gap-1">
  <Radio className="w-3 h-3 text-sky-400" />
- <span>{proc.connections_count} Active Sockets</span>
+ <span>{proc.connections_count} Active Connections</span>
  </span>
  <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : `PID: ${proc.pids[0]}`}</span>
  </div>
@@ -1611,7 +1614,7 @@ export default function NetSentryDashboard() {
  handleKillProcess(inst);
  }}
  className="text-slate-400 hover:text-red-500 p-1"
- title="Kill PID"
+ title="Close PID"
  >
  <Trash2 className="w-3 h-3" />
  </button>
@@ -1643,7 +1646,7 @@ export default function NetSentryDashboard() {
  className={`p-2 rounded-md border transition-all cursor-pointer ${
  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
  }`}
- title="Inspect Active Sockets & History"
+ title="Inspect Connections & History"
  >
  <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
  </button>
@@ -1656,7 +1659,7 @@ export default function NetSentryDashboard() {
  className={`p-2 rounded-md border transition-all cursor-pointer ${
  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
  } disabled:opacity-50`}
- title="Force Terminate"
+ title="Close App"
  >
  <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
  </button>
@@ -1712,9 +1715,9 @@ export default function NetSentryDashboard() {
  <div>
  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
  <Terminal className="w-5 h-5 text-primary" />
- <span>Security & Activity Audit Logs</span>
+ <span>Activity & Protection Logs</span>
  </h2>
- <p className={`text-xs ${textMutedClass}`}>Real-time activity audit history</p>
+ <p className={`text-xs ${textMutedClass}`}>Recent actions and network alerts</p>
  </div>
  <button 
  onClick={() => setSecurityLogs([])}
