@@ -1,1 +1,0 @@
-export const zenevaSupportChat = async () => ({ response: "Direct support stream is available via the web terminal.", citations: [], suggestedActions: [] });

@@ -201,10 +201,10 @@ export default function NetSentryDashboard() {
  return next;
  });
  };
- // Default whitelist: common browsers + system
- const [allowedApps, setAllowedApps] = useState<string>(
- 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe'
- );
+  // Default whitelist: common browsers + dev tools
+  const [allowedApps, setAllowedApps] = useState<string>(
+    'chrome.exe\nmsedge.exe\nfirefox.exe\nbrave.exe\nopera.exe\ncode.exe\nC:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe\nC:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'
+  );
 
  // Toggle Theme — setTheme from next-themes updates the <html class> directly
  const toggleTheme = () => {
@@ -273,8 +273,19 @@ export default function NetSentryDashboard() {
  const autoCutoffEnabledRef = useRef<boolean>(false);
  useEffect(() => { autoCutoffEnabledRef.current = autoCutoffEnabled; }, [autoCutoffEnabled]);
 
- const smartProfilesEnabledRef = useRef<boolean>(false);
- useEffect(() => { smartProfilesEnabledRef.current = smartProfilesEnabled; }, [smartProfilesEnabled]);
+  const smartProfilesEnabledRef = useRef<boolean>(false);
+  useEffect(() => { 
+    smartProfilesEnabledRef.current = smartProfilesEnabled;
+    if (tauriStatus === 'connected' && smartProfilesEnabled && isMetered && !isFocusModeRef.current) {
+      const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
+          setIsFocusMode(true);
+          addLog(`Smart Switch: Metered network detected. Focus Mode engaged to conserve mobile data.`, 'warning');
+        }).catch(console.error);
+      });
+    }
+  }, [smartProfilesEnabled, isMetered, tauriStatus]);
 
  const allowedAppsRef = useRef<string>(allowedApps);
  useEffect(() => { allowedAppsRef.current = allowedApps; }, [allowedApps]);
@@ -658,22 +669,24 @@ export default function NetSentryDashboard() {
  }
  };
 
- const handleResumeAll = async () => {
- setActionLoading('resume-all');
- try {
- if (tauriStatus === 'connected') {
- const { invoke } = await import('@tauri-apps/api/core');
- await invoke('resume_all_traffic');
- addLog(`Global reset: Resumed traffic rules for all paused programs.`, 'info');
- }
- alert('Successfully resumed all blocked inbound traffic rules!');
- } catch (e) {
- console.error(e);
- alert(`Resume action failed: ${e}`);
- } finally {
- setActionLoading(null);
- }
- };
+  const handleResumeAll = async () => {
+  setActionLoading('resume-all');
+  try {
+  if (tauriStatus === 'connected') {
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('emergency_clear_all_firewall_rules');
+  setProcesses(prev => prev.map(p => ({ ...p, is_paused: false })));
+  setIsFocusMode(false);
+  addLog(`Global reset: Purged all NetSentry firewall rules and restored network.`, 'info');
+  }
+  alert('Successfully cleared all NetSentry firewall rules! Normal network access fully restored.');
+  } catch (e) {
+  console.error(e);
+  alert(`Reset action failed: ${e}`);
+  } finally {
+  setActionLoading(null);
+  }
+  };
 
  const openInspector = (proc: ProcessNetworkData | GroupedProcess) => {
  setSelectedProcess(proc);
@@ -859,7 +872,10 @@ export default function NetSentryDashboard() {
  </Badge>
  
  {/* Smart Profiles Toggle */}
- <label className="flex items-center gap-2 cursor-pointer ml-2">
+ <label 
+ className="flex items-center gap-2 cursor-pointer ml-2"
+ title="Smart Switch: Automatically enables Focus Mode (pausing background bandwidth hogs) when on a Metered Hotspot/Cellular network, and restores them on Home Wi-Fi."
+ >
  <div className="relative">
  <input 
  type="checkbox" 

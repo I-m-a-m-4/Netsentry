@@ -1,1 +1,0 @@
-export const academyAnalysis = async () => ({ summary: "Academy analysis is optimized for the cloud node.", metrics: {}, recommendations: [] });

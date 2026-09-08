@@ -46,6 +46,7 @@ pub struct AppHistoryEntry {
 // Track active firewall block rules by program path and cached app icons
 lazy_static::lazy_static! {
     static ref PAUSED_PROCESSES: Arc<Mutex<std::collections::HashSet<String>>> = Arc::new(Mutex::new(std::collections::HashSet::new()));
+    static ref FOCUS_MODE_PAUSED: Mutex<std::collections::HashSet<(String, String)>> = Mutex::new(std::collections::HashSet::new());
     static ref ANALYTICS_DB: Mutex<Option<Connection>> = Mutex::new(None);
     static ref ICON_CACHE: Mutex<std::collections::HashMap<String, String>> = Mutex::new(std::collections::HashMap::new());
 }
@@ -561,18 +562,28 @@ fn resume_inbound_traffic(exe_path: String, name: String) -> Result<bool, String
 }
 
 #[tauri::command]
-fn resume_all_traffic() -> Result<bool, String> {
-    let ps_cmd = "Get-NetFirewallRule -DisplayName 'NetSentry - Block - *' | Remove-NetFirewallRule";
-    let output = create_cmd("powershell")
-        .args(&["-Command", ps_cmd])
-        .output()
-        .map_err(|e| e.to_string())?;
+fn emergency_clear_all_firewall_rules() -> Result<bool, String> {
+    // 1. Specifically purge any dangerous blanket block rules immediately via netsh
+    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
 
+    // 2. Remove all rules created by NetSentry (both netsh and PowerShell rules)
+    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry*' -or $_.Name -like 'NetSentry*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
+    let _ = create_cmd("powershell").args(&["-Command", ps_cmd]).output();
+
+    // 3. Reset internal paused process tracking
     if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
         paused.clear();
     }
-    
-    Ok(output.status.success())
+    if let Ok(mut f_paused) = FOCUS_MODE_PAUSED.lock() {
+        f_paused.clear();
+    }
+
+    Ok(true)
+}
+
+#[tauri::command]
+fn resume_all_traffic() -> Result<bool, String> {
+    emergency_clear_all_firewall_rules()
 }
 
 #[tauri::command]
@@ -685,45 +696,109 @@ fn get_app_icon(exe_path: String) -> Option<String> {
     get_cached_icon(&exe_path)
 }
 
+fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
+    let name_lower = name.to_lowercase();
+    let path_lower = exe_path.to_lowercase();
+
+    if name_lower == "netsentry.exe" || name_lower.contains("netsentry") {
+        return true;
+    }
+
+    let protected_names = [
+        "system", "system idle process", "registry", "smss.exe", "csrss.exe",
+        "wininit.exe", "services.exe", "lsass.exe", "svchost.exe", "fontdrvhost.exe",
+        "dwm.exe", "explorer.exe", "sihost.exe", "taskhostw.exe", "ctfmon.exe",
+        "searchhost.exe", "startmenuexperiencehost.exe", "shellexperiencehost.exe",
+        "spoolsv.exe", "securityhealthservice.exe", "smartscreen.exe", "msmpeng.exe",
+        "mpcmdrun.exe", "rundll32.exe", "dllhost.exe", "conhost.exe"
+    ];
+
+    if protected_names.iter().any(|&p| name_lower == p) {
+        return true;
+    }
+
+    if path_lower.contains("\\windows\\system32\\") || path_lower.contains("\\windows\\syswow64\\") {
+        return true;
+    }
+
+    false
+}
+
 #[tauri::command]
 fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String> {
-    // Clean up any existing data saver rules first
+    // 1. Immediately eliminate any legacy blanket outbound block rule
     let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
-    // Add blanket outbound block rule
-    run_firewall_command(&[
-        "advfirewall", "firewall", "add", "rule",
-        "name=NetSentry-DataSaver-BlockAll",
-        "dir=out",
-        "action=block",
-        "enable=yes",
-    ])?;
-    // Add per-app allow rules for whitelisted executables
-    for exe_path in &allowed_exe_paths {
-        let fname = std::path::Path::new(exe_path)
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_else(|| exe_path.clone());
-        let rule_name = format!("NetSentry-DataSaver-Allow-{}", fname);
-        let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_name)]);
-        let _ = run_firewall_command(&[
-            "advfirewall", "firewall", "add", "rule",
-            &format!("name={}", rule_name),
-            "dir=out",
-            "action=allow",
-            &format!("program={}", exe_path),
-            "enable=yes",
-        ]);
+
+    // 2. Prepare normalized whitelist
+    let mut normalized_whitelist: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for p in &allowed_exe_paths {
+        let trimmed = p.trim().to_lowercase();
+        if !trimmed.is_empty() {
+            if let Some(fname) = std::path::Path::new(&trimmed).file_name() {
+                normalized_whitelist.insert(fname.to_string_lossy().to_string());
+            }
+            normalized_whitelist.insert(trimmed);
+        }
     }
+
+    // 3. Scan active processes with sysinfo
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes_specifics(
+        sysinfo::ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet)
+    );
+
+    let mut to_pause = Vec::new();
+    for (_pid, proc) in sys.processes() {
+        let name = proc.name().to_string();
+        let exe_path = proc.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+        if exe_path.is_empty() {
+            continue;
+        }
+
+        if is_protected_system_process(&name, &exe_path) {
+            continue;
+        }
+
+        let exe_lower = exe_path.to_lowercase();
+        let name_lower = name.to_lowercase();
+
+        // Skip whitelisted apps
+        if normalized_whitelist.contains(&exe_lower) || normalized_whitelist.contains(&name_lower) {
+            continue;
+        }
+
+        to_pause.push((exe_path, name));
+    }
+
+    // 4. Pause non-whitelisted apps and record in FOCUS_MODE_PAUSED
+    if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
+        for (exe, name) in to_pause {
+            if !paused_set.contains(&(exe.clone(), name.clone())) {
+                let _ = pause_app_traffic(exe.clone(), name.clone());
+                paused_set.insert((exe, name));
+            }
+        }
+    }
+
     Ok(true)
 }
 
 #[tauri::command]
 fn disable_data_saver_mode() -> Result<bool, String> {
-    // Remove the blanket outbound block rule
+    // 1. Ensure any legacy blanket block rule is deleted
     let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
-    // Remove all per-app allow rules we created
-    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-Allow-*' } | Remove-NetFirewallRule";
+
+    // 2. Resume all apps paused by Focus Mode
+    if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
+        for (exe, name) in paused_set.drain() {
+            let _ = resume_app_traffic(exe, name);
+        }
+    }
+
+    // 3. Clean up any leftover NetSentry-DataSaver-* rules
+    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
     let _ = create_cmd("powershell").args(&["-Command", ps_cmd]).output();
+
     Ok(true)
 }
 
@@ -913,6 +988,7 @@ pub fn run() {
       pause_app_traffic,
       resume_app_traffic,
       resume_all_traffic,
+      emergency_clear_all_firewall_rules,
       kill_process,
       open_file_location,
       is_metered_connection,
@@ -960,6 +1036,10 @@ pub fn run() {
       {
         use tauri::menu::{Menu, MenuItem};
         use tauri::tray::TrayIconBuilder;
+
+        // Automatically clean up any orphaned NetSentry firewall rules from previous sessions
+        let _ = emergency_clear_all_firewall_rules();
+
         // Explicitly show and focus main window
         if let Some(window) = app.get_webview_window("main") {
           println!("NetSentry: Showing and focusing main window...");
@@ -981,6 +1061,7 @@ pub fn run() {
               match event.id.as_ref() {
                 "quit" => {
                   println!("NetSentry: Quit requested from tray.");
+                  let _ = emergency_clear_all_firewall_rules();
                   std::process::exit(0);
                 }
                 "show" => {

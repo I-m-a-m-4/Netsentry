@@ -36,6 +36,9 @@ tauri-plugin-notification = "2"
 sysinfo = "0.30"
 lazy_static = "1.4"
 is-metered-network = "0.2.1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+[target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = [
     "Networking",
     "Networking_Connectivity",
@@ -46,6 +49,13 @@ windows = { version = "0.61.3", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Graphics_Gdi"
 ] }
-rusqlite = { version = "0.31", features = ["bundled"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
 
 

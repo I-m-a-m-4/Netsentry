@@ -1,1 +1,0 @@
-export const subjectTroubleshoot = async () => ({ solution: "Please connect to the command center via mobile or web for deeper diagnostics.", steps: [], confidence: 0 });
