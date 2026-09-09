@@ -1647,20 +1647,6 @@ export default function NetSentryDashboard() {
  <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
  <ArrowDown className="w-3 h-3 text-emerald-500" />
  Download
- </span>
- <span className="font-bold text-emerald-500">{formatRate(proc.inbound_rate)}</span>
- </div>
- <div className="p-2 rounded-md bg-primary/5 border border-primary/20 flex items-center justify-between">
- <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
- <ArrowUp className="w-3 h-3 text-primary" />
- Upload
- </span>
- <span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
- </div>
- </div>
-
- {/* Concurrency & Connections */}
- <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
  <span className="flex items-center gap-1">
  <Radio className="w-3 h-3 text-sky-400" />
  <span>{proc.connections_count} Active Connections</span>
@@ -1834,23 +1820,37 @@ export default function NetSentryDashboard() {
  tauriStatus={tauriStatus}
  isFocusMode={isFocusMode}
  allowedApps={allowedApps}
- setAllowedApps={setAllowedApps}
- handleEnableFocusMode={handleEnableFocusMode}
- handleDisableFocusMode={handleDisableFocusMode}
- focusModeLoading={focusModeLoading}
- loadDailyTotals={loadDailyTotals}
- analyticsLoading={analyticsLoading}
- />
+{isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+ </button>
  )}
+ </div>
+ </div>
 
- </main>
+ {/* Metrics Body */}
+ <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+ {/* Data Usage Big Counter */}
+ <div className="flex items-baseline justify-between">
+ <span className="text-xs text-muted-foreground font-medium">Data Used:</span>
+ <span className="font-mono text-lg font-extrabold text-primary">
+ {formatVolume(proc.total_data_mb || 0, volumeUnit)}
+ </span>
+ </div>
 
- {/* App Details & Historical Telemetry Inspector Modal */}
- <AppDetailsDialog
- isOpen={isInspectorOpen}
- onClose={() => setIsInspectorOpen(false)}
- process={selectedProcess}
-<span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
+ {/* Inbound & Outbound Speeds */}
+ <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+ <div className="p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-between">
+ <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+ <ArrowDown className="w-3 h-3 text-emerald-500" />
+ Download
+ </span>
+ <span className="font-bold text-emerald-500">{formatRate(proc.inbound_rate)}</span>
+ </div>
+ <div className="p-2 rounded-md bg-red-500/5 border border-red-500/20 flex items-center justify-between">
+ <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+ <ArrowUp className="w-3 h-3 text-red-500" />
+ Upload
+ </span>
+ <span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
  </div>
  </div>
 
