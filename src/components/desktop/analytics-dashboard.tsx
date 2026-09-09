@@ -41,7 +41,11 @@ import {
  Wifi,
  Cpu,
  CheckCircle2,
- Share2
+ Share2,
+ Target,
+ Plus,
+ X,
+ Trash2
 } from 'lucide-react';
 import { AppIcon, getProcessBrandMeta } from './app-icons';
 
@@ -120,6 +124,8 @@ export default function AnalyticsDashboard({
  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('30d');
  const [dashboardView, setDashboardView] = useState<'simple' | 'advanced'>('simple');
  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
+ const [appSearchQuery, setAppSearchQuery] = useState('');
+ const [isAppSearchFocused, setIsAppSearchFocused] = useState(false);
 
  // Compute Aggregate App Consumption
  const appAggregates = useMemo(() => {
@@ -511,10 +517,10 @@ export default function AnalyticsDashboard({
  {/* Focus Mode Control Center */}
  <div className={`border rounded-lg p-6 ${isFocusMode ? 'border-amber-500/40 bg-amber-500/5' : cardBase}`}>
  <div className="flex flex-col md:flex-row md:items-start gap-6">
- <div className="flex-1 space-y-2">
+ <div className="flex-1 space-y-4">
  <div className="flex items-center gap-3">
  <div className={`p-2.5 rounded-md border ${isFocusMode ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-primary/10 border-primary/20 text-primary'}`}>
- {isFocusMode ? <ShieldOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+ {isFocusMode ? <Shield className="w-5 h-5" /> : <Target className="w-5 h-5" />}
  </div>
  <div>
  <h2 className="font-bricolage text-base font-bold flex items-center gap-2">
@@ -529,18 +535,85 @@ export default function AnalyticsDashboard({
  </div>
  </div>
 
- <div className="pt-2 space-y-1.5">
- <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Whitelisted Executable Paths (one per line)</label>
- <textarea
- value={allowedApps}
- onChange={e => setAllowedApps(e.target.value)}
- disabled={isFocusMode}
- rows={3}
- placeholder={`C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe\nC:\\Program Files\\Google\\Chrome\\Application\\chrome.exe`}
- className={`w-full font-mono text-xs p-3 rounded-md border bg-background resize-none outline-none focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 ${
+ <div className="space-y-3">
+ <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Whitelisted Applications</label>
+ 
+ <div className="flex flex-wrap gap-2">
+ {allowedApps.split('\n').map(p => p.trim()).filter(Boolean).map((appPath, idx) => {
+ const appName = appPath.split('\\').pop() || appPath;
+ const displayName = appName.replace(/\.exe$/i, '');
+ 
+ return (
+ <div key={idx} className="flex items-center gap-2 bg-background border border-border/60 rounded-full py-1.5 pl-2 pr-3 shadow-sm group transition-all hover:border-primary/40">
+ <AppIcon name={appName} exePath={appPath} className="w-5 h-5" />
+ <span className="text-xs font-semibold text-foreground">{displayName}</span>
+ {!isFocusMode && (
+ <button 
+ onClick={() => {
+ const newList = allowedApps.split('\n').map(p => p.trim()).filter(Boolean).filter((_, i) => i !== idx).join('\n');
+ setAllowedApps(newList);
+ }}
+ className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer"
+ >
+ <X className="w-3.5 h-3.5" />
+ </button>
+ )}
+ </div>
+ );
+ })}
+ {allowedApps.split('\n').map(p => p.trim()).filter(Boolean).length === 0 && (
+ <div className="text-xs text-muted-foreground italic py-1">No apps whitelisted. All apps will be blocked in Focus Mode.</div>
+ )}
+ </div>
+
+ {!isFocusMode && (
+ <div className="pt-2 relative">
+ <input 
+ type="text"
+ placeholder="Search and select apps to whitelist..."
+ value={appSearchQuery}
+ onChange={(e) => setAppSearchQuery(e.target.value)}
+ onFocus={() => setIsAppSearchFocused(true)}
+ onBlur={() => setTimeout(() => setIsAppSearchFocused(false), 200)}
+ className={`w-full text-xs p-3 pr-10 rounded-md border bg-background outline-none focus:ring-1 focus:ring-primary transition-all ${
  isDark ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'
  }`}
  />
+ <div className="absolute right-3 top-[18px] text-muted-foreground">
+ <Plus className="w-4 h-4" />
+ </div>
+ 
+ {isAppSearchFocused && appSearchQuery.length > 0 && (
+ <div className={`absolute z-50 w-full mt-1 rounded-md border shadow-lg max-h-64 overflow-y-auto ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+ {appAggregates.filter(a => a.name.toLowerCase().includes(appSearchQuery.toLowerCase())).map((app, idx) => (
+ <div 
+ key={idx}
+ onMouseDown={(e) => {
+ // Prevent blur from firing before onClick
+ e.preventDefault();
+ const currentList = allowedApps.split('\n').map(p => p.trim()).filter(Boolean);
+ if (!currentList.includes(app.exe_path)) {
+ setAllowedApps([...currentList, app.exe_path].join('\n'));
+ }
+ setAppSearchQuery('');
+ setIsAppSearchFocused(false);
+ }}
+ className={`flex items-center gap-3 p-2 cursor-pointer hover:bg-muted/50 border-b last:border-0 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}
+ >
+ <AppIcon name={app.name} exePath={app.exe_path} className="w-6 h-6 shrink-0" />
+ <div className="min-w-0">
+ <div className="text-xs font-bold text-foreground truncate">{app.name.replace(/\.exe$/i, '')}</div>
+ <div className="text-[10px] text-muted-foreground font-mono truncate" style={{ maxWidth: '300px' }}>{app.exe_path}</div>
+ </div>
+ </div>
+ ))}
+ {appAggregates.filter(a => a.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
+ <div className="p-3 text-xs text-muted-foreground text-center">No apps found. Try typing a different name.</div>
+ )}
+ </div>
+ )}
+ </div>
+ )}
  </div>
  </div>
 
@@ -551,7 +624,7 @@ export default function AnalyticsDashboard({
  disabled={focusModeLoading || tauriStatus !== 'connected'}
  className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-md shadow transition-all cursor-pointer"
  >
- {focusModeLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+ {focusModeLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Target className="w-3.5 h-3.5" />}
  Enable Focus Mode
  </button>
  ) : (
@@ -601,7 +674,7 @@ export default function AnalyticsDashboard({
 														#{idx + 1}
 													</div>
 													<div className="w-9 h-9 shrink-0 flex items-center justify-center">
-														<AppIcon name={app.name} exePath={app.exe_path} size="md" />
+														<AppIcon name={app.name} exePath={app.exe_path} className="w-7 h-7" />
 													</div>
 													<div className="min-w-0">
 														<div className="text-sm font-bold truncate text-foreground flex items-center gap-2">

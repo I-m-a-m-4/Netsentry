@@ -107,6 +107,8 @@ interface SystemTelemetry {
  week_tx_mb?: number;
  month_rx_mb?: number;
  month_tx_mb?: number;
+ all_rx_mb?: number;
+ all_tx_mb?: number;
 }
 
 interface NetworkDataPayload {
@@ -259,9 +261,9 @@ export default function NetSentryDashboard() {
  };
 
  const handleResetFirewall = async () => {
- if (!confirm("Are you sure? This will completely reset your Windows Firewall to defaults and remove all custom rules (not just NetSentry ones).")) return;
- setActionLoading(-1);
- try {
+  if (!confirm("Are you sure? This will completely reset your Windows Firewall to defaults and remove all custom rules (not just NetSentry ones).")) return;
+  setActionLoading('reset-firewall');
+  try {
  const { invoke } = await import('@tauri-apps/api/core');
  await invoke('reset_firewall_rules');
  alert("Firewall reset successfully.");
@@ -820,14 +822,13 @@ export default function NetSentryDashboard() {
  </button>
  </div>
 
- {/* Buy Us a Coffee Button */}
  <button 
  onClick={() => setIsDonateOpen(true)}
- className="flex items-center space-x-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer transition-all active:scale-95"
+ className="flex items-center space-x-2 bg-gradient-to-tr from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)] hover:shadow-[0_0_25px_rgba(245,158,11,0.7)] border border-amber-300/50 text-xs font-black px-4 py-2 rounded-lg cursor-pointer transition-all duration-300 active:scale-95"
  title="Support NetSentry Development"
  >
- <Coffee className="w-3.5 h-3.5" />
- <span className="hidden sm:inline">Buy Us a Coffee</span>
+ <Coffee className="w-4 h-4" />
+ <span className="hidden sm:inline tracking-wide">Buy Us a Coffee</span>
  </button>
 
  {/* Theme Toggle Button */}

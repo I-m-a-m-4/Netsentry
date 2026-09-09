@@ -530,13 +530,15 @@ export function AppIcon({
 	exePath, 
 	iconUrl,
 	className,
-	large = false 
+	large = false,
+	size
 }: { 
 	name: string; 
 	exePath?: string; 
 	iconUrl?: string | null;
 	className?: string;
 	large?: boolean;
+	size?: number;
 }) {
 	const [imgError, setImgError] = React.useState(false);
 	const meta = getProcessBrandMeta(name, exePath || '');

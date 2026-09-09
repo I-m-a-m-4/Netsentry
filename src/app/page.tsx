@@ -88,8 +88,19 @@ function DownloadButton({ size = 'lg' }: { size?: 'sm' | 'lg' }) {
   );
 }
 
+import { useRouter } from 'next/navigation';
+
 export default function LandingPage() {
-  return (
+ const router = useRouter();
+
+ useEffect(() => {
+ // Redirect to dashboard if running inside Tauri
+ if (typeof window !== 'undefined' && ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__)) {
+ router.replace('/dashboard');
+ }
+ }, [router]);
+
+ return (
     <div className="antialiased min-h-screen overflow-x-hidden text-slate-800 font-sans relative" style={{ background: '#A8CCDF' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito:wght@600;700;800&display=swap');

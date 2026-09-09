@@ -26,8 +26,8 @@ import {
   Tooltip as ReTooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import type { ProcessNetworkData, GroupedProcess } from '@/app/dashboard/page';
 import { AppIcon, getProcessBrandMeta } from './app-icons';
-import type { ProcessNetworkData, GroupedProcess } from '@/app/page';
 
 export interface AppHistoryEntry {
   date: string;
@@ -193,12 +193,11 @@ export default function AppDetailsDialog({
               name={procName} 
               exePath={exePath} 
               iconUrl={iconUrl} 
-              size={48}
+              large={true}
               className="shrink-0"
             />
             <div className="min-w-0">
-              <h2 className="font-bricolage text-lg font-black truncate">{brand.displayName || procName.replace(/\.exe$/i, '')}</h2>
-              {brand.publisher && <p className="text-xs text-muted-foreground">{brand.publisher}</p>}
+              <h2 className="font-bricolage text-lg font-black truncate">{brand.label || procName.replace(/\.exe$/i, '')}</h2>
               {exePath && (
                 <p className={`text-[10px] font-mono truncate mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} title={exePath}>{exePath}</p>
               )}
@@ -515,7 +514,7 @@ export default function AppDetailsDialog({
                     </span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {pidsList.map(pid => (
+                    {pidsList.map((pid: number) => (
                       <span 
                         key={pid} 
                         className={`font-mono text-xs px-2.5 py-1 rounded-lg border font-semibold ${
@@ -555,7 +554,7 @@ export default function AppDetailsDialog({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50 font-mono">
-                      {sockets.map((s, idx) => (
+                      {sockets.map((s: any, idx: number) => (
                         <tr 
                           key={idx} 
                           className={`transition-colors ${isDark ? 'hover:bg-slate-900/40' : 'hover:bg-slate-50'}`}
