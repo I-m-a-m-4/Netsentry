@@ -3,11 +3,13 @@
 import React, { useState } from 'react';
 import { useUser } from '@/firebase';
 import { getAuth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { ShieldAlert, LogIn, Lock } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, ArrowRight, Lock, Check } from 'lucide-react';
+import Link from 'next/link';
+import { NetSentryLogo } from '@/components/ui/netsentry-logo';
 
-function GoogleIcon() {
+function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24">
+    <svg className={className} viewBox="0 0 24 24">
       <path
         fill="#4285F4"
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -68,101 +70,206 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
     }
   };
 
-  const handleLogout = () => {
-    const auth = getAuth();
-    signOut(auth);
+  const handleLogout = async () => {
+    try {
+      const auth = getAuth();
+      await signOut(auth);
+      window.location.reload();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
   };
 
   if (isUserLoading) {
     return (
-      <div className="flex h-[60vh] w-full items-center justify-center p-8">
-        <div className="animate-spin rounded-md h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // If logged in but wrong email
-  if (user && user.email !== adminEmail) {
-    return (
-      <div className="flex min-h-[60vh] w-full flex-col items-center justify-center p-8 text-center space-y-4">
-        <div className="p-4 rounded-md bg-red-500/10 text-red-500 mb-2 border border-red-500/20">
-          <ShieldAlert className="w-12 h-12" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#FAF9F6] text-slate-800">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-[#FA5438] border-t-transparent"></div>
+          <p className="text-xs font-semibold text-slate-500">Loading NetSentry Command...</p>
         </div>
-        <h2 className="text-2xl font-black font-bricolage text-foreground">Access Denied</h2>
-        <p className="text-muted-foreground text-sm max-w-md">
-          The currently authenticated account (<span className="font-mono text-foreground font-bold">{user.email}</span>) does not have administrator privileges to access NetSentry Admin Command.
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Please sign in with <span className="font-semibold text-primary">{adminEmail}</span>.
-        </p>
-        <button
-          onClick={handleLogout}
-          className="mt-4 px-6 py-2.5 bg-primary text-white rounded-md font-bold text-sm hover:bg-primary/90 transition-all active:scale-95 shadow-md"
-        >
-          Sign Out & Switch Account
-        </button>
       </div>
     );
   }
 
-  // If not logged in
-  if (!user) {
-    return (
-      <div className="flex min-h-[70vh] w-full items-center justify-center p-4">
-        <div className="w-full max-w-md bg-card border rounded-3xl p-8 relative overflow-hidden shadow-2xl">
-          {/* Subtle glow effect */}
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-orange-500" />
+  // Determine if the current user is a valid Super Admin
+  const isSuperAdminUser =
+    user &&
+    !user.isAnonymous &&
+    user.email &&
+    user.email.toLowerCase() === adminEmail.toLowerCase();
 
-          <div className="flex flex-col items-center mb-6 text-center">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4 border border-primary/20 shadow-inner">
-              <Lock className="w-8 h-8" />
-            </div>
-            <h1 className="text-2xl font-black font-bricolage text-foreground">
-              NetSentry Admin Command
-            </h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              Sign in with <span className="font-bold text-foreground">{adminEmail}</span> to access telemetry & controls.
+  // If logged in with a NON-ADMIN email (and not anonymous)
+  if (user && !user.isAnonymous && user.email && !isSuperAdminUser) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#FAF9F6] p-4 text-slate-900">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-2xl text-center space-y-6">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto border border-red-200">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Access Denied</h2>
+            <p className="text-slate-600 text-sm mt-2 leading-relaxed">
+              The account <span className="font-bold text-slate-900 font-mono">{user.email}</span> does not have administrator privileges.
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              Please sign in with <span className="font-semibold text-[#FA5438]">{adminEmail}</span>.
             </p>
           </div>
 
-          {/* 1-Click Google Sign In */}
-          <div className="space-y-4">
-            <button
-              onClick={handleGoogleLogin}
-              disabled={googleLoading}
-              className="w-full py-3.5 px-4 rounded-xl border border-border bg-background hover:bg-muted font-bold text-sm flex items-center justify-center gap-3 transition-all shadow-sm active:scale-98 disabled:opacity-60"
-            >
-              {googleLoading ? (
-                <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-              ) : (
-                <GoogleIcon />
-              )}
-              {googleLoading ? 'Connecting to Google...' : 'Sign in with Google'}
-            </button>
+          <button
+            onClick={handleLogout}
+            className="w-full py-3.5 px-6 bg-[#FA5438] hover:bg-[#E0452B] text-white font-bold rounded-xl text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+          >
+            Sign Out & Switch Account
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="flex items-center gap-3 my-2">
-              <div className="h-[1px] flex-1 bg-border" />
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase">or email & password</span>
-              <div className="h-[1px] flex-1 bg-border" />
+  // If NOT logged in as Super Admin (unauthenticated or anonymous)
+  if (!isSuperAdminUser) {
+    return (
+      <div className="fixed inset-0 z-50 flex min-h-screen w-full bg-[#FAF9F5] text-slate-800 font-sans overflow-hidden">
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito:wght@700;800;900&display=swap');
+          .font-nunito { font-family: 'Nunito', sans-serif; }
+        `}</style>
+
+        {/* ─── LEFT COLUMN: CORAL HERO BANNER ─────────────────────────────────── */}
+        <div className="hidden lg:flex lg:w-1/2 bg-[#FA5438] text-white p-12 lg:p-16 flex-col justify-between relative overflow-hidden">
+          {/* Subtle background glow pattern */}
+          <div className="absolute -top-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-orange-600/30 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Top Brand Logo */}
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center text-white border border-white/30 shadow-inner">
+              <NetSentryLogo className="w-7 h-7" />
+            </div>
+            <span className="text-2xl font-black tracking-tight font-nunito text-white">
+              NetSentry<span className="text-orange-200">.</span>
+            </span>
+          </div>
+
+          {/* Center Hero Heading */}
+          <div className="relative z-10 max-w-lg my-auto py-12">
+            <h1 className="text-5xl lg:text-6xl font-extrabold text-white tracking-tight font-nunito leading-[1.1] mb-6">
+              It starts with<br />
+              a little <span className="inline-block bg-white text-[#FA5438] px-3.5 py-1 rounded-2xl shadow-lg transform -rotate-1">shield.</span>
+            </h1>
+            <p className="text-white/90 text-lg leading-relaxed font-medium">
+              For your apps, your fleet devices, and your real-time network telemetry.
+            </p>
+          </div>
+
+          {/* Bottom Floating Interactive Notification Bubbles */}
+          <div className="relative z-10 space-y-4 max-w-md">
+            {/* Bubble 1 */}
+            <div className="bg-white/95 backdrop-blur-md text-slate-800 p-4 rounded-2xl shadow-xl flex items-center gap-3 border border-white/50 transform -rotate-1 hover:rotate-0 transition-transform">
+              <div className="w-9 h-9 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-md">
+                J
+              </div>
+              <div className="flex-1 min-w-0 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900">Jamie</span>
+                  <span className="text-[10px] text-slate-400">just now</span>
+                </div>
+                <p className="text-slate-600 truncate mt-0.5">hey! protected your fleet nodes 🛡️</p>
+              </div>
             </div>
 
+            {/* Bubble 2 */}
+            <div className="bg-white/95 backdrop-blur-md text-slate-800 p-4 rounded-2xl shadow-xl flex items-center gap-3 border border-white/50 transform rotate-1 hover:rotate-0 transition-transform relative">
+              <div className="w-9 h-9 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-md">
+                Y
+              </div>
+              <div className="flex-1 min-w-0 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900">You</span>
+                  <span className="text-[10px] text-slate-400">just now</span>
+                </div>
+                <p className="text-slate-600 truncate mt-0.5">feels like full network clarity.</p>
+              </div>
+              {/* Heart reaction badge */}
+              <div className="absolute -bottom-2 right-4 bg-white border border-slate-200 px-2 py-0.5 rounded-full text-[11px] font-bold text-slate-700 shadow-md flex items-center gap-1">
+                <span>❤️</span> 3
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── RIGHT COLUMN: SIGN-IN FORM AREA ────────────────────────────────── */}
+        <div className="w-full lg:w-1/2 flex flex-col justify-between p-6 md:p-12 lg:p-16 overflow-y-auto bg-[#FAF9F5]">
+          {/* Top Header Row */}
+          <div className="flex items-center justify-between w-full max-w-md mx-auto lg:max-w-none">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to home
+            </Link>
+
+            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+              Admin Access <Lock className="w-3 h-3 text-slate-400" />
+            </span>
+          </div>
+
+          {/* Form Content Box */}
+          <div className="w-full max-w-md mx-auto my-auto py-10 space-y-7">
+            {/* Title */}
+            <div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-nunito">
+                Good to have you.
+              </h2>
+            </div>
+
+            {/* 1-Click Google Sign In */}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={googleLoading}
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold text-sm flex items-center justify-center gap-3 transition-all shadow-md active:scale-98 disabled:opacity-60"
+              >
+                {googleLoading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <GoogleIcon className="w-5 h-5 bg-white rounded-full p-0.5" />
+                )}
+                {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-4">
+              <div className="h-[1px] flex-1 bg-slate-200" />
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                or, the good old email way
+              </span>
+              <div className="h-[1px] flex-1 bg-slate-200" />
+            </div>
+
+            {/* Email & Password Form */}
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Email Address
+                <label className="text-xs font-bold text-slate-700">
+                  Email address
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-background border px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground/40"
+                  className="w-full h-12 bg-white border border-slate-200 px-4 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FA5438] transition-all placeholder:text-slate-400 text-slate-900 shadow-sm"
                   placeholder="belloimam431@gmail.com"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <label className="text-xs font-bold text-slate-700">
                   Password
                 </label>
                 <input
@@ -170,13 +277,13 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-background border px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground/40"
+                  className="w-full h-12 bg-white border border-slate-200 px-4 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FA5438] transition-all placeholder:text-slate-400 text-slate-900 shadow-sm"
                   placeholder="••••••••••••"
                 />
               </div>
 
               {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-semibold text-center">
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-semibold">
                   {error}
                 </div>
               )}
@@ -184,22 +291,35 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 shadow-md"
+                className="w-full h-12 bg-[#FA5438] hover:bg-[#E0452B] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 disabled:opacity-70 mt-2"
               >
                 {loading ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <LogIn className="w-4 h-4" />
+                  <>
+                    <span>Sign In to Command</span>
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </>
                 )}
-                {loading ? 'Authenticating...' : 'Sign In with Password'}
               </button>
             </form>
+
+            <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+              By signing in, you agree to the <a href="#" className="underline hover:text-slate-700">Terms</a> and <a href="#" className="underline hover:text-slate-700">Privacy Policy</a>.
+            </p>
+          </div>
+
+          {/* Footer Note */}
+          <div className="w-full max-w-md mx-auto lg:max-w-none text-center">
+            <p className="text-xs text-slate-400 font-medium">
+              NetSentry Administrator Portal • v2.0
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Pass-through wrapper for the correct admin user
+  // Pass-through wrapper for the correct super admin user
   return <>{children}</>;
 }

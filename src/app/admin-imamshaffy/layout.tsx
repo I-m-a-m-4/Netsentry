@@ -112,114 +112,114 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
  };
 
  return (
- <div className="flex min-h-screen w-full flex-col relative overflow-hidden bg-background text-foreground">
- {/* Top Header */}
- <header className="sticky top-0 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 z-40">
- {/* Brand */}
- <Link
- href="/admin-imamshaffy"
- className="flex items-center gap-2 text-base font-black tracking-tight whitespace-nowrap shrink-0 mr-4"
- >
- <NetSentryLogo className="w-8 h-8 rounded-lg " />
- <span className=" from-primary bg-clip-text text-transparent font-bricolage">
- NetSentry Command
- </span>
- </Link>
+    <Admin2FAGate>
+      <div className="flex min-h-screen w-full flex-col relative overflow-hidden bg-background text-foreground">
+        {/* Top Header */}
+        <header className="sticky top-0 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 z-40">
+          {/* Brand */}
+          <Link
+            href="/admin-imamshaffy"
+            className="flex items-center gap-2 text-base font-black tracking-tight whitespace-nowrap shrink-0 mr-4"
+          >
+            <NetSentryLogo className="w-8 h-8 rounded-lg " />
+            <span className=" from-primary bg-clip-text text-transparent font-bricolage">
+              NetSentry Command
+            </span>
+          </Link>
 
- {/* Desktop Navigation */}
- <nav className="hidden md:flex flex-row items-center gap-5 text-sm font-medium">
- {navLinks.map(link => (
- <Link
- key={link.href}
- href={link.href}
- className={cn(
- 'flex items-center gap-1.5 whitespace-nowrap py-1 transition-colors hover:text-foreground',
- isLinkActive(link.href)
- ? 'text-foreground font-bold border-b-2 border-primary'
- : 'text-muted-foreground'
- )}
- >
- <link.icon className="w-4 h-4" />
- <span>{link.label}</span>
- {link.label.includes('Logs') && unreadErrorCount > 0 && (
- <Badge
- variant="destructive"
- className="h-5 min-w-5 px-1.5 py-0 flex items-center justify-center text-[10px] font-black rounded-md animate-pulse bg-red-600 text-white border-0"
- >
- {unreadErrorCount}
- </Badge>
- )}
- </Link>
- ))}
- </nav>
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex flex-row items-center gap-5 text-sm font-medium">
+            {navLinks.map(link => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  'flex items-center gap-1.5 whitespace-nowrap py-1 transition-colors hover:text-foreground',
+                  isLinkActive(link.href)
+                    ? 'text-foreground font-bold border-b-2 border-primary'
+                    : 'text-muted-foreground'
+                )}
+              >
+                <link.icon className="w-4 h-4" />
+                <span>{link.label}</span>
+                {link.label.includes('Logs') && unreadErrorCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="h-5 min-w-5 px-1.5 py-0 flex items-center justify-center text-[10px] font-black rounded-md animate-pulse bg-red-600 text-white border-0"
+                  >
+                    {unreadErrorCount}
+                  </Badge>
+                )}
+              </Link>
+            ))}
+          </nav>
 
- {/* Right controls */}
- <div className="ml-auto flex items-center gap-2 shrink-0">
- <Button
- variant="outline"
- size="icon"
- onClick={() => setTheme(isDarkMode ? 'light' : 'dark')}
- className="rounded-md w-9 h-9 border-muted hover:bg-accent shrink-0"
- title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
- >
- {isDarkMode
- ? <Sun className="h-4 w-4 text-yellow-500" />
- : <Moon className="h-4 w-4 text-slate-700" />}
- </Button>
- 
- <Button
- onClick={handleLogout}
- variant="outline"
- size="sm"
- className="shrink-0 flex items-center gap-1.5"
- >
- <LogOut className="h-4 w-4" /> 
- <span className="hidden sm:inline">Logout</span>
- </Button>
- </div>
- </header>
+          {/* Right controls */}
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setTheme(isDarkMode ? 'light' : 'dark')}
+              className="rounded-md w-9 h-9 border-muted hover:bg-accent shrink-0"
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode
+                ? <Sun className="h-4 w-4 text-yellow-500" />
+                : <Moon className="h-4 w-4 text-slate-700" />}
+            </Button>
 
- {/* Page content */}
- <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 overflow-y-auto pb-24 md:pb-8">
- <Admin2FAGate>
- {children}
- </Admin2FAGate>
- </main>
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="shrink-0 flex items-center gap-1.5"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
+          </div>
+        </header>
 
- {/* Mobile Bottom Bar */}
- <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-border bg-background/95 h-16 pb-[env(safe-area-inset-bottom)]">
- <div className="flex justify-around items-center h-full">
- {navLinks.map((link) => {
- const active = isLinkActive(link.href);
- return (
- <Link
- key={link.href}
- href={link.href}
- className="flex flex-col items-center justify-center flex-1 h-full"
- >
- <div className="relative mb-0.5">
- <link.icon
- className={cn('h-5 w-5', active ? 'text-primary' : 'text-muted-foreground')}
- />
- {link.label.includes('Logs') && unreadErrorCount > 0 && (
- <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-md bg-red-600 text-[8px] text-white font-bold">
- {unreadErrorCount > 9 ? '9+' : unreadErrorCount}
- </span>
- )}
- </div>
- <span
- className={cn(
- 'text-[10px] leading-none',
- active ? 'text-primary font-semibold' : 'text-muted-foreground'
- )}
- >
- {link.label}
- </span>
- </Link>
- );
- })}
- </div>
- </nav>
- </div>
+        {/* Page content */}
+        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 overflow-y-auto pb-24 md:pb-8">
+          {children}
+        </main>
+
+        {/* Mobile Bottom Bar */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-border bg-background/95 h-16 pb-[env(safe-area-inset-bottom)]">
+          <div className="flex justify-around items-center h-full">
+            {navLinks.map((link) => {
+              const active = isLinkActive(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="flex flex-col items-center justify-center flex-1 h-full"
+                >
+                  <div className="relative mb-0.5">
+                    <link.icon
+                      className={cn('h-5 w-5', active ? 'text-primary' : 'text-muted-foreground')}
+                    />
+                    {link.label.includes('Logs') && unreadErrorCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-md bg-red-600 text-[8px] text-white font-bold">
+                        {unreadErrorCount > 9 ? '9+' : unreadErrorCount}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      'text-[10px] leading-none',
+                      active ? 'text-primary font-semibold' : 'text-muted-foreground'
+                    )}
+                  >
+                    {link.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
+    </Admin2FAGate>
  );
 }
