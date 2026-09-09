@@ -1,8 +1,90 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { NetSentryLogo } from '@/components/ui/netsentry-logo';
+
+// ─── Platform icons ──────────────────────────────────────────────────────────
+function WindowsIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+    </svg>
+  );
+}
+
+function AppleIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+    </svg>
+  );
+}
+
+// ─── OS-aware download button ─────────────────────────────────────────────────
+function DownloadButton({ size = 'lg' }: { size?: 'sm' | 'lg' }) {
+  const [os, setOs] = useState<'windows' | 'mac' | 'other' | null>(null);
+
+  useEffect(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('win')) setOs('windows');
+    else if (ua.includes('mac')) setOs('mac');
+    else setOs('other');
+  }, []);
+
+  const isLg = size === 'lg';
+  const base = isLg
+    ? { fontSize: '17px', padding: '14px 28px' }
+    : { fontSize: '15px', padding: '10px 20px' };
+
+  if (!os) {
+    // SSR / hydration placeholder — matches Windows button shape
+    return (
+      <div
+        className="flex items-center gap-3 font-semibold text-white rounded-full shadow-lg"
+        style={{ background: '#1A1A1A', ...base, opacity: 0 }}
+      >
+        <WindowsIcon size={isLg ? 18 : 15} />
+        Download for Windows
+      </div>
+    );
+  }
+
+  if (os === 'mac') {
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        <a
+          href="#"
+          className="flex items-center gap-3 font-semibold text-white rounded-full shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all w-full sm:w-auto justify-center"
+          style={{ background: '#1A1A1A', ...base }}
+        >
+          <AppleIcon size={isLg ? 18 : 15} />
+          Download for Mac
+        </a>
+        {isLg && (
+          <span className="text-xs font-medium text-slate-500">macOS 12 Monterey or later</span>
+        )}
+      </div>
+    );
+  }
+
+  // Windows (default)
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <a
+        href="#"
+        className="flex items-center gap-3 font-semibold text-white rounded-full shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all w-full sm:w-auto justify-center"
+        style={{ background: '#1A1A1A', ...base }}
+      >
+        <WindowsIcon size={isLg ? 18 : 15} />
+        Download for Windows
+      </a>
+      {isLg && (
+        <span className="text-xs font-medium text-slate-500">Coming soon on Microsoft Store</span>
+      )}
+    </div>
+  );
+}
 
 export default function LandingPage() {
   return (
@@ -42,9 +124,7 @@ export default function LandingPage() {
             <a href="#pricing" className="hover:text-black transition-colors">Pricing</a>
             <a href="#" className="hover:text-black transition-colors">Support</a>
           </div>
-          <Link href="/dashboard" className="bg-[#1A1A1A] text-white font-medium px-6 py-2.5 rounded-full hover:bg-black transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5" style={{ fontSize: '15px' }}>
-            Open App
-          </Link>
+          <DownloadButton size="sm" />
         </nav>
 
         {/* Hero Section */}
@@ -62,9 +142,7 @@ export default function LandingPage() {
               Monitor live speeds, block data-hungry apps, set daily limits, and protect your connection. Simple, beautiful, and built for everyday Windows users.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/dashboard" className="font-medium text-white w-full sm:w-auto rounded-full shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all" style={{ background: '#1A1A1A', fontSize: '17px', padding: '14px 32px' }}>
-                Open NetSentry
-              </Link>
+              <DownloadButton size="lg" />
               <a href="#features" className="text-[#1A1A1A] font-medium w-full sm:w-auto flex items-center justify-center gap-2 rounded-full hover:-translate-y-0.5 transition-all" style={{ background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.5)', fontSize: '17px', padding: '14px 32px' }}>
                 See features
               </a>
