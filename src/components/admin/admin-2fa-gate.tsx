@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useUser } from '@/firebase';
 import { getAuth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { ShieldAlert, ArrowLeft, ArrowRight, Lock, Check } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, ArrowRight, Lock, ShieldCheck, Activity, Terminal } from 'lucide-react';
 import Link from 'next/link';
 import { NetSentryLogo } from '@/components/ui/netsentry-logo';
 
@@ -32,7 +32,7 @@ function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
 
 export default function Admin2FAGate({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('belloimam431@gmail.com');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -50,7 +50,13 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
       const auth = getAuth();
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
+      if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password') {
+        setError('Incorrect password. Please verify your password and try again.');
+      } else if (err?.code === 'auth/user-not-found') {
+        setError(`No account found for ${email}. Please check Firebase Auth console.`);
+      } else {
+        setError(err.message || 'Authentication failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -64,7 +70,11 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (err: any) {
-      setError(err.message || 'Google authentication failed');
+      if (err?.code === 'auth/operation-not-allowed' || err?.message?.includes('operation-not-allowed')) {
+        setError('Google Sign-In is currently disabled in your Firebase console. Please sign in below using your password, or enable Google Provider in Firebase Console.');
+      } else {
+        setError(err.message || 'Google authentication failed');
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -137,9 +147,9 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
           .font-nunito { font-family: 'Nunito', sans-serif; }
         `}</style>
 
-        {/* ─── LEFT COLUMN: CORAL HERO BANNER ─────────────────────────────────── */}
+        {/* ─── LEFT COLUMN: CORAL HERO BANNER (NETSENTRY TAILORED) ─────────────── */}
         <div className="hidden lg:flex lg:w-1/2 bg-[#FA5438] text-white p-12 lg:p-16 flex-col justify-between relative overflow-hidden">
-          {/* Subtle background glow pattern */}
+          {/* Background glow pattern */}
           <div className="absolute -top-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-orange-600/30 rounded-full blur-3xl pointer-events-none" />
 
@@ -153,54 +163,54 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
             </span>
           </div>
 
-          {/* Center Hero Heading */}
+          {/* Center Hero Heading (Custom Tailored for NetSentry Admin) */}
           <div className="relative z-10 max-w-lg my-auto py-12">
             <h1 className="text-5xl lg:text-6xl font-extrabold text-white tracking-tight font-nunito leading-[1.1] mb-6">
               It starts with<br />
-              a little <span className="inline-block bg-white text-[#FA5438] px-3.5 py-1 rounded-2xl shadow-lg transform -rotate-1">shield.</span>
+              a little <span className="inline-block bg-white text-[#FA5438] px-3.5 py-1 rounded-2xl shadow-lg transform -rotate-1">firewall.</span>
             </h1>
-            <p className="text-white/90 text-lg leading-relaxed font-medium">
-              For your apps, your fleet devices, and your real-time network telemetry.
+            <p className="text-white/95 text-lg leading-relaxed font-medium">
+              For your desktop apps, fleet nodes, threat audits, and real-time network telemetry.
             </p>
           </div>
 
-          {/* Bottom Floating Interactive Notification Bubbles */}
+          {/* Bottom Floating NetSentry Status Cards */}
           <div className="relative z-10 space-y-4 max-w-md">
-            {/* Bubble 1 */}
+            {/* Card 1: Active Fleet Nodes */}
             <div className="bg-white/95 backdrop-blur-md text-slate-800 p-4 rounded-2xl shadow-xl flex items-center gap-3 border border-white/50 transform -rotate-1 hover:rotate-0 transition-transform">
-              <div className="w-9 h-9 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-md">
-                J
+              <div className="w-9 h-9 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-md">
+                <Activity className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900">Jamie</span>
+                  <span className="font-bold text-slate-900">NetSentry Fleet</span>
                   <span className="text-[10px] text-slate-400">just now</span>
                 </div>
-                <p className="text-slate-600 truncate mt-0.5">hey! protected your fleet nodes 🛡️</p>
+                <p className="text-slate-600 truncate mt-0.5">14 client desktop nodes streaming data ⚡</p>
               </div>
             </div>
 
-            {/* Bubble 2 */}
+            {/* Card 2: Cyber Threat Defense */}
             <div className="bg-white/95 backdrop-blur-md text-slate-800 p-4 rounded-2xl shadow-xl flex items-center gap-3 border border-white/50 transform rotate-1 hover:rotate-0 transition-transform relative">
               <div className="w-9 h-9 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-md">
-                Y
+                <ShieldCheck className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900">You</span>
+                  <span className="font-bold text-slate-900">Security Audit</span>
                   <span className="text-[10px] text-slate-400">just now</span>
                 </div>
-                <p className="text-slate-600 truncate mt-0.5">feels like full network clarity.</p>
+                <p className="text-slate-600 truncate mt-0.5">0 threat anomalies. Shield active.</p>
               </div>
               {/* Heart reaction badge */}
               <div className="absolute -bottom-2 right-4 bg-white border border-slate-200 px-2 py-0.5 rounded-full text-[11px] font-bold text-slate-700 shadow-md flex items-center gap-1">
-                <span>❤️</span> 3
+                <span>🛡️</span> Protected
               </div>
             </div>
           </div>
         </div>
 
-        {/* ─── RIGHT COLUMN: SIGN-IN FORM AREA ────────────────────────────────── */}
+        {/* ─── RIGHT COLUMN: SIGN-IN FORM AREA (NETSENTRY TAILORED) ───────────── */}
         <div className="w-full lg:w-1/2 flex flex-col justify-between p-6 md:p-12 lg:p-16 overflow-y-auto bg-[#FAF9F5]">
           {/* Top Header Row */}
           <div className="flex items-center justify-between w-full max-w-md mx-auto lg:max-w-none">
@@ -212,18 +222,21 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
               Back to home
             </Link>
 
-            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-              Admin Access <Lock className="w-3 h-3 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 bg-slate-200/60 px-3 py-1 rounded-full">
+              Owner Console <Lock className="w-3 h-3 text-slate-500" />
             </span>
           </div>
 
           {/* Form Content Box */}
-          <div className="w-full max-w-md mx-auto my-auto py-10 space-y-7">
+          <div className="w-full max-w-md mx-auto my-auto py-10 space-y-6">
             {/* Title */}
             <div>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-nunito">
-                Good to have you.
+                NetSentry Command.
               </h2>
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                Authenticate with your administrator credentials to broadcast screen popups, inspect fleet telemetry, and run security audits.
+              </p>
             </div>
 
             {/* 1-Click Google Sign In */}
@@ -247,7 +260,7 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
             <div className="flex items-center gap-3 my-4">
               <div className="h-[1px] flex-1 bg-slate-200" />
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                or, the good old email way
+                or sign in with password
               </span>
               <div className="h-[1px] flex-1 bg-slate-200" />
             </div>
@@ -256,7 +269,7 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">
-                  Email address
+                  Admin Email
                 </label>
                 <input
                   type="email"
@@ -283,7 +296,7 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
               </div>
 
               {error && (
-                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-semibold">
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-semibold leading-relaxed">
                   {error}
                 </div>
               )}
@@ -305,14 +318,14 @@ export default function Admin2FAGate({ children }: { children: React.ReactNode }
             </form>
 
             <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-              By signing in, you agree to the <a href="#" className="underline hover:text-slate-700">Terms</a> and <a href="#" className="underline hover:text-slate-700">Privacy Policy</a>.
+              Protected by NetSentry 2FA Security Rules. Access restricted to <span className="font-semibold text-slate-600">{adminEmail}</span>.
             </p>
           </div>
 
           {/* Footer Note */}
           <div className="w-full max-w-md mx-auto lg:max-w-none text-center">
             <p className="text-xs text-slate-400 font-medium">
-              NetSentry Administrator Portal • v2.0
+              NetSentry Command Portal • v2.0
             </p>
           </div>
         </div>
