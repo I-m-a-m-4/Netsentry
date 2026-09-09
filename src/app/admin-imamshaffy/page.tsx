@@ -139,7 +139,7 @@ export default function AdminDashboardPage() {
  const launchDate = new Date('2026-02-01');
  const daysOnline = Math.max(1, differenceInDays(new Date(), launchDate));
 
- const totalClients = users.length;
+ const totalClients = Math.max(users.length, desktopDevices.length);
  const totalDownloads = downloadClicks.length;
  const totalThreatEvents = securityLogs.length;
  const totalSystemErrors = errorLogs.length;
