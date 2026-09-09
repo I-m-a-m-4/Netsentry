@@ -59,6 +59,7 @@ import DonateModal from '@/components/donate/donate-modal';
 import { AppIcon, getProcessBrandMeta, SYSTEM_PROCESS_NAMES } from '@/components/desktop/app-icons';
 import AnalyticsDashboard from '@/components/desktop/analytics-dashboard';
 import AppDetailsDialog from '@/components/desktop/app-details-dialog';
+import AnnouncementPopup from '@/components/desktop/announcement-popup';
 import { syncClientTelemetryToFirebase, logSecurityEventToFirebase } from '@/lib/firebase-telemetry';
 
 interface ConnectionInfo {
@@ -1852,6 +1853,9 @@ export default function NetSentryDashboard() {
 
  {/* Buy Me a Coffee / Donation Modal */}
  <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} />
+
+ {/* Admin Screen Broadcast Popup Listener */}
+ <AnnouncementPopup />
  </div>
  );
 }

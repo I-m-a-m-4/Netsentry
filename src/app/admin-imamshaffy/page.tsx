@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import CyberShield from '@/components/admin/cyber-shield';
+import BroadcastPopupManager from '@/components/admin/broadcast-popup-manager';
 
 import {
  Card,
@@ -208,6 +209,7 @@ export default function AdminDashboardPage() {
  { id: 'overview', label: 'Overview Telemetry', icon: Activity },
  { id: 'fleet', label: 'Desktop Fleet', icon: Monitor },
  { id: 'clients', label: 'Client Nodes', icon: Users },
+ { id: 'popups', label: 'User Screen Popups', icon: Radio },
  { id: 'shield', label: 'Cyber Shield & Security', icon: ShieldCheck },
  { id: 'logs', label: 'Diagnostic Logs', icon: Bug },
  ].map(tab => (
@@ -726,6 +728,11 @@ export default function AdminDashboardPage() {
  </CardContent>
  </Card>
  </TabsContent>
+
+        {/* USER SCREEN POPUPS TAB */}
+        <TabsContent value="popups" className="space-y-6 pt-4">
+          <BroadcastPopupManager />
+        </TabsContent>
  </Tabs>
 
  {/* Node Detail Dialog */}

@@ -72,15 +72,17 @@ function DownloadButton({ size = 'lg' }: { size?: 'sm' | 'lg' }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
       <a
-        href="#"
+        href="https://apps.microsoft.com/store/detail/9P8LKHFTRKKS"
+        target="_blank"
+        rel="noopener noreferrer"
         className="flex items-center gap-3 font-semibold text-white rounded-full shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all w-full sm:w-auto justify-center"
         style={{ background: '#1A1A1A', ...base }}
       >
         <WindowsIcon size={isLg ? 18 : 15} />
-        Download for Windows
+        Download on Microsoft Store
       </a>
       {isLg && (
-        <span className="text-xs font-medium text-slate-500">Coming soon on Microsoft Store</span>
+        <span className="text-xs font-medium text-slate-500">Official Microsoft Store Listing</span>
       )}
     </div>
   );
