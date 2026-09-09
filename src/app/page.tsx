@@ -1,1845 +1,533 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useTheme } from 'next-themes';
+import React from 'react';
+import Link from 'next/link';
 import { NetSentryLogo } from '@/components/ui/netsentry-logo';
-import { 
- Activity, 
- Search, 
- Play, 
- Pause, 
- RotateCcw, 
- ArrowUp, 
- ArrowDown, 
- Shield, 
- Network,
- RefreshCw,
- Terminal,
- Sun,
- Moon,
- AlertTriangle,
- FolderOpen,
- Trash2,
- Eye,
- Radio,
- X,
- TrendingUp,
- Monitor,
- Coffee,
- Heart,
- Globe,
- AppWindow,
- Cpu,
- MessageSquare,
- Music,
- Code,
- Cloud,
- BarChart2,
- ShieldOff,
- Zap,
- LayoutList,
- LayoutGrid,
- Layers,
- ChevronDown,
- ChevronUp
-} from 'lucide-react';
-import { 
- AreaChart, 
- Area, 
- BarChart, 
- Bar, 
- Cell, 
- XAxis, 
- YAxis, 
- Tooltip, 
- ResponsiveContainer 
-} from 'recharts';
-import { Badge } from '@/components/ui/badge';
-import DonateModal from '@/components/donate/donate-modal';
-import { AppIcon, getProcessBrandMeta, SYSTEM_PROCESS_NAMES } from '@/components/desktop/app-icons';
-import AnalyticsDashboard from '@/components/desktop/analytics-dashboard';
-import AppDetailsDialog from '@/components/desktop/app-details-dialog';
-import { syncClientTelemetryToFirebase, logSecurityEventToFirebase } from '@/lib/firebase-telemetry';
 
-interface ConnectionInfo {
- protocol: string;
- local_address: string;
- foreign_address: string;
- state: string;
- pid: number;
-}
+export default function LandingPage() {
+  return (
+    <div className="antialiased min-h-screen overflow-x-hidden text-slate-800 font-sans relative" style={{ background: '#A8CCDF' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito:wght@600;700;800&display=swap');
+        html { scroll-behavior: smooth; }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        .font-nunito { font-family: 'Nunito', sans-serif; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 1s ease-out forwards; }
+        .animate-slide-up { animation: slideUp 1s ease-out forwards; }
+        @keyframes scroll-testimonials { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-scroll-testimonials { animation: scroll-testimonials 80s linear infinite; }
+        .animate-scroll-testimonials:hover { animation-play-state: paused; }
+        @keyframes wheel-rotate { 0% { transform: translateY(0); } 100% { transform: translateY(calc(-50% - 2rem)); } }
+        .animate-wheel { animation: wheel-rotate 15s linear infinite; }
+      `}</style>
 
-export interface ProcessNetworkData {
- pid: number;
- name: string;
- exe_path: string;
- icon?: string | null;
- inbound_rate: number;
- outbound_rate: number;
- cpu_usage?: number;
- memory_usage?: number;
- total_data_mb: number; // Cumulative MB transferred by this process
- connections_count: number;
- is_paused: boolean;
- sockets: ConnectionInfo[];
-}
+      {/* Background Layer */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(158,200,224,0.2), rgba(189,216,238,0.4), #EAE3D6)' }} />
+      </div>
 
-interface LogEntry {
- timestamp: string;
- message: string;
- type: 'info' | 'warning' | 'alert';
-}
+      <div className="relative z-10 flex flex-col min-h-screen">
 
-/// System-wide telemetry measured at the physical adapters by the Rust backend.
-/// Every total here is ABSOLUTE — assign it, never accumulate it. Accumulating is
-/// what allowed a duplicated listener to inflate "Total Data Used" to ~180 MB.
-interface SystemTelemetry {
- rx_rate_kbps: number;
- tx_rate_kbps: number;
- interval_ms: number;
- session_rx_mb: number;
- session_tx_mb: number;
- today_rx_mb: number;
- today_tx_mb: number;
- week_rx_mb?: number;
- week_tx_mb?: number;
- month_rx_mb?: number;
- month_tx_mb?: number;
-}
+        {/* Navigation */}
+        <nav className="w-full px-6 py-6 md:px-12 flex items-center justify-between max-w-7xl mx-auto animate-fade-in">
+          <div className="flex items-center gap-2">
+            <NetSentryLogo className="w-8 h-8 rounded-lg shadow-md" />
+            <span className="text-xl font-bold text-slate-900 tracking-tight font-nunito">NetSentry</span>
+          </div>
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700" style={{ fontSize: '15px' }}>
+            <a href="#features" className="hover:text-black transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-black transition-colors">How it Works</a>
+            <a href="#pricing" className="hover:text-black transition-colors">Pricing</a>
+            <a href="#" className="hover:text-black transition-colors">Support</a>
+          </div>
+          <Link href="/dashboard" className="bg-[#1A1A1A] text-white font-medium px-6 py-2.5 rounded-full hover:bg-black transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5" style={{ fontSize: '15px' }}>
+            Open App
+          </Link>
+        </nav>
 
-interface NetworkDataPayload {
- processes: ProcessNetworkData[];
- system: SystemTelemetry;
-}
+        {/* Hero Section */}
+        <main className="flex-grow flex flex-col items-center pt-12 pb-20 px-4 md:px-6 w-full max-w-7xl mx-auto">
 
-interface DailyTotal {
- date: string;
- total_inbound_mb: number;
- total_outbound_mb: number;
-}
+          <div className="text-center max-w-4xl mx-auto mb-16 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-6 backdrop-blur-sm" style={{ background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(249,115,22,0.3)', color: '#c2410c', fontSize: '12px', fontWeight: '700' }}>
+              <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              Now available for Windows — Free Download
+            </div>
+            <h1 className="leading-tight font-bold text-[#1A1A1A] tracking-tight font-nunito mb-8" style={{ fontSize: 'clamp(48px, 8vw, 78px)', lineHeight: '1' }}>
+              Take control of<br />your internet
+            </h1>
+            <p className="leading-relaxed font-medium text-slate-600 max-w-2xl mx-auto mb-10" style={{ fontSize: '19px' }}>
+              Monitor live speeds, block data-hungry apps, set daily limits, and protect your connection. Simple, beautiful, and built for everyday Windows users.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link href="/dashboard" className="font-medium text-white w-full sm:w-auto rounded-full shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all" style={{ background: '#1A1A1A', fontSize: '17px', padding: '14px 32px' }}>
+                Open NetSentry
+              </Link>
+              <a href="#features" className="text-[#1A1A1A] font-medium w-full sm:w-auto flex items-center justify-center gap-2 rounded-full hover:-translate-y-0.5 transition-all" style={{ background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.5)', fontSize: '17px', padding: '14px 32px' }}>
+                See features
+              </a>
+            </div>
+          </div>
 
-export interface GroupedProcess {
- key: string;
- name: string;
- exe_path: string;
- icon?: string | null;
- pids: number[];
- total_data_mb: number;
- inbound_rate: number;
- outbound_rate: number;
- connections_count: number;
- memory_usage: number;
- cpu_usage: number;
- is_paused: boolean;
- instances: ProcessNetworkData[];
- sockets: ConnectionInfo[];
-}
+          {/* Dashboard Mockup */}
+          <div className="w-full rounded-t-[32px] border overflow-hidden flex flex-col md:flex-row relative animate-slide-up" style={{ maxWidth: '1300px', background: '#FDFBF9', borderColor: 'rgba(255,255,255,0.6)', boxShadow: '0 50px 100px -20px rgba(50,50,93,0.15), 0 30px 60px -30px rgba(0,0,0,0.1)', animationDelay: '0.3s' }}>
 
-/// Render a throughput figure without rounding small real values away to "0 KB/s" —
-/// a rate that read 0 while the total climbed is what made the old build look broken.
-const formatRate = (kbps: number) => {
- if (!Number.isFinite(kbps) || kbps <= 0) return '0 KB/s';
- if (kbps >= 1024) return `${(kbps / 1024).toFixed(2)} MB/s`;
- if (kbps >= 10) return `${Math.round(kbps)} KB/s`;
- return `${kbps.toFixed(1)} KB/s`;
-};
+            {/* Sidebar */}
+            <aside className="hidden md:flex flex-col w-64 p-6" style={{ borderRight: '1px solid #f1f5f9', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(8px)' }}>
+              <div className="flex items-center gap-2 mb-8 px-2">
+                <NetSentryLogo className="w-5 h-5 rounded-md" />
+                <span className="text-lg font-bold text-slate-900 font-nunito">NetSentry</span>
+              </div>
+              <nav className="space-y-1 mb-8">
+                {[
+                  { label: 'Overview', active: true },
+                  { label: 'App Manager' },
+                  { label: 'Data Usage' },
+                  { label: 'Focus Mode' },
+                ].map(item => (
+                  <a key={item.label} href="#" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${item.active ? 'bg-[#EAE5DC] text-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}>
+                    <span className="w-4 h-4 rounded-sm inline-block" style={{ background: 'currentColor', opacity: 0.5 }} />
+                    {item.label}
+                  </a>
+                ))}
+              </nav>
+              <div className="mt-auto">
+                <p className="px-3 mb-2 text-slate-400 uppercase tracking-wider" style={{ fontSize: '11px', fontWeight: '700' }}>Tools</p>
+                <nav className="space-y-1">
+                  {['Firewall Rules', 'Bandwidth Limits', 'Smart Scheduler', 'Connection Log', 'Emergency Reset'].map(label => (
+                    <a key={label} href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors font-medium text-sm">
+                      <span className="w-4 h-4 rounded-sm inline-block" style={{ background: 'currentColor', opacity: 0.4 }} />
+                      {label}
+                    </a>
+                  ))}
+                </nav>
+              </div>
+            </aside>
 
-const formatVolume = (mb: number, forceUnit?: 'auto' | 'mb') => {
-	if (!Number.isFinite(mb) || mb <= 0) return '0 MB';
-	if (forceUnit === 'mb') {
-		const formatted = mb >= 10
-			? Math.round(mb).toLocaleString()
-			: mb.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-		return `${formatted} MB`;
-	}
-	if (mb >= 1024) {
-		const gb = mb / 1024;
-		return `${gb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GB`;
-	}
-	const formatted = mb >= 10
-		? Math.round(mb).toLocaleString()
-		: mb.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-	return `${formatted} MB`;
-};
+            {/* Main Content */}
+            <div className="flex-1 p-6 md:p-8 max-h-[70vh] md:max-h-none overflow-y-auto" style={{ background: '#FDFBF9' }}>
+              <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 font-nunito">Network Overview</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">Real-time telemetry · Metered connection active</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <input type="text" placeholder="Search apps" className="pl-4 pr-4 py-2 bg-white border rounded-full text-sm placeholder:text-slate-400 focus:outline-none w-48 shadow-sm" style={{ borderColor: '#f1f5f9' }} />
+                  </div>
+                  <div className="flex items-center gap-3 pl-4" style={{ borderLeft: '1px solid #e2e8f0' }}>
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-sm font-semibold text-slate-700">Engine Active</span>
+                  </div>
+                </div>
+              </header>
 
-export default function NetSentryDashboard() {
- const [isClient, setIsClient] = useState(false);
- const [volumeUnit, setVolumeUnit] = useState<'auto' | 'mb'>('auto');
- const [processes, setProcesses] = useState<ProcessNetworkData[]>([]);
- const [searchQuery, setSearchQuery] = useState('');
- const [chartData, setChartData] = useState<{ time: string; inbound: number; outbound: number }[]>([]);
- const [actionLoading, setActionLoading] = useState<string | null>(null);
- const [tauriStatus, setTauriStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
- // next-themes wires this to the actual class on <html> so the whole page reacts
- const { theme, setTheme, resolvedTheme } = useTheme();
- 
- // States
- const [selectedProcess, setSelectedProcess] = useState<ProcessNetworkData | GroupedProcess | null>(null);
- const [isInspectorOpen, setIsInspectorOpen] = useState(false);
- const [isDonateOpen, setIsDonateOpen] = useState(false);
- const [quotaLimit, setQuotaLimit] = useState<number>(1000); // MB
- // Absolute telemetry from Rust. Assigned wholesale each tick, never accumulated.
- const [system, setSystem] = useState<SystemTelemetry | null>(null);
- // Read inside the event handler, so the quota can change without tearing down
- // and re-registering the listener (which is how listeners used to get duplicated).
- const quotaRef = useRef<number>(1000);
- // Latches the quota alert so it fires on crossing, not once per tick.
- const alertedRef = useRef<boolean>(false);
- // PIDs already reported as suspicious, so each one is logged on transition only.
- const flaggedPidsRef = useRef<Set<number>>(new Set());
- const [securityLogs, setSecurityLogs] = useState<LogEntry[]>([
- { timestamp: new Date().toLocaleTimeString(), message: "NetSentry security engine initialized.", type: "info" }
- ]);
- const [currentTab, setCurrentTab] = useState<'monitor' | 'logs' | 'analytics'>('monitor');
- const [timeRangeFilter, setTimeRangeFilter] = useState<'today' | 'session' | 'week' | 'month'>('today');
- const [filterCategory, setFilterCategory] = useState<'all' | 'user' | 'system' | 'active' | 'paused'>('all');
- const [hideSystemNoise, setHideSystemNoise] = useState<boolean>(true);
- const [sortBy, setSortBy] = useState<'data_usage' | 'inbound' | 'outbound' | 'name' | 'pid'>('data_usage');
- const [groupByApp, setGroupByApp] = useState<boolean>(true);
- const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
- const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
- const [isMetered, setIsMetered] = useState<boolean>(false);
- const [isWwan, setIsWwan] = useState<boolean>(false);
- const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
- const [focusModeLoading, setFocusModeLoading] = useState<boolean>(false);
- const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
- const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {[
+                  { label: 'Data Used Today', value: '1.58 GB', badge: '100%', bad: true },
+                  { label: 'Download Speed', value: '6.9 KB/s', badge: '↑Live', bad: false },
+                  { label: 'Upload Speed', value: '3.1 KB/s', badge: '↑Live', bad: false },
+                  { label: 'Active Sockets', value: '238', badge: '+12', bad: false },
+                ].map(stat => (
+                  <div key={stat.label} className="p-5 rounded-xl transition-colors" style={{ background: '#F6F4F0', border: '1px solid transparent' }}>
+                    <div className="flex items-center gap-2 text-slate-500 mb-6">
+                      <div className="p-1.5 rounded-md shadow-sm" style={{ background: 'white' }}>
+                        <span className="w-4 h-4 bg-slate-700 rounded block" style={{ opacity: 0.7 }} />
+                      </div>
+                      <span className="text-xs font-semibold">{stat.label}</span>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <span className="text-3xl font-bold font-nunito text-slate-900">{stat.value}</span>
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ color: stat.bad ? '#ef4444' : '#16a34a', background: stat.bad ? 'rgba(239,68,68,0.1)' : 'rgba(22,163,74,0.1)', fontSize: '11px' }}>{stat.badge}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
- // New features
- const [autoCutoffEnabled, setAutoCutoffEnabled] = useState<boolean>(false);
- const [smartProfilesEnabled, setSmartProfilesEnabled] = useState<boolean>(false);
+              {/* Bottom Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-sm" style={{ border: '1px solid #f1f5f9' }}>
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="font-bold text-sm text-slate-900">Data usage over time</h3>
+                    <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50" style={{ border: '1px solid #e2e8f0' }}>Month ↓</button>
+                  </div>
+                  <div className="flex items-center gap-4 mb-6" style={{ fontSize: '12px', fontWeight: '600' }}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-orange-400" />
+                      <span className="text-slate-600">Download</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-orange-200" />
+                      <span className="text-slate-400">Upload</span>
+                    </div>
+                  </div>
+                  <div className="h-48 w-full flex items-end justify-between gap-2 md:gap-4 px-2">
+                    {[30, 65, 25, 35, 25, 38, 58, 18, 32, 48, 12, 42].map((h, i) => (
+                      <div key={i} className="w-full flex flex-col justify-end gap-0.5 h-full group">
+                        <div className="w-full rounded-t-sm transition-colors" style={{ height: `${h}%`, background: i === 6 ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.25)' }} />
+                        <div className="text-center text-slate-400 mt-2" style={{ fontSize: '9px' }}>
+                          {['J','F','M','A','M','J','J','A','S','O','N','D'][i]}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { label: 'Block App', icon: '🚫' },
+                    { label: 'Focus Mode', icon: '🎯' },
+                    { label: 'Set Limit', icon: '📊' },
+                    { label: 'View Log', icon: '📋' },
+                    { label: 'Speed Test', icon: '⚡' },
+                    { label: 'Reset Rules', icon: '🔄' },
+                  ].map(action => (
+                    <div key={action.label} className="bg-white p-4 rounded-xl shadow-sm flex flex-col items-start justify-center gap-3 hover:border-slate-300 transition-colors cursor-pointer group" style={{ border: '1px solid #f1f5f9' }}>
+                      <div className="p-2 rounded-lg text-lg group-hover:bg-[#EAE5DC] transition-colors" style={{ background: '#F6F4F0' }}>{action.icon}</div>
+                      <span className="font-semibold text-slate-700" style={{ fontSize: '11px' }}>{action.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
 
- const toggleGroupExpand = (key: string) => {
- setExpandedGroups(prev => {
- const next = new Set(prev);
- if (next.has(key)) next.delete(key);
- else next.add(key);
- return next;
- });
- };
-  // Default whitelist: common browsers + dev tools
-  const [allowedApps, setAllowedApps] = useState<string>(
-    'chrome.exe\nmsedge.exe\nfirefox.exe\nbrave.exe\nopera.exe\ncode.exe\nC:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe\nC:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'
+        {/* Features Section */}
+        <section id="features" className="w-full max-w-7xl mx-auto px-4 md:px-6 py-24 relative z-10">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-4 block">One App</span>
+            <h2 className="md:text-5xl text-3xl font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6">Everything you need to own your network</h2>
+            <p className="text-lg text-slate-600 font-medium">Stop watching your data disappear. Take control of every byte with beautiful, simple tools built for real people.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { title: 'Live Bandwidth Monitor', desc: 'See real-time download and upload speeds for every app on your PC. Know exactly who is consuming your connection, second by second.', icon: '📡' },
+              { title: 'Data Limit & Alerts', desc: 'Set a daily or monthly data cap. NetSentry automatically alerts you before you hit the limit and can cut off traffic to protect your quota.', icon: '🛡️' },
+              { title: 'Focus Mode & App Blocker', desc: 'Block distracting or data-hungry apps with a single click. Stay in the zone without background apps wasting your connection.', icon: '🎯' },
+            ].map(card => (
+              <div key={card.title} className="bg-white/80 backdrop-blur-md rounded-[32px] p-8 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6 text-3xl shadow-sm group-hover:scale-110 transition-transform duration-300" style={{ background: '#F6F4F0', border: '1px solid white' }}>{card.icon}</div>
+                <h3 className="text-xl font-bold text-[#1A1A1A] font-nunito mb-3">{card.title}</h3>
+                <p className="leading-relaxed text-slate-600" style={{ fontSize: '15px' }}>{card.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Feature Block 1: App Manager */}
+        <section id="how-it-works" className="w-full max-w-7xl mx-auto px-4 md:px-12 py-16 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-24 mb-32">
+            <div className="w-full lg:w-[55%] relative group">
+              <div className="absolute inset-0 rounded-[40px] rotate-1 transition-transform duration-700 group-hover:rotate-0" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(254,215,170,0.4), #EFE6D8)' }} />
+              <div className="rounded-3xl p-8 relative shadow-xl hover:scale-[1.01] transition-transform duration-500" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.15), rgba(254,215,170,0.3), #EFE6D8)' }}>
+                <div className="bg-white max-w-lg rounded-2xl mx-auto shadow-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
+                  <div className="p-6" style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <h3 className="font-bold text-lg text-slate-900 font-nunito mb-4">App Data Usage</h3>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Search apps..." className="flex-1 bg-white rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none shadow-sm" style={{ border: '1px solid #e2e8f0' }} />
+                      <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 shadow-sm" style={{ border: '1px solid #e2e8f0' }}>Filter</button>
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(248,250,252,0.6)' }}>
+                    <div className="px-6 py-4"><span className="text-xs font-bold text-slate-800 uppercase tracking-wide">Top Apps Today</span></div>
+                    <div className="bg-white shadow-sm" style={{ borderTop: '1px solid #f1f5f9' }}>
+                      {[
+                        { name: 'Chrome.exe', usage: '892 MB', status: 'Active', bar: 89 },
+                        { name: 'Teams.exe', usage: '340 MB', status: 'Paused', bar: 34 },
+                        { name: 'Spotify.exe', usage: '128 MB', status: 'Active', bar: 13 },
+                        { name: 'Steam.exe', usage: '76 MB', status: 'Blocked', bar: 8 },
+                        { name: 'Discord.exe', usage: '54 MB', status: 'Active', bar: 5 },
+                      ].map((app, idx) => (
+                        <div key={idx} className="grid items-center px-6 py-4 hover:bg-slate-50 transition-colors" style={{ gridTemplateColumns: '2fr 1fr 1fr', gap: '16px', borderBottom: idx < 4 ? '1px solid #f8fafc' : 'none' }}>
+                          <div>
+                            <div className="font-semibold text-slate-900" style={{ fontSize: '13px' }}>{app.name}</div>
+                            <div className="mt-1 h-1.5 rounded-full overflow-hidden w-full" style={{ background: '#f1f5f9' }}>
+                              <div className="h-full rounded-full" style={{ width: `${app.bar}%`, background: '#fb923c' }} />
+                            </div>
+                          </div>
+                          <div className="text-sm font-semibold text-slate-700">{app.usage}</div>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold" style={{
+                            fontSize: '10px',
+                            background: app.status === 'Active' ? '#f0fdf4' : app.status === 'Paused' ? '#fefce8' : '#fef2f2',
+                            border: `1px solid ${app.status === 'Active' ? '#bbf7d0' : app.status === 'Paused' ? '#fef08a' : '#fecaca'}`,
+                            color: app.status === 'Active' ? '#15803d' : app.status === 'Paused' ? '#a16207' : '#b91c1c',
+                          }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: app.status === 'Active' ? '#22c55e' : app.status === 'Paused' ? '#eab308' : '#ef4444' }} />
+                            {app.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="w-full lg:w-[45%]">
+              <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-4 block">App Manager</span>
+              <h2 className="text-4xl font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6" style={{ fontSize: 'clamp(32px, 4vw, 46px)', lineHeight: '1.15' }}>See every app using your internet</h2>
+              <p className="leading-relaxed font-medium text-slate-600 mb-10" style={{ fontSize: '18px' }}>
+                NetSentry tracks every process on your Windows PC in real time. Know which apps are eating your data, pause or block them instantly, and take back full control of your bandwidth.
+              </p>
+              <Link href="/dashboard" className="inline-block text-white px-8 py-3.5 rounded-full font-semibold shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all mb-12" style={{ background: '#1A1A1A', fontSize: '15px' }}>
+                Open NetSentry
+              </Link>
+              <div className="grid grid-cols-2 gap-4">
+                {['Per-app tracking', 'Real-time speeds', 'Block instantly', 'Usage history'].map(f => (
+                  <div key={f} className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/50 hover:bg-white hover:shadow-md transition-all cursor-default" style={{ border: '1px solid #f1f5f9' }}>
+                    <span className="text-slate-800 font-bold">✓</span>
+                    <span className="text-sm font-semibold text-slate-700">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Feature Block 2: Data Protection */}
+          <div className="flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-24">
+            <div className="w-full lg:w-[45%]">
+              <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-4 block">Data Protection</span>
+              <h2 className="text-4xl font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6" style={{ fontSize: 'clamp(32px, 4vw, 46px)', lineHeight: '1.15' }}>Set limits. Stay safe. Never overpay again.</h2>
+              <p className="text-slate-600 font-medium mb-10 leading-relaxed" style={{ fontSize: '18px' }}>
+                Whether you are on a mobile hotspot or a capped broadband plan, NetSentry ensures you never accidentally blow your data allowance. Set a limit, walk away, and let NetSentry handle the rest.
+              </p>
+              <Link href="/dashboard" className="inline-block text-white px-8 py-3.5 rounded-full font-semibold shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all mb-12" style={{ background: '#1A1A1A', fontSize: '15px' }}>
+                Try it now
+              </Link>
+              <div className="grid grid-cols-2 gap-4">
+                {['Daily limits', 'Auto-cutoff', 'Smart alerts', 'Usage trends'].map(f => (
+                  <div key={f} className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/50 hover:bg-white hover:shadow-md transition-all cursor-default" style={{ border: '1px solid #f1f5f9' }}>
+                    <span className="text-slate-800 font-bold">✓</span>
+                    <span className="text-sm font-semibold text-slate-700">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="w-full lg:w-[55%] relative group">
+              <div className="absolute inset-0 rounded-[40px] -rotate-1 transition-transform duration-700 group-hover:rotate-0" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.1), rgba(254,215,170,0.3), #EFE6D8)' }} />
+              <div className="rounded-3xl p-8 relative shadow-xl hover:scale-[1.01] transition-transform duration-500" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.12), rgba(254,215,170,0.25), #EFE6D8)' }}>
+                <div className="font-sans bg-white max-w-lg rounded-2xl mx-auto p-8 shadow-xl" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
+                  <h3 className="font-bold text-lg text-slate-900 font-nunito mb-8">Bandwidth Quota</h3>
+                  <div className="grid grid-cols-2 gap-y-10 gap-x-6 mb-10 pb-10" style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    {[
+                      { icon: '📊', value: '1,580 MB', label: 'Used today' },
+                      { icon: '🎯', value: '1,000 MB', label: 'Daily limit' },
+                      { icon: '💾', value: '0 MB', label: 'Buffer remaining' },
+                      { icon: '📈', value: '100%', label: 'Quota used' },
+                    ].map(stat => (
+                      <div key={stat.label} className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0" style={{ background: '#f1f5f9' }}>{stat.icon}</div>
+                        <div>
+                          <div className="font-bold font-nunito text-slate-900 leading-none mb-1.5" style={{ fontSize: '26px' }}>{stat.value}</div>
+                          <div className="text-xs font-semibold text-slate-500">{stat.label}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-bold text-slate-900 font-nunito">Usage over time</h3>
+                    </div>
+                    <div className="w-full h-32 relative">
+                      <div className="absolute top-0 bottom-0 left-[62%] w-px bg-slate-900 z-10" />
+                      <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="chartGrad2" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f97316" stopOpacity="0.15" />
+                            <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M0,48 L15,46 L30,40 L45,38 L62,30 L62,48 L0,48" fill="url(#chartGrad2)" />
+                        <path d="M0,48 L15,46 L30,40 L45,38 L62,30" fill="none" stroke="#f97316" strokeWidth="0.8" strokeLinecap="round" />
+                        <path d="M62,30 L75,15 L90,10 L100,5" fill="none" stroke="#f97316" strokeWidth="0.8" strokeDasharray="2 2" strokeLinecap="round" />
+                      </svg>
+                      <div className="flex justify-between mt-2 text-slate-400 font-bold" style={{ fontSize: '10px' }}>
+                        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => <span key={d}>{d}</span>)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Bottom Feature Cards */}
+        <section className="w-full max-w-7xl mx-auto px-4 md:px-12 py-8 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { icon: '🔥', title: 'Emergency Firewall Reset', desc: 'If something goes wrong with your connection, tap one button to restore Windows Firewall back to factory defaults. No technical knowledge required.' },
+              { icon: '🌍', title: 'Metered Connection Smart Mode', desc: 'Automatically detects mobile hotspots and capped plans, switching to a conservative low-data profile without you lifting a finger.' },
+              { icon: '📱', title: 'Simple & Consumer-Friendly', desc: 'No confusing firewall rules or technical jargon. NetSentry uses plain English so anyone can understand and control their internet from day one.' },
+            ].map(f => (
+              <div key={f.title} className="rounded-[32px] p-8 md:p-10 flex flex-col items-start gap-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group" style={{ background: '#F2EBE5' }}>
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform text-2xl">{f.icon}</div>
+                <h4 className="text-lg font-bold text-slate-900 font-nunito">{f.title}</h4>
+                <p className="leading-relaxed text-slate-600" style={{ fontSize: '15px' }}>{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Scrolling Ticker */}
+        <section className="w-full max-w-7xl mx-auto relative overflow-hidden my-8 z-10" style={{ height: '300px' }}>
+          <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none" style={{ height: '38%', background: 'linear-gradient(to bottom, rgba(234,227,214,0), rgba(234,227,214,0.9), transparent)' }} />
+          <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" style={{ height: '38%', background: 'linear-gradient(to top, rgba(234,227,214,0), rgba(234,227,214,0.9), transparent)' }} />
+          <div className="flex flex-col items-center gap-6 animate-wheel" style={{ willChange: 'transform' }}>
+            {['Monitor','Block','Protect','Control','Save Data','Go Fast','Stay Safe','Monitor','Block','Protect','Control','Save Data','Go Fast','Stay Safe'].map((t, i) => (
+              <div key={i} className="font-bold font-nunito text-[#1A1A1A] tracking-tight" style={{ fontSize: 'clamp(48px, 8vw, 96px)', opacity: i % 7 === 2 ? 1 : i % 7 === 1 || i % 7 === 3 ? 0.4 : 0.2, filter: (i % 7 === 0 || i % 7 === 4 || i % 7 === 5 || i % 7 === 6) ? 'blur(1px)' : 'none' }}>{t}</div>
+            ))}
+          </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="w-full relative py-24 z-10" style={{ background: '#F6F4F0', borderTop: '1px solid rgba(255,255,255,0.4)' }}>
+          <div className="max-w-4xl mx-auto px-6 text-center mb-20">
+            <h2 className="leading-tight font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-10 drop-shadow-sm" style={{ fontSize: 'clamp(28px, 5vw, 48px)' }}>
+              &ldquo;NetSentry completely transformed how I manage my laptop on mobile data. It just works.&rdquo;
+            </h2>
+            <div className="flex flex-col items-center justify-center gap-4">
+              <div className="p-1 rounded-full bg-white shadow-sm" style={{ border: '1px solid #e2e8f0' }}>
+                <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center text-2xl">👤</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-[#1A1A1A] font-nunito">James Okafor</div>
+                <div className="text-sm font-medium text-slate-500">Software Engineer, Lagos</div>
+              </div>
+            </div>
+          </div>
+          <div className="relative w-full overflow-hidden pb-10">
+            <div className="absolute inset-y-0 left-0 z-20 pointer-events-none" style={{ width: '8rem', background: 'linear-gradient(to right, #F6F4F0, transparent)' }} />
+            <div className="absolute inset-y-0 right-0 z-20 pointer-events-none" style={{ width: '8rem', background: 'linear-gradient(to left, #F6F4F0, transparent)' }} />
+            <div className="flex animate-scroll-testimonials gap-8 px-4" style={{ width: 'max-content' }}>
+              {[
+                { quote: 'I was burning through my hotspot every month. NetSentry showed Chrome was the culprit. I blocked it when not needed and my data bill dropped significantly.', name: 'Amara K.', role: 'Graphic Designer' },
+                { quote: 'The Focus Mode is incredible. I block social media apps during work hours and my productivity has gone through the roof. Highly recommend to anyone working from home.', name: 'David M.', role: 'Remote Developer' },
+                { quote: 'Finally a Windows tool that speaks plain English. I have tried other firewalls and gave up after 10 minutes. NetSentry was up and running in seconds.', name: 'Sophie L.', role: 'Content Creator' },
+                { quote: 'The Emergency Firewall Reset saved me when my connection broke. One click and everything was back to normal. Absolute lifesaver.', name: 'Emeka O.', role: 'IT Support Tech' },
+              ].flatMap((t, i) => [0, 1].map(j => (
+                <div key={`${i}-${j}`} className="bg-white rounded-[32px] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-300" style={{ width: '420px', padding: '40px', border: '1px solid #f1f5f9' }}>
+                  <p className="leading-relaxed text-slate-600 mb-8" style={{ fontSize: '17px' }}>"{t.quote}"</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-600" style={{ border: '1px solid #f1f5f9' }}>{t.name[0]}</div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-900 font-nunito">{t.name}</div>
+                      <div className="text-xs font-medium text-slate-500">{t.role}</div>
+                    </div>
+                  </div>
+                </div>
+              )))}
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing */}
+        <section id="pricing" className="w-full z-10 pt-24 pb-32 relative" style={{ background: '#F6F4F0', borderTop: '1px solid rgba(255,255,255,0.4)' }}>
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center max-w-3xl mx-auto mb-20">
+              <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-5 block">Pricing</span>
+              <h2 className="font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6" style={{ fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: '1.1' }}>Simple, honest pricing</h2>
+              <p className="leading-relaxed text-slate-600 font-medium max-w-xl mx-auto" style={{ fontSize: '17px' }}>
+                NetSentry is free for personal use. No hidden fees, no subscriptions. Just download and go.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start mb-20">
+              <div className="bg-white rounded-[32px] p-8 lg:p-10 shadow-sm flex flex-col h-full hover:shadow-lg transition-shadow" style={{ border: '1px solid #f1f5f9' }}>
+                <h3 className="text-lg font-semibold text-slate-900 font-nunito mb-2">Personal</h3>
+                <div className="font-bold font-nunito text-[#1A1A1A] tracking-tight mb-4" style={{ fontSize: '48px' }}>Free</div>
+                <p className="text-sm text-slate-500 font-medium mb-10 leading-relaxed">For everyday users who want to monitor and save data.</p>
+                <ul className="space-y-4 mb-10 flex-1">
+                  {['Live bandwidth monitor', 'Per-app data tracking', 'Daily data limit', 'Focus Mode (app blocker)', 'Basic usage history'].map(f => (
+                    <li key={f} className="flex items-start gap-3 font-medium text-slate-700" style={{ fontSize: '15px' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-900 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/dashboard" className="w-full py-4 rounded-full font-semibold text-center block hover:bg-slate-200 transition-colors" style={{ background: '#f1f5f9', color: '#0f172a', fontSize: '15px' }}>
+                  Open App
+                </Link>
+              </div>
+              <div className="rounded-[32px] p-8 lg:p-10 relative shadow-xl flex flex-col h-full z-10 md:-mt-6 md:mb-6" style={{ background: 'linear-gradient(to bottom, #fff7ed, rgba(254,215,170,0.5))', border: '1.5px solid #fed7aa' }}>
+                <div className="absolute top-8 right-8">
+                  <span className="text-white font-bold px-2.5 py-1 rounded-full uppercase tracking-wide" style={{ background: '#f97316', fontSize: '10px' }}>Most Popular</span>
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 font-nunito mb-2 mt-8 md:mt-0">Pro</h3>
+                <div className="font-bold font-nunito text-[#1A1A1A] tracking-tight mb-4" style={{ fontSize: '48px' }}>$4.99<span className="text-xl text-slate-500 font-medium ml-1">/mo</span></div>
+                <p className="text-sm text-slate-500 font-medium mb-10 leading-relaxed">For power users who need deeper insights and controls.</p>
+                <ul className="space-y-4 mb-10 flex-1">
+                  {['Everything in Personal', 'Advanced analytics dashboard', '30-day usage history', 'Smart auto-cutoff rules', 'Priority support'].map(f => (
+                    <li key={f} className="flex items-start gap-3 font-medium text-slate-800" style={{ fontSize: '15px' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-900 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button className="w-full py-4 rounded-full text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all" style={{ background: '#1A1A1A', fontSize: '15px' }}>
+                  Coming Soon
+                </button>
+              </div>
+              <div className="bg-white rounded-[32px] p-8 lg:p-10 shadow-sm flex flex-col h-full hover:shadow-lg transition-shadow" style={{ border: '1px solid #f1f5f9' }}>
+                <h3 className="text-lg font-semibold text-slate-900 font-nunito mb-2">Enterprise</h3>
+                <div className="font-bold font-nunito text-[#1A1A1A] tracking-tight mb-4" style={{ fontSize: '48px' }}>Custom</div>
+                <p className="text-sm text-slate-500 font-medium mb-10 leading-relaxed">For IT teams and businesses deploying across multiple devices.</p>
+                <ul className="space-y-4 mb-10 flex-1">
+                  {['Everything in Pro', 'Centralized admin panel', 'MSI/silent installer', 'Group policy support', 'Dedicated account manager'].map(f => (
+                    <li key={f} className="flex items-start gap-3 font-medium text-slate-700" style={{ fontSize: '15px' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-900 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button className="w-full py-4 rounded-full font-semibold hover:bg-slate-200 transition-colors" style={{ background: '#f1f5f9', color: '#0f172a', fontSize: '15px' }}>
+                  Contact us
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="w-full max-w-7xl z-10 mx-auto pt-20 px-6 pb-12 relative">
+          <div className="rounded-[40px] p-8 md:p-12 lg:p-16 shadow-sm" style={{ background: '#D3E4F4', border: '1px solid rgba(255,255,255,0.2)' }}>
+            <div className="flex flex-col lg:flex-row gap-12 lg:gap-24 mb-16 justify-between">
+              <div className="max-w-sm">
+                <div className="flex items-center gap-2 mb-6">
+                  <NetSentryLogo className="w-7 h-7 rounded-md" />
+                  <span className="text-xl font-semibold text-[#1A1A1A] tracking-tight font-nunito">NetSentry</span>
+                </div>
+                <p className="leading-relaxed text-slate-600 font-medium mb-8" style={{ fontSize: '15px' }}>
+                  Your beautiful, simple internet monitor for Windows. Stop wasting data. Start owning your connection.
+                </p>
+              </div>
+              <div className="flex gap-12 sm:gap-24">
+                <div className="flex flex-col gap-4">
+                  <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A] uppercase mb-1 font-nunito">Product</h4>
+                  {['Features', 'Download', 'Changelog', 'Roadmap'].map(l => (
+                    <a key={l} href="#" className="text-slate-600 hover:text-[#1A1A1A] transition-colors" style={{ fontSize: '15px' }}>{l}</a>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-4">
+                  <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A] uppercase mb-1 font-nunito">Support</h4>
+                  {['Contact', 'Privacy Policy', 'Terms of Use', 'GitHub'].map(l => (
+                    <a key={l} href="#" className="text-slate-600 hover:text-[#1A1A1A] transition-colors" style={{ fontSize: '15px' }}>{l}</a>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="w-full h-px mb-8" style={{ background: 'rgba(15,23,42,0.05)' }} />
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-slate-500" style={{ fontSize: '13px' }}>
+              <div>© 2026 NetSentry. All rights reserved.</div>
+              <div>Built with ❤️ for Windows users everywhere</div>
+            </div>
+          </div>
+        </footer>
+
+      </div>
+    </div>
   );
-
- // Toggle Theme — setTheme from next-themes updates the <html class> directly
- const toggleTheme = () => {
- setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
- };
-
- const loadDailyTotals = async () => {
- if (tauriStatus !== 'connected') return;
- setAnalyticsLoading(true);
- try {
- const { invoke } = await import('@tauri-apps/api/core');
- const totals = await invoke<DailyTotal[]>('get_daily_totals', { days: 30 });
- setDailyTotals(totals.reverse()); // ascending for chart
- } catch (e) {
- console.error('Failed to load analytics', e);
- } finally {
- setAnalyticsLoading(false);
- }
- };
-
- const handleEnableFocusMode = async () => {
- setFocusModeLoading(true);
- try {
- const { invoke } = await import('@tauri-apps/api/core');
- const paths = allowedApps.split('\n').map(s => s.trim()).filter(Boolean);
- await invoke('enable_data_saver_mode', { allowedExePaths: paths });
- setIsFocusMode(true);
- addLog(`Focus Mode ENABLED. Whitelisted ${paths.length} app(s).`, 'warning');
- } catch (e) {
- alert(`Failed to enable Focus Mode: ${e}`);
- } finally {
- setFocusModeLoading(false);
- }
- };
-
- const handleDisableFocusMode = async () => {
- setFocusModeLoading(true);
- try {
- const { invoke } = await import('@tauri-apps/api/core');
- await invoke('disable_data_saver_mode');
- setIsFocusMode(false);
- addLog('Focus Mode DISABLED. Normal outbound traffic restored.', 'info');
- } catch (e) {
- alert(`Failed to disable Focus Mode: ${e}`);
- } finally {
- setFocusModeLoading(false);
- }
- };
-
- const addLog = (message: string, type: 'info' | 'warning' | 'alert' = 'info') => {
- setSecurityLogs(prev => [
- { timestamp: new Date().toLocaleTimeString(), message, type },
- ...prev
- ].slice(0, 500));
- if (type === 'warning' || type === 'alert') {
- logSecurityEventToFirebase(message, type).catch(() => {});
- }
- };
-
- 	// Keep the ref in sync so the telemetry listener can read the current quota
-	// without needing to be re-registered when the limit changes.
-	useEffect(() => {
-		quotaRef.current = quotaLimit;
-	}, [quotaLimit]);
-
-	useEffect(() => {
-		if (typeof window !== 'undefined') {
-			const saved = localStorage.getItem('netsentry_volume_unit') as 'auto' | 'mb';
-			if (saved === 'mb' || saved === 'auto') {
-				setVolumeUnit(saved);
-			}
-		}
-	}, []);
-
-	const handleSetVolumeUnit = (unit: 'auto' | 'mb') => {
-		setVolumeUnit(unit);
-		if (typeof window !== 'undefined') {
-			localStorage.setItem('netsentry_volume_unit', unit);
-		}
-	};
-
- const autoCutoffEnabledRef = useRef<boolean>(false);
- useEffect(() => { autoCutoffEnabledRef.current = autoCutoffEnabled; }, [autoCutoffEnabled]);
-
-  const smartProfilesEnabledRef = useRef<boolean>(false);
-  useEffect(() => { 
-    smartProfilesEnabledRef.current = smartProfilesEnabled;
-    if (tauriStatus === 'connected' && smartProfilesEnabled && isMetered && !isFocusModeRef.current) {
-      const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
-          setIsFocusMode(true);
-          addLog(`Smart Switch: Metered network detected. Focus Mode engaged to conserve mobile data.`, 'warning');
-        }).catch(console.error);
-      });
-    }
-  }, [smartProfilesEnabled, isMetered, tauriStatus]);
-
- const allowedAppsRef = useRef<string>(allowedApps);
- useEffect(() => { allowedAppsRef.current = allowedApps; }, [allowedApps]);
-
- const isFocusModeRef = useRef<boolean>(isFocusMode);
- useEffect(() => { isFocusModeRef.current = isFocusMode; }, [isFocusMode]);
-
- const previousIsMeteredRef = useRef<boolean>(false);
-
- useEffect(() => {
- setIsClient(true);
- 
- // Check if running in Tauri environment
- const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
- 
- if (isTauri) {
- setTauriStatus('connected');
- 
- const setupTauri = async () => {
- const { listen } = await import('@tauri-apps/api/event');
- const { invoke } = await import('@tauri-apps/api/core');
- 
- // Initial connection type check
- const checkConnectionStatus = async () => {
- try {
- const status = await invoke<{ is_metered: boolean; is_wwan: boolean }>('is_metered_connection');
- setIsMetered(status.is_metered);
- setIsWwan(status.is_wwan);
-
- // Smart Profiles Auto-Switching logic
- if (smartProfilesEnabledRef.current && status.is_metered !== previousIsMeteredRef.current) {
- if (status.is_metered && !isFocusModeRef.current) {
- // Switched to a metered connection -> Enable Focus Mode automatically
- const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
- invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
- setIsFocusMode(true);
- addLog(`Smart Profiles: Switched to Metered connection. Focus Mode ENABLED.`, 'warning');
- }).catch(e => console.error(e));
- } else if (!status.is_metered && isFocusModeRef.current) {
- // Switched to a non-metered connection -> Disable Focus Mode automatically
- invoke('disable_data_saver_mode').then(() => {
- setIsFocusMode(false);
- addLog(`Smart Profiles: Switched to Home network. Focus Mode DISABLED.`, 'info');
- }).catch(e => console.error(e));
- }
- }
- previousIsMeteredRef.current = status.is_metered;
- } catch (e) {
- console.error('Failed to check connection status', e);
- }
- };
-
- await checkConnectionStatus();
-
- // Poll every 2.5s for connection type changes (e.g. switching from Wi-Fi to hotspot)
- const costInterval = setInterval(checkConnectionStatus, 2500);
- 
- const unlisten = await listen<NetworkDataPayload>('network-data', (event) => {
- const { processes: procs, system: sys } = event.payload;
-
- setProcesses(procs);
- // Plain assignment. Rust owns the byte counters and sends absolute values,
- // so even a duplicated listener writing the same number is a no-op rather
- // than doubling the total.
- setSystem(sys);
-
- // Quota alert on the crossing only.
- const usedMb = sys.today_rx_mb + sys.today_tx_mb;
- const limit = quotaRef.current;
- if (usedMb >= limit) {
- if (!alertedRef.current) {
- alertedRef.current = true;
- addLog(`Alert: Bandwidth quota of ${limit} MB exceeded!`, 'alert');
-
- // Auto-Cutoff Logic
- if (autoCutoffEnabledRef.current && !isFocusModeRef.current) {
- import('@tauri-apps/api/core').then(({ invoke }) => {
- const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
- invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
- setIsFocusMode(true);
- addLog(`Auto-Cutoff Activated: Quota exceeded. Focus Mode ENABLED.`, 'alert');
- }).catch(console.error);
- });
- }
- }
- } else {
- alertedRef.current = false;
- }
-
- // Threat audit: log a PID when it *becomes* suspicious. The previous version
- // re-logged every offending process on every tick, flooding the list once a second.
- const previouslyFlagged = flaggedPidsRef.current;
- const nowFlagged = new Set<number>();
- procs.forEach(p => {
- const suspicious =
- p.connections_count > 25 &&
- (p.cpu_usage || 0) > 50 &&
- p.name !== 'chrome.exe' &&
- p.name !== 'msedge.exe' &&
- p.name !== 'firefox.exe';
- if (!suspicious) return;
- nowFlagged.add(p.pid);
- if (!previouslyFlagged.has(p.pid)) {
- 					addLog(`Warning: Process ${p.name} (Task #${p.pid}) shows suspicious socket counts (${p.connections_count}) and high CPU usage (${p.cpu_usage}%).`, 'warning');
- }
- });
- flaggedPidsRef.current = nowFlagged;
-
- setChartData(prev => {
- const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
- const newData = [...prev, { time: now, inbound: sys.rx_rate_kbps, outbound: sys.tx_rate_kbps }];
- if (newData.length > 20) newData.shift();
- return newData;
- });
- });
-
- return () => {
- clearInterval(costInterval);
- unlisten();
- };
- };
-
- let cancelled = false;
- let cleanup: (() => void) | undefined;
- setupTauri().then(cb => {
- // setupTauri awaits several IPC round-trips. If the effect was torn down while
- // it was still in flight, dispose immediately — otherwise the listener and the
- // 2.5s interval leak, which is exactly how duplicate listeners accumulated.
- if (cancelled) cb?.();
- else cleanup = cb;
- }).catch(e => {
- console.error('NetSentry: telemetry subscription failed', e);
- setTauriStatus('disconnected');
- });
-
- return () => {
- cancelled = true;
- cleanup?.();
- };
- } else {
- setTauriStatus('disconnected');
- setProcesses([]);
- }
- }, []);
-
- const filteredProcesses = useMemo(() => {
- return processes
- .filter(p => {
- const meta = getProcessBrandMeta(p.name, p.exe_path);
- 
- // Hide system noise toggle
- if (hideSystemNoise && meta.isSystem && !searchQuery.trim()) {
- return false;
- }
-
- // Category filter
- if (filterCategory === 'user' && meta.isSystem) return false;
- if (filterCategory === 'system' && !meta.isSystem) return false;
- if (filterCategory === 'active' && (p.inbound_rate + p.outbound_rate) <= 0 && (p.connections_count || 0) <= 0) return false;
- if (filterCategory === 'paused' && !p.is_paused) return false;
-
- // Search query
- if (searchQuery.trim()) {
- const q = searchQuery.toLowerCase();
- const matchName = p.name.toLowerCase().includes(q);
- const matchPath = p.exe_path.toLowerCase().includes(q);
- const matchPid = p.pid.toString().includes(q);
- return matchName || matchPath || matchPid;
- }
-
- return true;
- })
- .sort((a, b) => {
- if (sortBy === 'data_usage') {
- return (b.total_data_mb || 0) - (a.total_data_mb || 0);
- }
- if (sortBy === 'inbound') {
- return b.inbound_rate - a.inbound_rate;
- }
- if (sortBy === 'outbound') {
- return b.outbound_rate - a.outbound_rate;
- }
- if (sortBy === 'name') {
- return a.name.localeCompare(b.name);
- }
- if (sortBy === 'pid') {
- return a.pid - b.pid;
- }
- return 0;
- });
- }, [processes, searchQuery, filterCategory, hideSystemNoise, sortBy]);
-
- const displayProcesses = useMemo((): GroupedProcess[] => {
- if (!groupByApp) {
- return filteredProcesses.map(p => ({
- key: `proc-${p.pid}`,
- name: p.name,
- exe_path: p.exe_path,
- icon: p.icon || null,
- pids: [p.pid],
- total_data_mb: p.total_data_mb || 0,
- inbound_rate: p.inbound_rate || 0,
- outbound_rate: p.outbound_rate || 0,
- connections_count: p.connections_count || 0,
- memory_usage: p.memory_usage || 0,
- cpu_usage: p.cpu_usage || 0,
- is_paused: p.is_paused,
- instances: [p],
- sockets: p.sockets || []
- }));
- }
-
- const map = new Map<string, GroupedProcess>();
- filteredProcesses.forEach(p => {
- const normKey = (p.exe_path || p.name).toLowerCase();
- const existing = map.get(normKey);
- if (existing) {
- existing.pids.push(p.pid);
- // Correct aggregation: In Rust, total_data_mb is tracked per executable key.
- // Child process instances must NEVER duplicate or multiply this cumulative usage.
- existing.total_data_mb = Math.max(existing.total_data_mb, p.total_data_mb || 0);
- existing.inbound_rate += (p.inbound_rate || 0);
- existing.outbound_rate += (p.outbound_rate || 0);
- existing.connections_count += (p.connections_count || 0);
- existing.memory_usage += (p.memory_usage || 0);
- existing.cpu_usage = Math.max(existing.cpu_usage, p.cpu_usage || 0);
- existing.is_paused = existing.is_paused || p.is_paused;
- existing.icon = existing.icon || p.icon || null;
- existing.instances.push(p);
- if (p.sockets && p.sockets.length > 0) {
- existing.sockets = existing.sockets.concat(p.sockets);
- }
- } else {
- map.set(normKey, {
- key: `group-${normKey}`,
- name: p.name,
- exe_path: p.exe_path,
- icon: p.icon || null,
- pids: [p.pid],
- total_data_mb: p.total_data_mb || 0,
- inbound_rate: p.inbound_rate || 0,
- outbound_rate: p.outbound_rate || 0,
- connections_count: p.connections_count || 0,
- memory_usage: p.memory_usage || 0,
- cpu_usage: p.cpu_usage || 0,
- is_paused: p.is_paused,
- instances: [p],
- sockets: p.sockets || []
- });
- }
- });
-
- return Array.from(map.values()).sort((a, b) => {
- if (sortBy === 'data_usage') return b.total_data_mb - a.total_data_mb;
- if (sortBy === 'inbound') return b.inbound_rate - a.inbound_rate;
- if (sortBy === 'outbound') return b.outbound_rate - a.outbound_rate;
- if (sortBy === 'name') return a.name.localeCompare(b.name);
- return 0;
- });
- }, [filteredProcesses, groupByApp, sortBy]);
-
- // Firebase Live Telemetry Synchronization
- useEffect(() => {
- if (tauriStatus !== 'connected' || processes.length === 0) return;
-
- const syncTelemetry = () => {
- const topApps = displayProcesses.slice(0, 8).map(p => {
- const meta = getProcessBrandMeta(p.name, p.exe_path);
- return {
- name: p.name,
- label: meta.label,
- category: meta.category,
- totalMb: p.total_data_mb,
- inboundRate: p.inbound_rate,
- outboundRate: p.outbound_rate,
- sockets: p.connections_count
- };
- });
-
- syncClientTelemetryToFirebase({
- deviceName: 'Windows-Client',
- clientVersion: 'v2.0.0',
- todayRxMb: system?.today_rx_mb || 0,
- todayTxMb: system?.today_tx_mb || 0,
- totalDataMb: (system?.today_rx_mb || 0) + (system?.today_tx_mb || 0),
- inboundRateKbps: system?.rx_rate_kbps || 0,
- outboundRateKbps: system?.tx_rate_kbps || 0,
- activeSockets: processes.reduce((acc, p) => acc + (p.connections_count || 0), 0),
- activeProcesses: processes.length,
- isMetered,
- isWwan,
- isFocusMode,
- topApps
- }).catch(() => {});
- };
-
- syncTelemetry();
- const interval = setInterval(syncTelemetry, 60000);
- return () => clearInterval(interval);
- }, [tauriStatus, processes, system, isMetered, isWwan, isFocusMode, displayProcesses]);
-
- const overallStats = useMemo(() => {
- let totalConnections = 0;
- processes.forEach(p => {
- totalConnections += p.connections_count;
- });
- return {
- // Straight from the adapter measurement. Summing the per-process values instead
- // would lose every share that rounded to 0 across ~90 processes.
- inbound: system?.rx_rate_kbps ?? 0,
- outbound: system?.tx_rate_kbps ?? 0,
- totalConnections
- };
- }, [processes, system]);
-
- // "Total Data Used" — dynamically reacts to timeRangeFilter (today, session, week, month)
- const usedMb = useMemo(() => {
- if (timeRangeFilter === 'session') return (system?.session_rx_mb ?? 0) + (system?.session_tx_mb ?? 0);
- if (timeRangeFilter === 'week') return (system?.week_rx_mb ?? 0) + (system?.week_tx_mb ?? 0);
- if (timeRangeFilter === 'month') return (system?.month_rx_mb ?? 0) + (system?.month_tx_mb ?? 0);
- return (system?.today_rx_mb ?? 0) + (system?.today_tx_mb ?? 0);
- }, [system, timeRangeFilter]);
-
- const handleTogglePause = async (proc: ProcessNetworkData | GroupedProcess) => {
- const primaryPid = 'pids' in proc ? proc.pids[0] : proc.pid;
- const key = `pause-${primaryPid}-${proc.exe_path}`;
- setActionLoading(key);
- 
- try {
- if (tauriStatus === 'connected') {
- const { invoke } = await import('@tauri-apps/api/core');
- if (proc.is_paused) {
- await invoke('resume_app_traffic', { exePath: proc.exe_path, name: proc.name });
- addLog(`Network traffic resumed for ${proc.name}`, 'info');
- } else {
- await invoke('pause_app_traffic', { exePath: proc.exe_path, name: proc.name });
- addLog(`Firewall blocked bidirectional network access for ${proc.name}`, 'warning');
- }
- }
- } catch (e) {
- console.error(e);
- alert(`Firewall action failed: ${e}`);
- } finally {
- setActionLoading(null);
- }
- };
-
- const handleKillProcess = async (proc: ProcessNetworkData | GroupedProcess) => {
- 		const pidsToKill = 'pids' in proc ? proc.pids : [proc.pid];
-		if (!confirm(`Are you sure you want to force terminate ${proc.name} (${pidsToKill.length > 1 ? `${pidsToKill.length} processes` : `Task #${pidsToKill[0]}`})?`)) return;
- 
- const key = `kill-${pidsToKill[0]}`;
- setActionLoading(key);
- 
- try {
- if (tauriStatus === 'connected') {
- const { invoke } = await import('@tauri-apps/api/core');
- for (const pid of pidsToKill) {
- await invoke('kill_process', { pid });
- }
- addLog(`Force terminated ${proc.name} (${pidsToKill.length} instance(s))`, 'alert');
- }
- } catch (e) {
- console.error(e);
- alert(`Failed to kill process: ${e}`);
- } finally {
- setActionLoading(null);
- }
- };
-
- const handleOpenFileLocation = async (proc: ProcessNetworkData | GroupedProcess) => {
- try {
- if (tauriStatus === 'connected') {
- const { invoke } = await import('@tauri-apps/api/core');
- await invoke('open_file_location', { exePath: proc.exe_path });
- addLog(`Opened folder location for ${proc.name}`, 'info');
- }
- } catch (e) {
- console.error(e);
- alert(`Failed to open location: ${e}`);
- }
- };
-
-  const handleResumeAll = async () => {
-    if (!confirm('This will safely unblock any apps paused by NetSentry and restore standard internet access for all programs on your PC. Proceed?')) return;
-    setActionLoading('resume-all');
-    try {
-      if (tauriStatus === 'connected') {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('emergency_clear_all_firewall_rules');
-        setProcesses(prev => prev.map(p => ({ ...p, is_paused: false })));
-        setIsFocusMode(false);
-        addLog(`All applications unblocked. Normal internet access restored.`, 'info');
-      }
-      alert('All applications unblocked! Normal internet access has been restored.');
-    } catch (e) {
-      console.error(e);
-      alert(`Action failed: ${e}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
- const openInspector = (proc: ProcessNetworkData | GroupedProcess) => {
- setSelectedProcess(proc);
- setIsInspectorOpen(true);
- };
-
- if (!isClient) return null;
-
- // Theme configuration — use resolvedTheme so 'system' preference is respected
- const isDark = resolvedTheme === 'dark';
- const bgClass = "bg-background text-foreground";
- const borderClass = "border-border";
- const cardClass = "bg-card border border-border/70 rounded-lg p-6 hover: transition-all duration-200";
- const cardClassNoPadding = "bg-card border border-border/70 rounded-lg overflow-hidden hover: transition-all duration-200";
- const headerBgClass = "bg-background/80 border-border";
- const textMutedClass = "text-muted-foreground";
- const tableHeaderBg = "bg-muted/40";
- const tableRowHover = "hover:bg-muted/30";
-
- return (
- <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${bgClass}`}>
- {/* Background Glows */}
- {isDark ? (
- <>
- <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-md blur-3xl pointer-events-none" />
- <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-orange-600/10 rounded-md blur-3xl pointer-events-none" />
- </>
- ) : (
- <>
- <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-md blur-3xl pointer-events-none" />
- <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-orange-500/5 rounded-md blur-3xl pointer-events-none" />
- </>
- )}
-
- {/* Header */}
- <header className={`sticky top-0 z-50 border-b px-6 py-4 flex items-center justify-between transition-colors duration-200 ${headerBgClass} ${borderClass}`}>
- <div className="flex items-center space-x-3">
- <NetSentryLogo className="w-10 h-10 rounded-md" />
- <div>
- <h1 className="font-bricolage text-xl font-black tracking-tight text-primary">
- NetSentry
- </h1>
- <p className="text-[10px] text-muted-foreground tracking-wider uppercase font-semibold">
- Focus Mode & Windows Bandwidth Monitor
- </p>
- </div>
- </div>
-
- <div className="flex items-center space-x-4">
- {/* Navigation Tabs */}
- <div className={`flex items-center border rounded-md p-1 ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 '}`}>
- <button 
- onClick={() => setCurrentTab('monitor')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- currentTab === 'monitor' 
- ? 'bg-primary text-white ' 
- : textMutedClass
- }`}
- >
- Monitor Dashboard
- </button>
- <button 
- onClick={() => { setCurrentTab('logs'); }}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- currentTab === 'logs' 
- ? 'bg-primary text-white ' 
- : textMutedClass
- }`}
- >
- Security Logs ({securityLogs.length})
- </button>
- <button 
- onClick={() => { setCurrentTab('analytics'); loadDailyTotals(); }}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- currentTab === 'analytics' 
- ? 'bg-primary text-white ' 
- : textMutedClass
- }`}
- >
- Analytics
- </button>
- </div>
-
- {/* Buy Us a Coffee Button */}
- <button 
- onClick={() => setIsDonateOpen(true)}
- className="flex items-center space-x-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer transition-all active:scale-95"
- title="Support NetSentry Development"
- >
- <Coffee className="w-3.5 h-3.5" />
- <span className="hidden sm:inline">Buy Us a Coffee</span>
- </button>
-
- {/* Theme Toggle Button */}
- <button 
- onClick={toggleTheme}
- className={`p-2 rounded-lg border transition-all cursor-pointer ${
- isDark 
- ? 'bg-slate-900 border-slate-800 text-primary hover:bg-slate-850' 
- : 'bg-white border-slate-200 text-primary hover:bg-slate-100 '
- }`}
- >
- {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
- </button>
-
-					<button 
-						onClick={handleResumeAll}
-						disabled={actionLoading !== null || tauriStatus !== 'connected'}
-						className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer transition-all shadow-sm"
-						title="Safely unblocks any paused applications and restores normal internet connectivity"
-					>
-						<RotateCcw className="w-3.5 h-3.5" />
-						<span>Unblock All Apps</span>
-					</button>
- </div>
- </header>
-
- {/* Main Body */}
- <main className="flex-1 w-full p-6 space-y-6">
- 
- {/* Sandbox Warning */}
- {tauriStatus === 'disconnected' && (
- <div className="bg-primary/5 border border-primary/20 rounded-lg p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
- <div className="flex items-start space-x-3">
- <div className="p-2 bg-primary/10 text-primary rounded-md mt-0.5 md:mt-0">
- <AlertTriangle className="w-6 h-6" />
- </div>
- <div>
- <h3 className="font-bricolage text-sm font-bold text-primary">Desktop App Required for Live Tracking</h3>
- <p className={`text-xs mt-1 ${textMutedClass}`}>
- You are viewing NetSentry in a web browser. To track live internet speeds, monitor app data usage, and pause data hogs, launch NetSentry as a Windows desktop application.
- </p>
- </div>
- </div>
- </div>
- )}
-
- {currentTab === 'monitor' ? (
- <>
-  <div className="bg-card border border-border rounded-lg p-6 space-y-6">
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
-  <div className="flex items-center gap-2.5">
-  <div className="p-2 bg-primary/10 text-primary border border-primary/20 rounded-md">
-  <Shield className="w-5 h-5" />
-  </div>
-  <div>
-  <h2 className="font-bricolage text-lg font-bold text-foreground">
-  Network Dashboard
-  </h2>
-  <p className="text-xs text-muted-foreground">
-  Live internet speeds, daily data limit tracking, and connected apps
-  </p>
-  </div>
-  </div>
-
-  <div className="flex items-center gap-2">
-  {tauriStatus === 'connected' && (
-  <Badge variant="outline" className={`text-xs px-2.5 py-1 ${
-  isWwan
-  ? 'border-amber-500 text-amber-500 bg-amber-500/5'
-  : isMetered
-  ? 'border-orange-500 text-orange-500 bg-orange-500/5'
-  : 'border-emerald-500 text-emerald-500 bg-emerald-500/5'
-  }`}>
-  {isWwan
-  ? '📶 Mobile Hotspot Active'
-  : isMetered
-  ? '⚡ Metered / Limited Data'
-  : '🌐 Standard Wi-Fi / LAN'}
-  </Badge>
-  )}
-  <Badge variant="outline" className="border-primary/40 text-primary text-xs px-2.5 py-1">
-  {tauriStatus === 'connected' ? '● Live Monitoring Active' : '○ Web Preview (Offline)'}
-  </Badge>
-  
-  {/* Smart Profiles Toggle */}
-  <label 
-  className="flex items-center gap-2 cursor-pointer ml-2"
-  title="Smart Data Saver: Automatically pauses background apps when on a phone hotspot or limited mobile data, and restores them on Home Wi-Fi."
-  >
-  <div className="relative">
-  <input 
-  type="checkbox" 
-  className="sr-only" 
-  checked={smartProfilesEnabled}
-  onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
-  />
-  <div className={`block w-8 h-5 rounded-md transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
-  <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-md transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
-  </div>
-  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Smart Data Saver</span>
-  </label>
-  </div>
-  </div>
-
-  {/* Row 1: Primary Data Usage & Speeds Cards */}
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-  {/* Card 1: Total Data Used */}
-  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
-  <div className="flex items-center justify-between text-muted-foreground gap-2">
-  <span 
-  className="text-xs font-semibold cursor-help underline decoration-dotted underline-offset-2" 
-  title="Total network data (downloads + uploads) recorded across your Wi-Fi and network adapters."
-  >Total Data Used ⓘ</span>
-  <select
-  value={timeRangeFilter}
-  onChange={(e) => setTimeRangeFilter(e.target.value as any)}
-  className={`text-[11px] font-semibold border rounded-lg px-2 py-0.5 outline-none cursor-pointer transition-all ${
-  isDark ? 'bg-slate-900 border-slate-750 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
-  }`}
-  >
-  <option value="today">Today (since 00:00)</option>
-  <option value="session">Live Session</option>
-  <option value="week">Past 7 Days</option>
-  <option value="month">Past 30 Days</option>
-  </select>
-  </div>
-  <div>
-  <div className="text-2xl font-black text-foreground">
-  {formatVolume(usedMb, volumeUnit)}
-  </div>
-  <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
-  {timeRangeFilter === 'today' && 'Today · since 00:00'}
-  {timeRangeFilter === 'session' && 'Current session · since app launch'}
-  {timeRangeFilter === 'week' && 'Total past 7 days aggregate'}
-  {timeRangeFilter === 'month' && 'Total past 30 days aggregate'}
-  </p>
-  </div>
-  <div className="space-y-1.5 pt-1">
-  <div className="flex justify-between text-[10px] text-muted-foreground">
-  <span>Daily Limit Used</span>
-  <span className="font-semibold">{Math.min(Math.round((usedMb / quotaLimit) * 100), 100)}%</span>
-  </div>
-  <div className="w-full bg-muted rounded-md h-1.5 overflow-hidden">
-  <div
-  className={`h-full rounded-md transition-all duration-300 ${usedMb >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
-  style={{ width: `${Math.min((usedMb / quotaLimit) * 100, 100)}%` }}
-  />
-  </div>
-  </div>
-  </div>
-
-  {/* Card 2: Daily Data Limit Control */}
-  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
-  <div className="flex items-center justify-between text-muted-foreground">
-  <span className="text-xs font-semibold">Daily Data Limit</span>
-  <TrendingUp className="w-4 h-4 text-primary" />
-  </div>
-  <div>
-  <div className="text-2xl font-black text-foreground">
-  {quotaLimit} MB
-  </div>
-  <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
-  {usedMb >= quotaLimit ? (
-    <span className="text-red-500 font-bold">Daily limit reached</span>
-  ) : (
-    <span>{Math.max(0, quotaLimit - usedMb).toFixed(1)} MB left today</span>
-  )}
-  </p>
-  </div>
-  <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-  <span className="text-[10px] uppercase font-bold text-muted-foreground">Set Limit:</span>
-  <input 
-  type="number"
-  value={quotaLimit}
-  onChange={(e) => setQuotaLimit(Math.max(1, Number(e.target.value)))}
-  className="w-20 px-2 py-0.5 text-xs text-center border border-border rounded-lg bg-background text-foreground outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono"
-  />
-  </div>
-  <div className="flex items-center justify-between gap-2 pt-1" title="Auto-Pause on Limit: Automatically pauses background apps when your daily data limit is reached to prevent surprise data charges.">
-  <span className="text-[10px] font-semibold text-muted-foreground">Auto-Pause on Limit</span>
-  <label className="flex items-center cursor-pointer">
-  <div className="relative">
-  <input 
-  type="checkbox" 
-  className="sr-only" 
-  checked={autoCutoffEnabled}
-  onChange={(e) => setAutoCutoffEnabled(e.target.checked)}
-  />
-  <div className={`block w-6 h-3.5 rounded-md transition-colors ${autoCutoffEnabled ? 'bg-red-500' : 'bg-muted-foreground/30'}`}></div>
-  <div className={`absolute left-0.5 top-0.5 bg-white w-2.5 h-2.5 rounded-md transition-transform ${autoCutoffEnabled ? 'translate-x-2.5' : ''}`}></div>
-  </div>
-  </label>
-  </div>
-  </div>
-
-  {/* Card 3: Download Speed */}
-  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
-  <div className="flex items-center justify-between text-muted-foreground">
-  <span className="text-xs font-semibold">Download Speed</span>
-  <ArrowDown className="w-4 h-4 text-emerald-500" />
-  </div>
-  <div>
-  <div className="text-2xl font-black text-emerald-500">
-  {formatRate(overallStats.inbound)}
-  </div>
-  <p className="text-[11px] text-muted-foreground mt-0.5">
-  Current incoming speed
-  </p>
-  </div>
-  <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
-  Wi-Fi / Ethernet adapter
-  </div>
-  </div>
-
-  {/* Card 4: Upload Speed */}
-  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
-  <div className="flex items-center justify-between text-muted-foreground">
-  <span className="text-xs font-semibold">Upload Speed</span>
-  <ArrowUp className="w-4 h-4 text-primary" />
-  </div>
-  <div>
-  <div className="text-2xl font-black text-primary">
-  {formatRate(overallStats.outbound)}
-  </div>
-  <p className="text-[11px] text-muted-foreground mt-0.5">
-  Current outgoing speed
-  </p>
-  </div>
-  <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
-  Updated live every second
-  </div>
-  </div>
-  </div>
-
-  {/* Row 2: Secondary Quick Stats */}
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
-  <div className="flex items-center justify-between text-muted-foreground text-xs">
-  <span>Active Connections</span>
-  <Network className="w-3.5 h-3.5" />
-  </div>
-  <div className="text-xl font-bold text-foreground">{overallStats.totalConnections}</div>
-  <p className="text-[10px] text-muted-foreground">Live internet connections</p>
-  </div>
-
-  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
-  <div className="flex items-center justify-between text-muted-foreground text-xs">
-  <span>Monitored Apps</span>
-  <Terminal className="w-3.5 h-3.5" />
-  </div>
-  <div className="text-xl font-bold text-foreground">{processes.length}</div>
-  <p className="text-[10px] text-muted-foreground">Apps with network access</p>
-  </div>
-
-  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
-  <div className="flex items-center justify-between text-muted-foreground text-xs">
-  <span>Paused Apps</span>
-  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-  </div>
-  <div className="text-xl font-bold text-amber-500">
-  {processes.filter(p => p.is_paused).length}
-  </div>
-  <p className="text-[10px] text-muted-foreground">Blocked from using data</p>
-  </div>
-
-  <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
-  <div className="flex items-center justify-between text-muted-foreground text-xs">
-  <span>Activity Logs</span>
-  <Eye className="w-3.5 h-3.5" />
-  </div>
-  <div className="text-xl font-bold text-foreground">{securityLogs.length}</div>
-  <p className="text-[10px] text-muted-foreground">Recorded network events</p>
-  </div>
-  </div>
-  </div>
-
-  {/* Live Network Speed Chart */}
-  <div className={cardClass}>
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-border/60 pb-4">
-  <div>
-  <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
-  <Activity className="w-5 h-5 text-primary animate-pulse" />
-  <span>Live Network Speed Chart</span>
-  </h2>
-  <p className="text-xs text-muted-foreground">Real-time download and upload speeds over time</p>
-  </div>
-
-  <div className="flex items-center gap-3 text-xs font-mono">
-  <div className="flex items-center gap-1.5">
-  <span className="w-2.5 h-2.5 rounded-md bg-primary" />
-  <span className="text-muted-foreground">Download: <strong className="text-foreground">{formatRate(overallStats.inbound)}</strong></span>
-  </div>
-  <div className="flex items-center gap-1.5">
-  <span className="w-2.5 h-2.5 rounded-md bg-amber-500" />
-  <span className="text-muted-foreground">Upload: <strong className="text-foreground">{formatRate(overallStats.outbound)}</strong></span>
-  </div>
-  </div>
-  </div>
-
- <div className="h-64 w-full">
- {chartData.length > 0 ? (
- <ResponsiveContainer width="100%" height="100%">
- <AreaChart data={chartData}>
- <defs>
- <linearGradient id="colorInbound" x1="0" y1="0" x2="0" y2="1">
- <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
- <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
- </linearGradient>
- <linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
- <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
- <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
- </linearGradient>
- </defs>
- <XAxis dataKey="time" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} />
- <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} label={{ value: 'KB/s', angle: -90, position: 'insideLeft', fill: 'currentColor' }} />
- <Tooltip 
- contentStyle={{ 
- backgroundColor: 'hsl(var(--card))', 
- borderColor: 'hsl(var(--border))', 
- borderRadius: '12px', 
- color: 'hsl(var(--foreground))',
- boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
- }}
- />
- <Area type="monotone" dataKey="inbound" name="Download (KB/s)" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
- <Area type="monotone" dataKey="outbound" name="Upload (KB/s)" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
- </AreaChart>
- </ResponsiveContainer>
- ) : (
- <div className="h-full w-full flex flex-col items-center justify-center text-xs text-muted-foreground py-10 space-y-3">
- <Network className="w-10 h-10 text-muted-foreground/40 stroke-[1.5]" />
- <span className="text-center font-medium max-w-sm">
- {tauriStatus === 'connected'
- ? (isWwan || isMetered)
- ? 'Awaiting live traffic signals from the mobile data connection...'
- : 'No metered/mobile connection detected. Connect via mobile hotspot or cellular to track data usage.'
- : 'Connect NetSentry Desktop to capture real-time traffic statistics.'}
- </span>
- </div>
- )}
- </div>
- </div>
-
- {/* App Data Manager */}
- <div className={cardClassNoPadding}>
- <div className={`p-6 border-b space-y-4 ${borderClass}`}>
- <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
- <div>
- <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
- <Terminal className="w-5 h-5 text-primary" />
- <span>App Data Manager</span>
- </h2>
- <p className={`text-xs ${textMutedClass}`}>Track data usage per application and pause data hogs</p>
- </div>
- 
- {/* View Switcher, Sort Dropdown & Search Bar */}
- <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
- {/* View Switcher (Table vs Grid) */}
- <div className={`flex items-center border rounded-md overflow-hidden p-0.5 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
- <button
- onClick={() => setViewMode('table')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
- viewMode === 'table' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'
- }`}
- title="Classic Table View"
- >
- <LayoutList className="w-3.5 h-3.5" />
- <span>Table</span>
- </button>
- <button
- onClick={() => setViewMode('grid')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
- viewMode === 'grid' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'
- }`}
- title="Modern Card Grid View"
- >
- <LayoutGrid className="w-3.5 h-3.5" />
- <span>Grid</span>
- </button>
- </div>
-
- {/* Volume Unit Selector (Auto vs Always MB) */}
- <div className={`flex items-center border rounded-md overflow-hidden p-0.5 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`} title="Display data usage in MB or automatically in GB">
- <button
- onClick={() => handleSetVolumeUnit('auto')}
- className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
- volumeUnit === 'auto' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'
- }`}
- >
- Auto
- </button>
- <button
- onClick={() => handleSetVolumeUnit('mb')}
- className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
- volumeUnit === 'mb' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'
- }`}
- >
- MB Only
- </button>
- </div>
-
- {/* Sort Selector */}
- <div className="flex items-center gap-2 w-full sm:w-auto">
- <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Sort:</span>
- <select
- value={sortBy}
- onChange={(e) => setSortBy(e.target.value as any)}
- className={`text-xs border rounded-md px-3 py-2 outline-none font-medium cursor-pointer transition-all ${
- isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
- }`}
- >
- <option value="data_usage">🔥 Total Data Usage</option>
- <option value="inbound">⬇️ Inbound Speed</option>
- <option value="outbound">⬆️ Outbound Speed</option>
- <option value="name">🔤 App Name</option>
- <option value="pid">🔢 App ID</option>
- </select>
- </div>
-
- {/* Search Input */}
- <div className="relative w-full sm:w-60">
- <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
- <Search className="w-4 h-4 text-slate-400" />
- </span>
- <input
- type="text"
- value={searchQuery}
- onChange={(e) => setSearchQuery(e.target.value)}
- placeholder="Search apps by name..."
- className={`w-full border focus:ring-1 rounded-md pl-9 pr-4 py-2 text-xs outline-none transition-all ${
- isDark 
- ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-primary focus:ring-primary focus:bg-slate-950 placeholder-slate-500' 
- : 'bg-white border-slate-200 text-slate-900 focus:border-primary focus:ring-primary focus:bg-white placeholder-slate-400'
- }`}
- />
- </div>
- </div>
- </div>
-
- {/* Filter Controls, Group by App Toggle & System Noise Toggle */}
- <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/40">
- {/* Category Filter Tabs & Group Toggle */}
- <div className="flex items-center gap-1.5 flex-wrap">
- {/* Group by App Toggle */}
- <button
- onClick={() => setGroupByApp(prev => !prev)}
- className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border ${
- groupByApp 
- ? 'bg-primary/10 border-primary/30 text-primary' 
- : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/70'
- }`}
- title={groupByApp ? "Application Grouping ON: Merges duplicate instances" : "Showing individual tasks"}
- >
- <Layers className="w-3.5 h-3.5" />
- <span>{groupByApp ? 'Group Apps' : 'All Tasks'}</span>
- <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/20 text-primary font-extrabold">
- {displayProcesses.length}
- </span>
- </button>
-
- <span className="h-4 w-[1px] bg-border mx-1" />
-
- <button
- onClick={() => setFilterCategory('all')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- filterCategory === 'all'
- ? 'bg-primary text-white '
- : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
- }`}
- >
- All
- </button>
- <button
- onClick={() => setFilterCategory('user')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- filterCategory === 'user'
- ? 'bg-primary text-white '
- : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
- }`}
- >
- 💻 Desktop Apps
- </button>
- <button
- onClick={() => setFilterCategory('active')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- filterCategory === 'active'
- ? 'bg-primary text-white '
- : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
- }`}
- >
- ⚡ Active
- </button>
- <button
- onClick={() => setFilterCategory('paused')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- filterCategory === 'paused'
- ? 'bg-red-500 text-white '
- : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
- }`}
- >
- 🚫 Paused ({processes.filter(p => p.is_paused).length})
- </button>
- <button
- onClick={() => setFilterCategory('system')}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- filterCategory === 'system'
- ? 'bg-primary text-white '
- : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
- }`}
- >
- ⚙️ System Services
- </button>
- </div>
-
- {/* Hide System Noise Toggle */}
- <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground cursor-pointer select-none">
- <input
- type="checkbox"
- checked={hideSystemNoise}
- onChange={(e) => setHideSystemNoise(e.target.checked)}
- className="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
- />
- <span>Hide background system traffic</span>
- </label>
- </div>
- </div>
-
- {/* View Rendering: Table View or Grid View */}
- {viewMode === 'table' ? (
- <div className="overflow-x-auto">
- <table className="w-full text-left border-collapse">
- <thead>
- <tr className={`border-b border-border/50 text-xs font-semibold uppercase tracking-wider ${tableHeaderBg} ${textMutedClass}`}>
- <th className="px-6 py-4">Application / App</th>
- <th className="px-6 py-4">Task ID</th>
- <th className="px-6 py-4" title="Total network data transferred by this application in this session">Data Used</th>
- <th className="px-6 py-4" title="Live download speed">Download</th>
- <th className="px-6 py-4" title="Live upload speed">Upload</th>
- <th className="px-6 py-4" title="Active network connections">Connections</th>
- <th className="px-6 py-4 text-right">Actions</th>
- </tr>
- </thead>
- <tbody className="divide-y divide-border/50">
- {displayProcesses.length > 0 ? (
- displayProcesses.map((proc) => {
- const brand = getProcessBrandMeta(proc.name, proc.exe_path);
- const isExpanded = expandedGroups.has(proc.key);
- const primaryPid = proc.pids[0];
- const isToggleLoading = actionLoading === `pause-${primaryPid}-${proc.exe_path}`;
- const isKillLoading = actionLoading === `kill-${primaryPid}`;
- const isHighestDrain = proc.inbound_rate > 50;
-
- return (
- <React.Fragment key={proc.key}>
- <tr 
- onClick={() => openInspector(proc)}
- className={`transition-all cursor-pointer ${tableRowHover} ${proc.is_paused ? 'bg-red-500/5' : ''} ${isHighestDrain ? 'bg-amber-500/5' : ''}`}
- title="Click to view detailed bandwidth usage over time and sockets"
- >
- <td className="px-6 py-4">
- <div className="flex items-center space-x-3">
- <AppIcon name={proc.name} exePath={proc.exe_path} iconUrl={'icon' in proc ? proc.icon : undefined} />
- <div>
- <div className="flex items-center space-x-1.5 flex-wrap gap-1">
- <span className="font-bold text-sm text-foreground">{brand.label || proc.name}</span>
- <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${brand.badgeBg}`}>
- {brand.category}
- </span>
- {proc.pids.length > 1 && (
- <button
- onClick={(e) => {
- e.stopPropagation();
- toggleGroupExpand(proc.key);
- }}
- className="bg-primary/10 border border-primary/30 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
- title="Click to view child process instances"
- >
- <span>{proc.pids.length} Instances</span>
- {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
- </button>
- )}
- {isHighestDrain && (
- <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md tracking-wider uppercase flex items-center gap-0.5">
- 🔥 High Usage
- </span>
- )}
- </div>
- <div className={`text-[10px] max-w-xs truncate ${textMutedClass} mt-0.5`} title={proc.exe_path}>
- {proc.exe_path || 'System Executable'}
- </div>
- </div>
- </div>
- </td>
- <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>
- {proc.pids.length > 1 ? (
- <span className="font-bold text-primary">#{proc.pids[0]} +{proc.pids.length - 1}</span>
- ) : (
- `#${proc.pids[0]}`
- )}
- </td>
- <td className="px-6 py-4 font-mono text-xs font-bold text-primary">
- <span className="bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg">
- {formatVolume(proc.total_data_mb || 0, volumeUnit)}
- </span>
- </td>
- <td className="px-6 py-4 font-mono text-xs text-emerald-500 font-semibold">
- {formatRate(proc.inbound_rate)}
- </td>
- <td className="px-6 py-4 font-mono text-xs text-primary font-semibold">
- {formatRate(proc.outbound_rate)}
- </td>
- <td className={`px-6 py-4 font-mono text-xs ${textMutedClass}`}>{proc.connections_count}</td>
- <td className="px-6 py-4 text-right">
- <div className="inline-flex items-center space-x-2">
- {/* Open Location */}
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleOpenFileLocation(proc);
- }}
- className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
- isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
- }`}
- title="Open File Location"
- >
- <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
- </button>
-
- {/* Connections Inspector */}
- <button
- onClick={(e) => {
- e.stopPropagation();
- openInspector(proc);
- }}
- className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
- isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
- }`}
- title="Inspect Connections & History"
- >
- <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
- </button>
-
- {/* Force Kill */}
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleKillProcess(proc);
- }}
- disabled={isKillLoading || tauriStatus !== 'connected'}
- className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
- isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
- } disabled:opacity-50 disabled:cursor-not-allowed`}
- title="Close App"
- >
- <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
- </button>
-
- {/* Toggle Traffic */}
- {!brand.isSystem ? (
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleTogglePause(proc);
- }}
- disabled={isToggleLoading || tauriStatus !== 'connected'}
- className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border transition-all ${
- proc.is_paused 
- ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25' 
- : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/25'
- } disabled:opacity-50 disabled:cursor-not-allowed`}
- title={proc.is_paused ? 'Resume Network Access' : 'Pause & Block Network Access'}
- >
- {isToggleLoading ? (
- <RefreshCw className="w-3 h-3 animate-spin" />
- ) : proc.is_paused ? (
- <Play className="w-3 h-3" />
- ) : (
- <Pause className="w-3 h-3" />
- )}
- <span>{proc.is_paused ? 'Resume Data' : 'Pause Data'}</span>
- </button>
- ) : (
- <div title="System critical processes cannot be paused" className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-slate-500/10 text-slate-500 border-slate-500/30 cursor-not-allowed">
- <Shield className="w-3 h-3" />
- <span>Protected</span>
- </div>
- )}
- </div>
-
- </td>
- </tr>
-
- {/* Expanded Child Sub-Processes Breakdown */}
- {isExpanded && proc.instances.length > 1 && (
- <tr className={`${isDark ? 'bg-slate-950/60' : 'bg-slate-50/80'} border-b border-border/30`}>
- <td colSpan={7} className="px-10 py-3">
- <div className="space-y-1.5">
- <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
- <Layers className="w-3 h-3 text-primary" />
- <span>Consolidated Instances ({proc.instances.length} Sub-Tasks)</span>
- </div>
- <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
- {proc.instances.map(inst => (
- <div key={inst.pid} className="flex items-center justify-between p-2 rounded-lg border border-border/60 bg-background/60 font-mono text-xs">
- <div>
- <span className="font-bold text-foreground">Task #{inst.pid}</span>
- <span className="text-[10px] text-muted-foreground ml-2">({inst.connections_count} connections)</span>
- </div>
- <div className="flex items-center gap-2">
- <span className="text-primary font-semibold text-[11px]">{formatVolume(inst.total_data_mb, volumeUnit)}</span>
- <button
- onClick={() => handleKillProcess(inst)}
- className="p-1 text-slate-400 hover:text-red-500 transition-colors"
- title={`Close Task ${inst.pid}`}
- >
- <Trash2 className="w-3 h-3" />
- </button>
- </div>
- </div>
- ))}
- </div>
- </div>
- </td>
- </tr>
- )}
- </React.Fragment>
- );
- })
- ) : (
- <tr>
- <td colSpan={7} className="px-6 py-12 text-center text-slate-500 text-sm">
- {tauriStatus === 'connected' 
- ? 'No active desktop applications match your current filters.' 
- : 'Please run NetSentry as a Windows Desktop application to monitor connections.'}
- </td>
- </tr>
- )}
- </tbody>
- </table>
- </div>
- ) : (
- /* Modern Card Grid View */
- <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
- {displayProcesses.length > 0 ? (
- displayProcesses.map((proc) => {
- const brand = getProcessBrandMeta(proc.name, proc.exe_path);
- const isExpanded = expandedGroups.has(proc.key);
- const primaryPid = proc.pids[0];
- const isToggleLoading = actionLoading === `pause-${primaryPid}-${proc.exe_path}`;
- const isKillLoading = actionLoading === `kill-${primaryPid}`;
-
- return (
- <div 
- key={proc.key}
- onClick={() => openInspector(proc)}
- className={`relative border rounded-lg p-5 transition-all hover: cursor-pointer ${
- isDark ? 'bg-slate-900/50 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
- } ${proc.is_paused ? 'border-red-500/30 bg-red-500/5' : ''}`}
- title="Click to view daily data usage and connection history"
- >
- {/* Top Brand & Title */}
- <div className="flex items-start justify-between gap-3">
- <div className="flex items-center space-x-3 min-w-0">
- <AppIcon name={proc.name} exePath={proc.exe_path} iconUrl={'icon' in proc ? proc.icon : undefined} large />
- <div className="min-w-0 flex-1">
- <h3 className="font-bold text-sm truncate text-foreground" title={proc.name}>
- {brand.label || proc.name}
- </h3>
- <p className="text-[10px] text-muted-foreground truncate" title={proc.exe_path}>
- {proc.exe_path ? proc.exe_path.split('\\').pop() : 'System Process'}
- </p>
- </div>
- </div>
-
- {/* Badges */}
- <div className="flex flex-col items-end gap-1 shrink-0">
- <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${brand.badgeBg}`}>
- {brand.category}
- </span>
- {proc.pids.length > 1 && (
- <button
- onClick={(e) => {
- e.stopPropagation();
- toggleGroupExpand(proc.key);
- }}
- className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
- title="Toggle sub-tasks"
- >
- <span>{proc.pids.length} Tasks</span>
- {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
- </button>
- )}
- </div>
- </div>
-
- {/* Metrics Body */}
- <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
- {/* Data Usage Big Counter */}
- <div className="flex items-baseline justify-between">
- <span className="text-xs text-muted-foreground font-medium">Data Used:</span>
- <span className="font-mono text-lg font-extrabold text-primary">
- {formatVolume(proc.total_data_mb || 0, volumeUnit)}
- </span>
- </div>
-
- {/* Inbound & Outbound Speeds */}
- <div className="grid grid-cols-2 gap-2 text-xs font-mono">
- <div className="p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-between">
- <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
- <ArrowDown className="w-3 h-3 text-emerald-500" />
- Download
- </span>
- <span className="font-bold text-emerald-500">{formatRate(proc.inbound_rate)}</span>
- </div>
- <div className="p-2 rounded-md bg-primary/5 border border-primary/20 flex items-center justify-between">
- <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
- <ArrowUp className="w-3 h-3 text-primary" />
- Upload
- </span>
- <span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
- </div>
- </div>
-
- {/* Concurrency & Connections */}
- <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
- <span className="flex items-center gap-1">
- <Radio className="w-3 h-3 text-sky-400" />
- <span>{proc.connections_count} Active Connections</span>
- </span>
- <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : 'Running'}</span>
- </div>
- </div>
-
- {/* Expanded Sub-Processes Drawer */}
- {isExpanded && proc.instances.length > 1 && (
- <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5 max-h-40 overflow-y-auto font-mono text-[10px]">
- <div className="text-muted-foreground font-semibold uppercase text-[9px]">Sub-Tasks ({proc.instances.length})</div>
- {proc.instances.map(inst => (
- <div key={inst.pid} className="flex items-center justify-between p-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
- <span>Task #{inst.pid}</span>
- <span className="text-primary">{formatVolume(inst.total_data_mb, volumeUnit)}</span>
- <span className="text-emerald-500">{formatRate(inst.inbound_rate)}</span>
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleKillProcess(inst);
- }}
- className="text-slate-400 hover:text-red-500 p-1"
- title="Close Task"
- >
- <Trash2 className="w-3 h-3" />
- </button>
- </div>
- ))}
- </div>
- )}
-
- {/* Card Actions Footer */}
- <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
- <div className="flex items-center space-x-1.5">
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleOpenFileLocation(proc);
- }}
- className={`p-2 rounded-md border transition-all cursor-pointer ${
- isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
- }`}
- title="Open Executable Location"
- >
- <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
- </button>
- <button
- onClick={(e) => {
- e.stopPropagation();
- openInspector(proc);
- }}
- className={`p-2 rounded-md border transition-all cursor-pointer ${
- isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
- }`}
- title="Inspect Connections & History"
- >
- <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
- </button>
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleKillProcess(proc);
- }}
- disabled={isKillLoading || tauriStatus !== 'connected'}
- className={`p-2 rounded-md border transition-all cursor-pointer ${
- isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
- } disabled:opacity-50`}
- title="Close App"
- >
- <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
- </button>
- </div>
-
- {!brand.isSystem ? (
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleTogglePause(proc);
- }}
- disabled={isToggleLoading || tauriStatus !== 'connected'}
- className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-md text-xs font-semibold cursor-pointer border transition-all ${
- proc.is_paused
- ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
- : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20'
- } disabled:opacity-50`}
- >
- {isToggleLoading ? (
- <RefreshCw className="w-3.5 h-3.5 animate-spin" />
- ) : proc.is_paused ? (
- <Play className="w-3.5 h-3.5" />
- ) : (
- <Pause className="w-3.5 h-3.5" />
- )}
- <span>{proc.is_paused ? 'Resume' : 'Pause Data'}</span>
- </button>
- ) : (
- <div title="System critical processes cannot be paused" className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-md text-xs font-semibold border bg-slate-500/10 text-slate-500 border-slate-500/30 cursor-not-allowed">
- <Shield className="w-3.5 h-3.5" />
- <span>Protected</span>
- </div>
- )}
- </div>
- </div>
- );
- })
- ) : (
- <div className="col-span-full py-12 text-center text-slate-500 text-sm">
- {tauriStatus === 'connected' 
- ? 'No active desktop applications match your current filters.' 
- : 'Please run NetSentry as a Windows Desktop application to monitor connections.'}
- </div>
- )}
- </div>
- )}
- </div>
- </>
- ) : (
- /* Logs Panel */
- <div className={`${cardClass} space-y-4`}>
- <div className="flex items-center justify-between border-b border-border/40 pb-4">
- <div>
- <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
- <Terminal className="w-5 h-5 text-primary" />
- <span>Activity & Protection Logs</span>
- </h2>
- <p className={`text-xs ${textMutedClass}`}>Recent actions and network alerts</p>
- </div>
- <button 
- onClick={() => setSecurityLogs([])}
- className={`text-xs px-3 py-1.5 border rounded-lg hover:bg-slate-900 transition-all ${
- isDark ? 'border-slate-850 bg-slate-900 text-slate-300' : 'border-slate-200 bg-white text-slate-700'
- }`}
- >
- Clear History
- </button>
- </div>
- 
- <div className="space-y-2 max-h-[500px] overflow-y-auto font-mono text-xs">
- {securityLogs.length > 0 ? (
- securityLogs.map((log, index) => (
- <div 
- key={index}
- className={`flex items-start space-x-3 p-3 rounded-lg border ${
- log.type === 'alert' 
- ? 'bg-red-500/10 border-red-500/20 text-red-400' 
- : log.type === 'warning'
- ? 'bg-primary/10 border-primary/20 text-primary'
- : isDark ? 'bg-slate-900/40 border-slate-855 text-slate-300' : 'bg-slate-100/60 border-slate-200 text-slate-700'
- }`}
- >
- <span className="text-[10px] text-slate-500 mt-0.5">[{log.timestamp}]</span>
- <span className="flex-1">{log.message}</span>
- </div>
- ))
- ) : (
- <div className="text-center text-slate-500 py-10">No log entries recorded in this session.</div>
- )}
- </div>
- </div>
- )}
-
- {/* 21-Chart Comprehensive Analytics Intelligence Dashboard */}
- {currentTab === 'analytics' && (
- <AnalyticsDashboard
- processes={processes}
- system={system}
- dailyTotals={dailyTotals}
- liveChartData={chartData}
- isDark={isDark}
- tauriStatus={tauriStatus}
- isFocusMode={isFocusMode}
- allowedApps={allowedApps}
- setAllowedApps={setAllowedApps}
- handleEnableFocusMode={handleEnableFocusMode}
- handleDisableFocusMode={handleDisableFocusMode}
- focusModeLoading={focusModeLoading}
- loadDailyTotals={loadDailyTotals}
- analyticsLoading={analyticsLoading}
- />
- )}
-
- </main>
-
- {/* App Details & Historical Telemetry Inspector Modal */}
- <AppDetailsDialog
- isOpen={isInspectorOpen}
- onClose={() => setIsInspectorOpen(false)}
- process={selectedProcess}
- isDark={isDark}
- tauriStatus={tauriStatus}
- actionLoading={actionLoading}
- onTogglePause={handleTogglePause}
- onKillProcess={handleKillProcess}
- onOpenFileLocation={handleOpenFileLocation}
- volumeUnit={volumeUnit}
- />
-
- <footer className={`mt-auto border-t px-6 py-6 text-center text-xs ${borderClass} ${textMutedClass} ${isDark ? 'bg-slate-950' : 'bg-white '}`}>
- <p>© 2026 NetSentry. All rights reserved. Administrator privileges required for firewall adjustments.</p>
- </footer>
-
- {/* Buy Me a Coffee / Donation Modal */}
- <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} />
- </div>
- );
 }
+
+

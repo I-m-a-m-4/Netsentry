@@ -1,14 +1,16 @@
-#[cfg(desktop)]
-use tauri::Manager;
-use tauri::Emitter;
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::process::Command;
+use std::os::windows::process::CommandExt;
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
-use sysinfo::{System, Networks, RefreshKind, ProcessRefreshKind};
+use sysinfo::{Networks, ProcessRefreshKind, RefreshKind, System};
+use tauri::Emitter;
+#[cfg(desktop)]
+use tauri::Manager;
 use windows::Networking::Connectivity::NetworkInformation;
-use rusqlite::{Connection, params};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProcessNetworkData {
@@ -40,6 +42,13 @@ pub struct AppHistoryEntry {
     pub date: String,
     pub inbound_mb: f64,
     pub outbound_mb: f64,
+    pub total_mb: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TopAppEntry {
+    pub name: String,
+    pub exe_path: String,
     pub total_mb: f64,
 }
 
@@ -81,18 +90,21 @@ fn extract_exe_icon_base64(exe_path: &str) -> Option<String> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
-    use windows::Win32::UI::Shell::ExtractIconExW;
-    use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, DestroyIcon, HICON, ICONINFO};
     use windows::Win32::Graphics::Gdi::{
-        CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW,
-        BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC, HGDIOBJ
+        CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO,
+        BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC, HGDIOBJ,
     };
+    use windows::Win32::UI::Shell::ExtractIconExW;
+    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON, ICONINFO};
 
     if exe_path.is_empty() || !std::path::Path::new(exe_path).exists() {
         return None;
     }
 
-    let path_wide: Vec<u16> = OsStr::new(exe_path).encode_wide().chain(std::iter::once(0)).collect();
+    let path_wide: Vec<u16> = OsStr::new(exe_path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
     let mut hicon_large = HICON::default();
     let count = unsafe {
         ExtractIconExW(
@@ -113,7 +125,9 @@ fn extract_exe_icon_base64(exe_path: &str) -> Option<String> {
     let got_info = unsafe { GetIconInfo(hicon, &mut icon_info) };
 
     if got_info.is_err() {
-        unsafe { let _ = DestroyIcon(hicon); }
+        unsafe {
+            let _ = DestroyIcon(hicon);
+        }
         return None;
     }
 
@@ -272,17 +286,19 @@ pub struct DailyTotal {
 /// All totals are ABSOLUTE — React must assign, never accumulate.
 #[derive(Serialize, Clone, Debug)]
 pub struct SystemTelemetry {
-    pub rx_rate_kbps: f64,      // adapter-measured, divided by real elapsed seconds
+    pub rx_rate_kbps: f64, // adapter-measured, divided by real elapsed seconds
     pub tx_rate_kbps: f64,
-    pub interval_ms: u64,       // real measured sampling gap; the divisor behind the rates
-    pub session_rx_mb: f64,     // cumulative since launch
+    pub interval_ms: u64, // real measured sampling gap; the divisor behind the rates
+    pub session_rx_mb: f64, // cumulative since launch
     pub session_tx_mb: f64,
-    pub today_rx_mb: f64,       // since local midnight, persisted to SQLite
+    pub today_rx_mb: f64, // since local midnight, persisted to SQLite
     pub today_tx_mb: f64,
-    pub week_rx_mb: f64,        // last 7 days + today live
+    pub week_rx_mb: f64, // last 7 days + today live
     pub week_tx_mb: f64,
-    pub month_rx_mb: f64,       // last 30 days + today live
+    pub month_rx_mb: f64, // last 30 days + today live
     pub month_tx_mb: f64,
+    pub all_rx_mb: f64,
+    pub all_tx_mb: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -297,7 +313,8 @@ fn init_analytics_db(db_path: PathBuf) {
     }
     match Connection::open(&db_path) {
         Ok(conn) => {
-            let _ = conn.execute_batch("
+            let _ = conn.execute_batch(
+                "
                 PRAGMA journal_mode = WAL;
                 PRAGMA synchronous = NORMAL;
 
@@ -323,7 +340,8 @@ fn init_analytics_db(db_path: PathBuf) {
                 );
                 CREATE INDEX IF NOT EXISTS idx_app_daily_date ON app_daily_totals(date);
                 CREATE INDEX IF NOT EXISTS idx_app_daily_key ON app_daily_totals(app_key, date);
-            ");
+            ",
+            );
             if let Ok(mut db) = ANALYTICS_DB.lock() {
                 *db = Some(conn);
             }
@@ -333,7 +351,9 @@ fn init_analytics_db(db_path: PathBuf) {
     }
 }
 
-fn record_batch_app_usage_to_db(items: &std::collections::HashMap<String, (String, String, f64, f64)>) {
+fn record_batch_app_usage_to_db(
+    items: &std::collections::HashMap<String, (String, String, f64, f64)>,
+) {
     if let Ok(mut db) = ANALYTICS_DB.lock() {
         if let Some(conn) = db.as_mut() {
             if let Ok(tx) = conn.transaction() {
@@ -441,7 +461,9 @@ fn load_history_totals(days: u32) -> (f64, f64) {
 fn local_date_string() -> String {
     if let Ok(db) = ANALYTICS_DB.lock() {
         if let Some(conn) = db.as_ref() {
-            if let Ok(d) = conn.query_row("SELECT date('now', 'localtime')", [], |row| row.get::<_, String>(0)) {
+            if let Ok(d) = conn.query_row("SELECT date('now', 'localtime')", [], |row| {
+                row.get::<_, String>(0)
+            }) {
                 return d;
             }
         }
@@ -466,7 +488,7 @@ fn run_firewall_command(args: &[&str]) -> Result<String, String> {
         .args(args)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
@@ -485,28 +507,52 @@ fn pause_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
     let legacy_rule = format!("NetSentry - Block - {}", name);
 
     // Clean up any existing rules for this app
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_out)]);
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_in)]);
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", legacy_rule)]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        &format!("name={}", rule_out),
+    ]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        &format!("name={}", rule_in),
+    ]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        &format!("name={}", legacy_rule),
+    ]);
 
     // 1. Block OUTBOUND traffic (crucial: prevents browsers and apps from initiating network requests)
     let out_res = run_firewall_command(&[
-        "advfirewall", "firewall", "add", "rule",
+        "advfirewall",
+        "firewall",
+        "add",
+        "rule",
         &format!("name={}", rule_out),
         "dir=out",
         "action=block",
         &format!("program={}", exe_path),
-        "enable=yes"
+        "enable=yes",
     ]);
 
     // 2. Block INBOUND traffic
     let in_res = run_firewall_command(&[
-        "advfirewall", "firewall", "add", "rule",
+        "advfirewall",
+        "firewall",
+        "add",
+        "rule",
         &format!("name={}", rule_in),
         "dir=in",
         "action=block",
         &format!("program={}", exe_path),
-        "enable=yes"
+        "enable=yes",
     ]);
 
     // Robust fallback using PowerShell NetSecurity module if netsh encountered any error
@@ -516,13 +562,15 @@ fn pause_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
              New-NetFirewallRule -DisplayName '{}' -Direction Inbound -Action Block -Program '{}' -Enabled True -ErrorAction SilentlyContinue",
             rule_out, exe_path, rule_in, exe_path
         );
-        let _ = create_cmd("powershell").args(&["-Command", &ps_cmd]).output();
+        let _ = create_cmd("powershell")
+            .args(&["-Command", &ps_cmd])
+            .output();
     }
 
     if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
         paused.insert(exe_path);
     }
-    
+
     Ok(true)
 }
 
@@ -532,9 +580,27 @@ fn resume_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
     let rule_in = format!("NetSentry - Block - In - {}", name);
     let legacy_rule = format!("NetSentry - Block - {}", name);
 
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_out)]);
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_in)]);
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", &format!("name={}", legacy_rule)]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        &format!("name={}", rule_out),
+    ]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        &format!("name={}", rule_in),
+    ]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        &format!("name={}", legacy_rule),
+    ]);
 
     let ps_cmd = format!(
         "Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
@@ -542,12 +608,14 @@ fn resume_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
          Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue",
         rule_out, rule_in, legacy_rule
     );
-    let _ = create_cmd("powershell").args(&["-Command", &ps_cmd]).output();
+    let _ = create_cmd("powershell")
+        .args(&["-Command", &ps_cmd])
+        .output();
 
     if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
         paused.remove(&exe_path);
     }
-    
+
     Ok(true)
 }
 
@@ -564,11 +632,19 @@ fn resume_inbound_traffic(exe_path: String, name: String) -> Result<bool, String
 #[tauri::command]
 fn emergency_clear_all_firewall_rules() -> Result<bool, String> {
     // 1. Specifically purge any dangerous blanket block rules immediately via netsh
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        "name=NetSentry-DataSaver-BlockAll",
+    ]);
 
     // 2. Remove all rules created by NetSentry (both netsh and PowerShell rules)
     let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry*' -or $_.Name -like 'NetSentry*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
-    let _ = create_cmd("powershell").args(&["-Command", ps_cmd]).output();
+    let _ = create_cmd("powershell")
+        .args(&["-Command", ps_cmd])
+        .output();
 
     // 3. Reset internal paused process tracking
     if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
@@ -592,7 +668,7 @@ fn kill_process(pid: u32) -> Result<bool, String> {
         .args(&["/F", "/PID", &pid.to_string()])
         .output()
         .map_err(|e| e.to_string())?;
-        
+
     if output.status.success() {
         Ok(true)
     } else {
@@ -606,7 +682,7 @@ fn open_file_location(exe_path: String) -> Result<bool, String> {
         .args(&[&format!("/select,\"{}\"", exe_path)])
         .spawn()
         .map_err(|e| e.to_string())?;
-        
+
     Ok(true)
 }
 
@@ -627,16 +703,24 @@ fn is_metered_connection() -> Result<ConnectionStatus, String> {
     let is_wwan = (|| -> Option<bool> {
         let profile = NetworkInformation::GetInternetConnectionProfile().ok()?;
         profile.IsWwanConnectionProfile().ok()
-    })().unwrap_or(false);
+    })()
+    .unwrap_or(false);
 
-    Ok(ConnectionStatus { is_metered, is_wwan })
+    Ok(ConnectionStatus {
+        is_metered,
+        is_wwan,
+    })
 }
 
 #[tauri::command]
 fn get_daily_totals(days: u32) -> Vec<DailyTotal> {
     if let Ok(db) = ANALYTICS_DB.lock() {
         if let Some(conn) = db.as_ref() {
-            let limit = days.max(1).min(90) as i64;
+            let limit = if days == 0 {
+                3650
+            } else {
+                days.max(1).min(3650)
+            } as i64;
             let mut stmt = match conn.prepare(
                 "SELECT date, total_inbound_mb, total_outbound_mb FROM daily_totals ORDER BY date DESC LIMIT ?1"
             ) {
@@ -663,32 +747,95 @@ fn get_daily_totals(days: u32) -> Vec<DailyTotal> {
 fn get_app_history(app_key: String, days: u32) -> Vec<AppHistoryEntry> {
     if let Ok(db) = ANALYTICS_DB.lock() {
         if let Some(conn) = db.as_ref() {
-            let limit = days.max(1).min(90) as i64;
+            let limit = if days == 0 { 365 } else { days.max(1).min(365) } as i64;
             let norm_key = app_key.to_lowercase();
             let mut stmt = match conn.prepare(
-                "SELECT date, inbound_mb, outbound_mb, (inbound_mb + outbound_mb) as total_mb 
+                "SELECT date, SUM(inbound_mb), SUM(outbound_mb), SUM(inbound_mb + outbound_mb) 
                  FROM app_daily_totals 
-                 WHERE LOWER(app_key) = ?1 OR LOWER(exe_path) = ?1 OR LOWER(app_name) = ?1
-                 ORDER BY date DESC LIMIT ?2"
+                 WHERE LOWER(app_key) = ?1 OR LOWER(exe_path) LIKE ?2 OR LOWER(app_name) = ?1
+                 GROUP BY date
+                 ORDER BY date DESC LIMIT ?3",
             ) {
                 Ok(s) => s,
                 Err(_) => return vec![],
             };
-            let rows = match stmt.query_map(params![norm_key, limit], |row| {
-                Ok(AppHistoryEntry {
-                    date: row.get(0)?,
-                    inbound_mb: (row.get::<_, f64>(1)? * 100.0).round() / 100.0,
-                    outbound_mb: (row.get::<_, f64>(2)? * 100.0).round() / 100.0,
-                    total_mb: (row.get::<_, f64>(3)? * 100.0).round() / 100.0,
+            let rows =
+                match stmt.query_map(params![norm_key, format!("%{}", norm_key), limit], |row| {
+                    Ok(AppHistoryEntry {
+                        date: row.get(0)?,
+                        inbound_mb: (row.get::<_, f64>(1)? * 100.0).round() / 100.0,
+                        outbound_mb: (row.get::<_, f64>(2)? * 100.0).round() / 100.0,
+                        total_mb: (row.get::<_, f64>(3)? * 100.0).round() / 100.0,
+                    })
+                }) {
+                    Ok(iter) => iter,
+                    Err(_) => return vec![],
+                };
+            return rows.filter_map(|r| r.ok()).collect();
+        }
+    }
+    vec![]
+}
+
+#[tauri::command]
+fn get_top_apps_history(days: u32) -> Vec<TopAppEntry> {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let date_filter = match days {
+                0 => "1=1".to_string(),
+                _ => format!("date >= date('now', 'localtime', '-{} days')", days.max(1).min(3650)),
+            };
+            
+            let query = format!(
+                "SELECT app_name, exe_path, SUM(inbound_mb + outbound_mb) as total_mb 
+                 FROM app_daily_totals 
+                 WHERE {}
+                 GROUP BY LOWER(exe_path) 
+                 ORDER BY total_mb DESC LIMIT 50",
+                date_filter
+            );
+
+            let mut stmt = match conn.prepare(&query) {
+                Ok(s) => s,
+                Err(_) => return vec![],
+            };
+            
+            let rows = match stmt.query_map([], |row| {
+                Ok(TopAppEntry {
+                    name: row.get(0)?,
+                    exe_path: row.get(1)?,
+                    total_mb: (row.get::<_, f64>(2)? * 100.0).round() / 100.0,
                 })
             }) {
                 Ok(iter) => iter,
                 Err(_) => return vec![],
             };
+            
             return rows.filter_map(|r| r.ok()).collect();
         }
     }
     vec![]
+}
+
+#[tauri::command]
+fn reset_firewall_rules() -> Result<bool, String> {
+    let output = Command::new("netsh")
+        .args(&["advfirewall", "reset"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
+            paused.clear();
+        }
+        if let Ok(mut fm_paused) = FOCUS_MODE_PAUSED.lock() {
+            fm_paused.clear();
+        }
+        Ok(true)
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
 }
 
 #[tauri::command]
@@ -705,19 +852,40 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
     }
 
     let protected_names = [
-        "system", "system idle process", "registry", "smss.exe", "csrss.exe",
-        "wininit.exe", "services.exe", "lsass.exe", "svchost.exe", "fontdrvhost.exe",
-        "dwm.exe", "explorer.exe", "sihost.exe", "taskhostw.exe", "ctfmon.exe",
-        "searchhost.exe", "startmenuexperiencehost.exe", "shellexperiencehost.exe",
-        "spoolsv.exe", "securityhealthservice.exe", "smartscreen.exe", "msmpeng.exe",
-        "mpcmdrun.exe", "rundll32.exe", "dllhost.exe", "conhost.exe"
+        "system",
+        "system idle process",
+        "registry",
+        "smss.exe",
+        "csrss.exe",
+        "wininit.exe",
+        "services.exe",
+        "lsass.exe",
+        "svchost.exe",
+        "fontdrvhost.exe",
+        "dwm.exe",
+        "explorer.exe",
+        "sihost.exe",
+        "taskhostw.exe",
+        "ctfmon.exe",
+        "searchhost.exe",
+        "startmenuexperiencehost.exe",
+        "shellexperiencehost.exe",
+        "spoolsv.exe",
+        "securityhealthservice.exe",
+        "smartscreen.exe",
+        "msmpeng.exe",
+        "mpcmdrun.exe",
+        "rundll32.exe",
+        "dllhost.exe",
+        "conhost.exe",
     ];
 
     if protected_names.iter().any(|&p| name_lower == p) {
         return true;
     }
 
-    if path_lower.contains("\\windows\\system32\\") || path_lower.contains("\\windows\\syswow64\\") {
+    if path_lower.contains("\\windows\\system32\\") || path_lower.contains("\\windows\\syswow64\\")
+    {
         return true;
     }
 
@@ -727,10 +895,17 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
 #[tauri::command]
 fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String> {
     // 1. Immediately eliminate any legacy blanket outbound block rule
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        "name=NetSentry-DataSaver-BlockAll",
+    ]);
 
     // 2. Prepare normalized whitelist
-    let mut normalized_whitelist: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut normalized_whitelist: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
     for p in &allowed_exe_paths {
         let trimmed = p.trim().to_lowercase();
         if !trimmed.is_empty() {
@@ -744,13 +919,16 @@ fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String
     // 3. Scan active processes with sysinfo
     let mut sys = sysinfo::System::new();
     sys.refresh_processes_specifics(
-        sysinfo::ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet)
+        sysinfo::ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
     );
 
     let mut to_pause = Vec::new();
     for (_pid, proc) in sys.processes() {
         let name = proc.name().to_string();
-        let exe_path = proc.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+        let exe_path = proc
+            .exe()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
         if exe_path.is_empty() {
             continue;
         }
@@ -786,7 +964,13 @@ fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String
 #[tauri::command]
 fn disable_data_saver_mode() -> Result<bool, String> {
     // 1. Ensure any legacy blanket block rule is deleted
-    let _ = run_firewall_command(&["advfirewall", "firewall", "delete", "rule", "name=NetSentry-DataSaver-BlockAll"]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
+        "name=NetSentry-DataSaver-BlockAll",
+    ]);
 
     // 2. Resume all apps paused by Focus Mode
     if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
@@ -797,11 +981,12 @@ fn disable_data_saver_mode() -> Result<bool, String> {
 
     // 3. Clean up any leftover NetSentry-DataSaver-* rules
     let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
-    let _ = create_cmd("powershell").args(&["-Command", ps_cmd]).output();
+    let _ = create_cmd("powershell")
+        .args(&["-Command", ps_cmd])
+        .output();
 
     Ok(true)
 }
-
 
 // Read connections directly via Win32 IP Helper API (0 process creation overhead)
 // Fallback to netstat at most once every 5 seconds if Win32 API fails
@@ -809,10 +994,8 @@ fn disable_data_saver_mode() -> Result<bool, String> {
 fn get_active_connections_win32() -> Result<Vec<ConnectionInfo>, String> {
     use std::net::Ipv4Addr;
     use windows::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, GetExtendedUdpTable,
-        MIB_TCPTABLE_OWNER_PID, MIB_TCPROW_OWNER_PID,
-        MIB_UDPTABLE_OWNER_PID, MIB_UDPROW_OWNER_PID,
-        TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
+        GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCPROW_OWNER_PID, MIB_TCPTABLE_OWNER_PID,
+        MIB_UDPROW_OWNER_PID, MIB_UDPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
     };
     use windows::Win32::Networking::WinSock::AF_INET;
 
@@ -844,7 +1027,8 @@ fn get_active_connections_win32() -> Result<Vec<ConnectionInfo>, String> {
             if res == 0 {
                 let table = *(buffer.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
                 let num_entries = table.dwNumEntries as usize;
-                let rows_ptr = buffer.as_ptr().add(std::mem::size_of::<u32>()) as *const MIB_TCPROW_OWNER_PID;
+                let rows_ptr =
+                    buffer.as_ptr().add(std::mem::size_of::<u32>()) as *const MIB_TCPROW_OWNER_PID;
                 let rows = std::slice::from_raw_parts(rows_ptr, num_entries);
 
                 for row in rows {
@@ -905,7 +1089,8 @@ fn get_active_connections_win32() -> Result<Vec<ConnectionInfo>, String> {
             if res == 0 {
                 let table = *(buffer.as_ptr() as *const MIB_UDPTABLE_OWNER_PID);
                 let num_entries = table.dwNumEntries as usize;
-                let rows_ptr = buffer.as_ptr().add(std::mem::size_of::<u32>()) as *const MIB_UDPROW_OWNER_PID;
+                let rows_ptr =
+                    buffer.as_ptr().add(std::mem::size_of::<u32>()) as *const MIB_UDPROW_OWNER_PID;
                 let rows = std::slice::from_raw_parts(rows_ptr, num_entries);
 
                 for row in rows {
@@ -975,391 +1160,473 @@ fn get_active_connections() -> Vec<ConnectionInfo> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  println!("NetSentry: Initializing Builder...");
-  
-  #[allow(unused_mut)]
-  let mut builder = tauri::Builder::default()
-    .plugin(tauri_plugin_log::Builder::default()
-      .level(log::LevelFilter::Info)
-      .build())
-    .invoke_handler(tauri::generate_handler![
-      pause_inbound_traffic,
-      resume_inbound_traffic,
-      pause_app_traffic,
-      resume_app_traffic,
-      resume_all_traffic,
-      emergency_clear_all_firewall_rules,
-      kill_process,
-      open_file_location,
-      is_metered_connection,
-      get_daily_totals,
-      get_app_history,
-      get_app_icon,
-      enable_data_saver_mode,
-      disable_data_saver_mode
-    ])
-    .plugin(tauri_plugin_sql::Builder::default().build())
-    .plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_stronghold::Builder::new(|_password| {
-      "netsentry-secure-key-2026".as_bytes().to_vec()
-    }).build())
-    .plugin(tauri_plugin_updater::Builder::new().build())
-    .plugin(tauri_plugin_process::init())
-    .plugin(tauri_plugin_http::init())
-    .plugin(tauri_plugin_notification::init())
-    .plugin(tauri_plugin_shell::init());
+    println!("NetSentry: Initializing Builder...");
 
-  #[cfg(desktop)]
-  {
-    builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-      println!("NetSentry: Second instance detected — focusing existing window.");
-      if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-      }
-    }));
-  }
-
-  builder
-    .on_window_event(|window, event| {
-      if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        let _ = window.hide();
-        api.prevent_close();
-      }
-    })
-    .setup(|app| {
-      println!("NetSentry: Entering setup...");
-
-      #[cfg(desktop)]
-      {
-        use tauri::menu::{Menu, MenuItem};
-        use tauri::tray::TrayIconBuilder;
-
-        // Automatically clean up any orphaned NetSentry firewall rules from previous sessions
-        let _ = emergency_clear_all_firewall_rules();
-
-        // Explicitly show and focus main window
-        if let Some(window) = app.get_webview_window("main") {
-          println!("NetSentry: Showing and focusing main window...");
-          let _ = window.show();
-          let _ = window.unminimize();
-          let _ = window.set_focus();
-        }
-
-        // Build tray menu
-        let quit_i = MenuItem::with_id(app, "quit", "Quit NetSentry", true, None::<&str>)?;
-        let show_i = MenuItem::with_id(app, "show", "Show NetSentry", true, None::<&str>)?;
-        let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
-
-        if let Some(tray_icon) = app.default_window_icon().cloned() {
-          let _ = TrayIconBuilder::new()
-            .icon(tray_icon)
-            .menu(&menu)
-            .on_menu_event(|app, event| {
-              match event.id.as_ref() {
-                "quit" => {
-                  println!("NetSentry: Quit requested from tray.");
-                  let _ = emergency_clear_all_firewall_rules();
-                  std::process::exit(0);
-                }
-                "show" => {
-                  if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.unminimize();
-                    let _ = win.set_focus();
-                  }
-                }
-                _ => {}
-              }
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
+        .invoke_handler(tauri::generate_handler![
+            pause_inbound_traffic,
+            resume_inbound_traffic,
+            pause_app_traffic,
+            resume_app_traffic,
+            resume_all_traffic,
+            emergency_clear_all_firewall_rules,
+            kill_process,
+            open_file_location,
+            is_metered_connection,
+            get_daily_totals,
+            get_app_history,
+            get_top_apps_history,
+            get_app_icon,
+            enable_data_saver_mode,
+            disable_data_saver_mode,
+            reset_firewall_rules
+        ])
+        .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_stronghold::Builder::new(|_password| {
+                "netsentry-secure-key-2026".as_bytes().to_vec()
             })
-            .build(app);
-        }
+            .build(),
+        )
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_shell::init());
 
-        // Initialise analytics SQLite DB
-        let db_path = app.path().app_data_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join("netsentry.db");
-        init_analytics_db(db_path);
-
-        // Start background event loop for streaming process network data
-        let app_handle = app.handle().clone();
-        std::thread::spawn(move || {
-            // Use cheaper targeted refresh — we only need process name/exe/cpu/memory
-            let refresh_kind = RefreshKind::new()
-                .with_processes(ProcessRefreshKind::new().with_cpu().with_memory().with_exe(sysinfo::UpdateKind::OnlyIfNotSet));
-            let mut sys = System::new_with_specifics(refresh_kind);
-
-            // refresh_list() picks up adapters added or removed at runtime (e.g. USB tether, reconnect Wi-Fi)
-            let mut networks = Networks::new_with_refreshed_list();
-            let mut prev_net_data: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new();
-            // Prime prev_net_data so the very first delta is 0, not a whole-session spike
-            for (name, network) in &networks {
-                prev_net_data.insert(name.clone(), (network.total_received(), network.total_transmitted()));
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            println!("NetSentry: Second instance detected — focusing existing window.");
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
             }
+        }));
+    }
 
-            // Load today's already-persisted totals from SQLite so a restart continues correctly
-            let (seed_rx, seed_tx) = load_today_totals();
-            let (seed_week_rx, seed_week_tx) = load_history_totals(7);
-            let (seed_month_rx, seed_month_tx) = load_history_totals(30);
+    builder
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
+        .setup(|app| {
+            println!("NetSentry: Entering setup...");
 
-            let mut today_rx_mb: f64 = seed_rx;
-            let mut today_tx_mb: f64 = seed_tx;
-            let mut week_rx_mb: f64 = seed_week_rx;
-            let mut week_tx_mb: f64 = seed_week_tx;
-            let mut month_rx_mb: f64 = seed_month_rx;
-            let mut month_tx_mb: f64 = seed_month_tx;
-            let mut session_rx_mb: f64 = 0.0;
-            let mut session_tx_mb: f64 = 0.0;
-            // Unflushed MB accumulated since last DB write
-            let mut pending_rx_mb: f64 = 0.0;
-            let mut pending_tx_mb: f64 = 0.0;
-            let mut tick_count: u64 = 0;
-            // Track the local date for midnight rollover, using the same clock the
-            // daily_totals rows are keyed by so the two can never disagree.
-            let mut current_date = local_date_string();
+            #[cfg(desktop)]
+            {
+                use tauri::menu::{Menu, MenuItem};
+                use tauri::tray::TrayIconBuilder;
 
-            let mut last_tick = Instant::now();
+                // Automatically clean up any orphaned NetSentry firewall rules from previous sessions
+                let _ = emergency_clear_all_firewall_rules();
 
-            // Track cumulative MB transferred by each process key, seeded from SQLite today totals
-            let mut process_accumulated_mb: std::collections::HashMap<String, f64> = load_today_app_totals();
-            // Track pending per-app usage to flush periodically in batch
-            let mut pending_app_mb: std::collections::HashMap<String, (String, String, f64, f64)> = std::collections::HashMap::new();
-
-            loop {
-                let tick_start = Instant::now();
-
-                // Cheaper: refresh only processes we care about (cpu, mem, exe)
-                sys.refresh_processes_specifics(ProcessRefreshKind::new().with_cpu().with_memory().with_exe(sysinfo::UpdateKind::OnlyIfNotSet));
-                // refresh_list() detects new/removed adapters (e.g. hotspot reconnect)
-                networks.refresh_list();
-                let connections = get_active_connections();
-
-                // Real elapsed time since last tick for accurate KB/s
-                let elapsed_secs = last_tick.elapsed().as_secs_f64().max(0.01);
-                last_tick = Instant::now();
-
-                // Group connections by PID
-                let mut pid_connections: std::collections::HashMap<u32, Vec<ConnectionInfo>> = std::collections::HashMap::new();
-                for conn in &connections {
-                    pid_connections.entry(conn.pid).or_insert_with(Vec::new).push(conn.clone());
+                // Explicitly show and focus main window
+                if let Some(window) = app.get_webview_window("main") {
+                    println!("NetSentry: Showing and focusing main window...");
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
                 }
 
-                // Calculate physical network adapter delta bytes
-                let mut total_rx_delta = 0u64;
-                let mut total_tx_delta = 0u64;
+                // Build tray menu
+                let quit_i = MenuItem::with_id(app, "quit", "Quit NetSentry", true, None::<&str>)?;
+                let show_i = MenuItem::with_id(app, "show", "Show NetSentry", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
-                for (name, network) in &networks {
-                    let name_lower = name.to_lowercase();
-                    // Skip ALL virtual, loopback, and tunnel adapters.
-                    // Only count genuine physical interfaces (Wi-Fi, Ethernet, WWAN/LTE).
-                    if name_lower.contains("loopback")
-                        || name_lower == "lo"
-                        || name_lower.starts_with("vethernet")
-                        || name_lower.starts_with("veth")
-                        || name_lower.contains("hyper-v")
-                        || name_lower.contains("hyperv")
-                        || name_lower.contains("virtual")
-                        || name_lower.contains("vmware")
-                        || name_lower.contains("vmnet")
-                        || name_lower.contains("virtualbox")
-                        || name_lower.contains("vbox")
-                        || name_lower.contains("tap")
-                        || name_lower.contains("tun")
-                        || name_lower.contains("wsl")
-                        || name_lower.contains("docker")
-                        || name_lower.contains("vpn")
-                        || name_lower.contains("wireguard")
-                        || name_lower.contains("nordvpn")
-                        || name_lower.contains("expressvpn")
-                        || name_lower.contains("isatap")
-                        || name_lower.contains("teredo")
-                        || name_lower.contains("6to4")
-                    {
-                        continue;
-                    }
-
-                    let current_rx = network.total_received();
-                    let current_tx = network.total_transmitted();
-
-                    if let Some(&(prev_rx, prev_tx)) = prev_net_data.get(name) {
-                        // New adapter (first time seen) has no prev entry — skip to avoid spike
-                        if current_rx >= prev_rx { total_rx_delta += current_rx - prev_rx; }
-                        if current_tx >= prev_tx { total_tx_delta += current_tx - prev_tx; }
-                    }
-                    // Always update, even for new adapters (will contribute from next tick)
-                    prev_net_data.insert(name.clone(), (current_rx, current_tx));
+                if let Some(tray_icon) = app.default_window_icon().cloned() {
+                    let _ = TrayIconBuilder::new()
+                        .icon(tray_icon)
+                        .menu(&menu)
+                        .on_menu_event(|app, event| match event.id.as_ref() {
+                            "quit" => {
+                                println!("NetSentry: Quit requested from tray.");
+                                let _ = emergency_clear_all_firewall_rules();
+                                std::process::exit(0);
+                            }
+                            "show" => {
+                                if let Some(win) = app.get_webview_window("main") {
+                                    let _ = win.show();
+                                    let _ = win.unminimize();
+                                    let _ = win.set_focus();
+                                }
+                            }
+                            _ => {}
+                        })
+                        .build(app);
                 }
 
-                // Convert to KB/s using REAL elapsed time, not assumed 1 s
-                let rx_kbps = (total_rx_delta as f64 / 1024.0) / elapsed_secs;
-                let tx_kbps = (total_tx_delta as f64 / 1024.0) / elapsed_secs;
-                let tick_rx_mb = total_rx_delta as f64 / (1024.0 * 1024.0);
-                let tick_tx_mb = total_tx_delta as f64 / (1024.0 * 1024.0);
+                // Initialise analytics SQLite DB
+                let db_path = app
+                    .path()
+                    .app_data_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join("netsentry.db");
+                init_analytics_db(db_path);
 
-                // --- Local midnight rollover check ---
-                let now_day = local_date_string();
-                if !now_day.is_empty() && now_day != current_date {
-                    // Flush pending before resetting
-                    if pending_rx_mb > 0.0 || pending_tx_mb > 0.0 {
-                        record_usage_to_db(pending_rx_mb, pending_tx_mb);
-                        pending_rx_mb = 0.0;
-                        pending_tx_mb = 0.0;
+                // Start background event loop for streaming process network data
+                let app_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    // Use cheaper targeted refresh — we only need process name/exe/cpu/memory
+                    let refresh_kind = RefreshKind::new().with_processes(
+                        ProcessRefreshKind::new()
+                            .with_cpu()
+                            .with_memory()
+                            .with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+                    );
+                    let mut sys = System::new_with_specifics(refresh_kind);
+
+                    // refresh_list() picks up adapters added or removed at runtime (e.g. USB tether, reconnect Wi-Fi)
+                    let mut networks = Networks::new_with_refreshed_list();
+                    let mut prev_net_data: std::collections::HashMap<String, (u64, u64)> =
+                        std::collections::HashMap::new();
+                    // Prime prev_net_data so the very first delta is 0, not a whole-session spike
+                    for (name, network) in &networks {
+                        prev_net_data.insert(
+                            name.clone(),
+                            (network.total_received(), network.total_transmitted()),
+                        );
                     }
-                    if !pending_app_mb.is_empty() {
-                        record_batch_app_usage_to_db(&pending_app_mb);
-                        pending_app_mb.clear();
-                    }
-                    process_accumulated_mb.clear();
-                    today_rx_mb = 0.0;
-                    today_tx_mb = 0.0;
-                    current_date = now_day;
-                }
 
-                // Accumulate this tick's bytes
-                today_rx_mb += tick_rx_mb;
-                today_tx_mb += tick_tx_mb;
-                week_rx_mb += tick_rx_mb;
-                week_tx_mb += tick_tx_mb;
-                month_rx_mb += tick_rx_mb;
-                month_tx_mb += tick_tx_mb;
-                session_rx_mb += tick_rx_mb;
-                session_tx_mb += tick_tx_mb;
-                pending_rx_mb += tick_rx_mb;
-                pending_tx_mb += tick_tx_mb;
+                    // Load today's already-persisted totals from SQLite so a restart continues correctly
+                    let (seed_rx, seed_tx) = load_today_totals();
+                    let (seed_week_rx, seed_week_tx) = load_history_totals(7);
+                    let (seed_month_rx, seed_month_tx) = load_history_totals(30);
+                    let (seed_all_rx, seed_all_tx) = load_history_totals(3650);
 
-                tick_count += 1;
+                    let mut today_rx_mb: f64 = seed_rx;
+                    let mut today_tx_mb: f64 = seed_tx;
+                    let mut week_rx_mb: f64 = seed_week_rx;
+                    let mut week_tx_mb: f64 = seed_week_tx;
+                    let mut month_rx_mb: f64 = seed_month_rx;
+                    let mut month_tx_mb: f64 = seed_month_tx;
+                    let mut all_rx_mb: f64 = seed_all_rx;
+                    let mut all_tx_mb: f64 = seed_all_tx;
+                    let mut session_rx_mb: f64 = 0.0;
+                    let mut session_tx_mb: f64 = 0.0;
+                    // Unflushed MB accumulated since last DB write
+                    let mut pending_rx_mb: f64 = 0.0;
+                    let mut pending_tx_mb: f64 = 0.0;
+                    let mut tick_count: u64 = 0;
+                    // Track the local date for midnight rollover, using the same clock the
+                    // daily_totals rows are keyed by so the two can never disagree.
+                    let mut current_date = local_date_string();
 
-                // Flush to SQLite every 15 ticks (~15 s) — crash costs at most 15 s of data
-                if tick_count % 15 == 0 {
-                    if pending_rx_mb > 0.0 || pending_tx_mb > 0.0 {
-                        record_usage_to_db(pending_rx_mb, pending_tx_mb);
-                        pending_rx_mb = 0.0;
-                        pending_tx_mb = 0.0;
-                    }
-                    if !pending_app_mb.is_empty() {
-                        record_batch_app_usage_to_db(&pending_app_mb);
-                        pending_app_mb.clear();
-                    }
-                }
+                    let mut last_tick = Instant::now();
 
-                let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
-                    paused.clone()
-                } else {
-                    std::collections::HashSet::new()
-                };
+                    // Track cumulative MB transferred by each process key, seeded from SQLite today totals
+                    let mut process_accumulated_mb: std::collections::HashMap<String, f64> =
+                        load_today_app_totals();
+                    // Track pending per-app usage to flush periodically in batch
+                    let mut pending_app_mb: std::collections::HashMap<
+                        String,
+                        (String, String, f64, f64),
+                    > = std::collections::HashMap::new();
 
-                let mut candidates = Vec::new();
-                let mut total_weight = 0.0;
+                    loop {
+                        let tick_start = Instant::now();
 
-                // Group candidate processes and calculate weights for estimated share
-                for (pid, process) in sys.processes() {
-                    let pid_u32 = pid.as_u32();
-                    let process_sockets = pid_connections.get(&pid_u32).cloned().unwrap_or_default();
-                    let conn_count = process_sockets.len() as u32;
+                        // Cheaper: refresh only processes we care about (cpu, mem, exe)
+                        sys.refresh_processes_specifics(
+                            ProcessRefreshKind::new()
+                                .with_cpu()
+                                .with_memory()
+                                .with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+                        );
+                        // refresh_list() detects new/removed adapters (e.g. hotspot reconnect)
+                        networks.refresh_list();
+                        let connections = get_active_connections();
 
-                    if conn_count > 0 || process.name().eq_ignore_ascii_case("chrome.exe") || process.name().eq_ignore_ascii_case("msedge.exe") || process.name().eq_ignore_ascii_case("firefox.exe") {
-                        let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
-                        let is_paused = paused_list.contains(&exe_path);
+                        // Real elapsed time since last tick for accurate KB/s
+                        let elapsed_secs = last_tick.elapsed().as_secs_f64().max(0.01);
+                        last_tick = Instant::now();
 
-                        let weight = if is_paused {
-                            0.0
+                        // Group connections by PID
+                        let mut pid_connections: std::collections::HashMap<
+                            u32,
+                            Vec<ConnectionInfo>,
+                        > = std::collections::HashMap::new();
+                        for conn in &connections {
+                            pid_connections
+                                .entry(conn.pid)
+                                .or_insert_with(Vec::new)
+                                .push(conn.clone());
+                        }
+
+                        // Calculate physical network adapter delta bytes
+                        let mut total_rx_delta = 0u64;
+                        let mut total_tx_delta = 0u64;
+
+                        for (name, network) in &networks {
+                            let name_lower = name.to_lowercase();
+                            // Skip ALL virtual, loopback, and tunnel adapters.
+                            // Only count genuine physical interfaces (Wi-Fi, Ethernet, WWAN/LTE).
+                            if name_lower.contains("loopback")
+                                || name_lower == "lo"
+                                || name_lower.starts_with("vethernet")
+                                || name_lower.starts_with("veth")
+                                || name_lower.contains("hyper-v")
+                                || name_lower.contains("hyperv")
+                                || name_lower.contains("virtual")
+                                || name_lower.contains("vmware")
+                                || name_lower.contains("vmnet")
+                                || name_lower.contains("virtualbox")
+                                || name_lower.contains("vbox")
+                                || name_lower.contains("tap")
+                                || name_lower.contains("tun")
+                                || name_lower.contains("wsl")
+                                || name_lower.contains("docker")
+                                || name_lower.contains("vpn")
+                                || name_lower.contains("wireguard")
+                                || name_lower.contains("nordvpn")
+                                || name_lower.contains("expressvpn")
+                                || name_lower.contains("isatap")
+                                || name_lower.contains("teredo")
+                                || name_lower.contains("6to4")
+                            {
+                                continue;
+                            }
+
+                            let current_rx = network.total_received();
+                            let current_tx = network.total_transmitted();
+
+                            if let Some(&(prev_rx, prev_tx)) = prev_net_data.get(name) {
+                                // New adapter (first time seen) has no prev entry — skip to avoid spike
+                                if current_rx >= prev_rx {
+                                    total_rx_delta += current_rx - prev_rx;
+                                }
+                                if current_tx >= prev_tx {
+                                    total_tx_delta += current_tx - prev_tx;
+                                }
+                            }
+                            // Always update, even for new adapters (will contribute from next tick)
+                            prev_net_data.insert(name.clone(), (current_rx, current_tx));
+                        }
+
+                        // Convert to KB/s using REAL elapsed time, not assumed 1 s
+                        let rx_kbps = (total_rx_delta as f64 / 1024.0) / elapsed_secs;
+                        let tx_kbps = (total_tx_delta as f64 / 1024.0) / elapsed_secs;
+                        let tick_rx_mb = total_rx_delta as f64 / (1024.0 * 1024.0);
+                        let tick_tx_mb = total_tx_delta as f64 / (1024.0 * 1024.0);
+
+                        // --- Local midnight rollover check ---
+                        let now_day = local_date_string();
+                        if !now_day.is_empty() && now_day != current_date {
+                            // Flush pending before resetting
+                            if pending_rx_mb > 0.0 || pending_tx_mb > 0.0 {
+                                record_usage_to_db(pending_rx_mb, pending_tx_mb);
+                                pending_rx_mb = 0.0;
+                                pending_tx_mb = 0.0;
+                            }
+                            if !pending_app_mb.is_empty() {
+                                record_batch_app_usage_to_db(&pending_app_mb);
+                                pending_app_mb.clear();
+                            }
+                            process_accumulated_mb.clear();
+                            today_rx_mb = 0.0;
+                            today_tx_mb = 0.0;
+                            current_date = now_day;
+                        }
+
+                        // Accumulate this tick's bytes
+                        today_rx_mb += tick_rx_mb;
+                        today_tx_mb += tick_tx_mb;
+                        week_rx_mb += tick_rx_mb;
+                        week_tx_mb += tick_tx_mb;
+                        month_rx_mb += tick_rx_mb;
+                        month_tx_mb += tick_tx_mb;
+                        all_rx_mb += tick_rx_mb;
+                        all_tx_mb += tick_tx_mb;
+                        session_rx_mb += tick_rx_mb;
+                        session_tx_mb += tick_tx_mb;
+                        pending_rx_mb += tick_rx_mb;
+                        pending_tx_mb += tick_tx_mb;
+
+                        tick_count += 1;
+
+                        // Flush to SQLite every 15 ticks (~15 s) — crash costs at most 15 s of data
+                        if tick_count % 15 == 0 {
+                            if pending_rx_mb > 0.0 || pending_tx_mb > 0.0 {
+                                record_usage_to_db(pending_rx_mb, pending_tx_mb);
+                                pending_rx_mb = 0.0;
+                                pending_tx_mb = 0.0;
+                            }
+                            if !pending_app_mb.is_empty() {
+                                record_batch_app_usage_to_db(&pending_app_mb);
+                                pending_app_mb.clear();
+                            }
+                        }
+
+                        let paused_list = if let Ok(paused) = PAUSED_PROCESSES.lock() {
+                            paused.clone()
                         } else {
-                            (conn_count as f64 * 3.0) + (process.cpu_usage() as f64 * 1.5) + 0.1
+                            std::collections::HashSet::new()
                         };
 
-                        total_weight += weight;
-                        candidates.push((pid_u32, process, exe_path, is_paused, process_sockets, conn_count, weight));
+                        let mut candidates = Vec::new();
+                        let mut total_weight = 0.0;
+
+                        // Group candidate processes and calculate weights for estimated share
+                        for (pid, process) in sys.processes() {
+                            let pid_u32 = pid.as_u32();
+                            let process_sockets =
+                                pid_connections.get(&pid_u32).cloned().unwrap_or_default();
+                            let conn_count = process_sockets.len() as u32;
+
+                            if conn_count > 0
+                                || process.name().eq_ignore_ascii_case("chrome.exe")
+                                || process.name().eq_ignore_ascii_case("msedge.exe")
+                                || process.name().eq_ignore_ascii_case("firefox.exe")
+                            {
+                                let exe_path = process
+                                    .exe()
+                                    .map(|p| p.to_string_lossy().to_string())
+                                    .unwrap_or_default();
+                                let is_paused = paused_list.contains(&exe_path);
+
+                                let weight = if is_paused {
+                                    0.0
+                                } else {
+                                    (conn_count as f64 * 3.0)
+                                        + (process.cpu_usage() as f64 * 1.5)
+                                        + 0.1
+                                };
+
+                                total_weight += weight;
+                                candidates.push((
+                                    pid_u32,
+                                    process,
+                                    exe_path,
+                                    is_paused,
+                                    process_sockets,
+                                    conn_count,
+                                    weight,
+                                ));
+                            }
+                        }
+
+                        let mut process_data = Vec::new();
+                        for (
+                            pid_u32,
+                            process,
+                            exe_path,
+                            is_paused,
+                            process_sockets,
+                            conn_count,
+                            weight,
+                        ) in candidates
+                        {
+                            let (inbound_rate, outbound_rate) = if total_weight > 0.0 {
+                                let share = weight / total_weight;
+                                (rx_kbps * share, tx_kbps * share)
+                            } else {
+                                (0.0, 0.0)
+                            };
+
+                            let proc_name = process.name().to_string();
+                            let proc_key = if !exe_path.is_empty() {
+                                exe_path.clone()
+                            } else {
+                                proc_name.clone()
+                            };
+
+                            // Accumulate MB for this process based on throughput & tick duration
+                            let proc_rx_mb = (inbound_rate * elapsed_secs) / 1024.0;
+                            let proc_tx_mb = (outbound_rate * elapsed_secs) / 1024.0;
+                            let tick_proc_mb = proc_rx_mb + proc_tx_mb;
+                            let accum_entry = process_accumulated_mb
+                                .entry(proc_key.clone())
+                                .or_insert(0.0);
+                            *accum_entry += tick_proc_mb;
+                            let total_data_mb = *accum_entry;
+
+                            if tick_proc_mb > 0.00001 {
+                                let entry =
+                                    pending_app_mb.entry(proc_key.clone()).or_insert_with(|| {
+                                        (proc_name.clone(), exe_path.clone(), 0.0, 0.0)
+                                    });
+                                entry.2 += proc_rx_mb;
+                                entry.3 += proc_tx_mb;
+                            }
+
+                            let mem_mb = process.memory() / (1024 * 1024);
+                            let app_icon = get_cached_icon(&exe_path);
+
+                            process_data.push(ProcessNetworkData {
+                                pid: pid_u32,
+                                name: proc_name,
+                                exe_path,
+                                icon: app_icon,
+                                inbound_rate: (inbound_rate * 10.0).round() / 10.0,
+                                outbound_rate: (outbound_rate * 10.0).round() / 10.0,
+                                cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
+                                memory_usage: mem_mb,
+                                total_data_mb: (total_data_mb * 100.0).round() / 100.0,
+                                connections_count: conn_count,
+                                is_paused,
+                                sockets: process_sockets,
+                            });
+                        }
+
+                        // Sort by combined throughput descending
+                        process_data.sort_by(|a, b| {
+                            let total_a = a.inbound_rate + a.outbound_rate;
+                            let total_b = b.inbound_rate + b.outbound_rate;
+                            total_b
+                                .partial_cmp(&total_a)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+
+                        // Report the interval the rates were actually divided by (previous adapter
+                        // read -> this one). tick_start.elapsed() would be work time only, and would
+                        // under-report the real sampling gap by however long the loop slept.
+                        let interval_ms = (elapsed_secs * 1000.0).round() as u64;
+
+                        // Emit combined payload — all totals are absolute; React assigns, never accumulates
+                        let _ = app_handle.emit(
+                            "network-data",
+                            NetworkDataPayload {
+                                processes: process_data,
+                                system: SystemTelemetry {
+                                    rx_rate_kbps: (rx_kbps * 10.0).round() / 10.0,
+                                    tx_rate_kbps: (tx_kbps * 10.0).round() / 10.0,
+                                    interval_ms,
+                                    session_rx_mb: (session_rx_mb * 1000.0).round() / 1000.0,
+                                    session_tx_mb: (session_tx_mb * 1000.0).round() / 1000.0,
+                                    today_rx_mb: (today_rx_mb * 1000.0).round() / 1000.0,
+                                    today_tx_mb: (today_tx_mb * 1000.0).round() / 1000.0,
+                                    week_rx_mb: (week_rx_mb * 1000.0).round() / 1000.0,
+                                    week_tx_mb: (week_tx_mb * 1000.0).round() / 1000.0,
+                                    month_rx_mb: (month_rx_mb * 1000.0).round() / 1000.0,
+                                    month_tx_mb: (month_tx_mb * 1000.0).round() / 1000.0,
+                                    all_rx_mb: (all_rx_mb * 1000.0).round() / 1000.0,
+                                    all_tx_mb: (all_tx_mb * 1000.0).round() / 1000.0,
+                                },
+                            },
+                        );
+
+                        // Target 1 s period — subtract work time so the loop doesn't drift
+                        let work_ms = tick_start.elapsed().as_millis() as u64;
+                        let sleep_ms = 1000u64.saturating_sub(work_ms);
+                        std::thread::sleep(Duration::from_millis(sleep_ms));
                     }
-                }
-
-                let mut process_data = Vec::new();
-                for (pid_u32, process, exe_path, is_paused, process_sockets, conn_count, weight) in candidates {
-                    let (inbound_rate, outbound_rate) = if total_weight > 0.0 {
-                        let share = weight / total_weight;
-                        (rx_kbps * share, tx_kbps * share)
-                    } else {
-                        (0.0, 0.0)
-                    };
-
-                    let proc_name = process.name().to_string();
-                    let proc_key = if !exe_path.is_empty() { exe_path.clone() } else { proc_name.clone() };
-                    
-                    // Accumulate MB for this process based on throughput & tick duration
-                    let proc_rx_mb = (inbound_rate * elapsed_secs) / 1024.0;
-                    let proc_tx_mb = (outbound_rate * elapsed_secs) / 1024.0;
-                    let tick_proc_mb = proc_rx_mb + proc_tx_mb;
-                    let accum_entry = process_accumulated_mb.entry(proc_key.clone()).or_insert(0.0);
-                    *accum_entry += tick_proc_mb;
-                    let total_data_mb = *accum_entry;
-
-                    if tick_proc_mb > 0.00001 {
-                        let entry = pending_app_mb.entry(proc_key.clone()).or_insert_with(|| (proc_name.clone(), exe_path.clone(), 0.0, 0.0));
-                        entry.2 += proc_rx_mb;
-                        entry.3 += proc_tx_mb;
-                    }
-
-                    let mem_mb = process.memory() / (1024 * 1024);
-                    let app_icon = get_cached_icon(&exe_path);
-
-                    process_data.push(ProcessNetworkData {
-                        pid: pid_u32,
-                        name: proc_name,
-                        exe_path,
-                        icon: app_icon,
-                        inbound_rate: (inbound_rate * 10.0).round() / 10.0,
-                        outbound_rate: (outbound_rate * 10.0).round() / 10.0,
-                        cpu_usage: (process.cpu_usage() as f64 * 10.0).round() / 10.0,
-                        memory_usage: mem_mb,
-                        total_data_mb: (total_data_mb * 100.0).round() / 100.0,
-                        connections_count: conn_count,
-                        is_paused,
-                        sockets: process_sockets,
-                    });
-                }
-
-                // Sort by combined throughput descending
-                process_data.sort_by(|a, b| {
-                    let total_a = a.inbound_rate + a.outbound_rate;
-                    let total_b = b.inbound_rate + b.outbound_rate;
-                    total_b.partial_cmp(&total_a).unwrap_or(std::cmp::Ordering::Equal)
                 });
-
-                // Report the interval the rates were actually divided by (previous adapter
-                // read -> this one). tick_start.elapsed() would be work time only, and would
-                // under-report the real sampling gap by however long the loop slept.
-                let interval_ms = (elapsed_secs * 1000.0).round() as u64;
-
-                // Emit combined payload — all totals are absolute; React assigns, never accumulates
-                let _ = app_handle.emit("network-data", NetworkDataPayload {
-                    processes: process_data,
-                    system: SystemTelemetry {
-                        rx_rate_kbps: (rx_kbps * 10.0).round() / 10.0,
-                        tx_rate_kbps: (tx_kbps * 10.0).round() / 10.0,
-                        interval_ms,
-                        session_rx_mb: (session_rx_mb * 1000.0).round() / 1000.0,
-                        session_tx_mb: (session_tx_mb * 1000.0).round() / 1000.0,
-                        today_rx_mb: (today_rx_mb * 1000.0).round() / 1000.0,
-                        today_tx_mb: (today_tx_mb * 1000.0).round() / 1000.0,
-                        week_rx_mb: (week_rx_mb * 1000.0).round() / 1000.0,
-                        week_tx_mb: (week_tx_mb * 1000.0).round() / 1000.0,
-                        month_rx_mb: (month_rx_mb * 1000.0).round() / 1000.0,
-                        month_tx_mb: (month_tx_mb * 1000.0).round() / 1000.0,
-                    },
-                });
-
-                // Target 1 s period — subtract work time so the loop doesn't drift
-                let work_ms = tick_start.elapsed().as_millis() as u64;
-                let sleep_ms = 1000u64.saturating_sub(work_ms);
-                std::thread::sleep(Duration::from_millis(sleep_ms));
             }
-        });
-      }
-      
-      println!("NetSentry: Setup completed successfully.");
-      Ok(())
-    })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+
+            println!("NetSentry: Setup completed successfully.");
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

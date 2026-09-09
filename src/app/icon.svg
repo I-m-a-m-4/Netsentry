@@ -1,8 +1,19 @@
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="7" fill="#f97316" />
-  <path d="M6 24 A 12 12 0 1 1 26 24" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 5" opacity="0.4" />
-  <path d="M6 24 A 12 12 0 0 1 22 6" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="1" />
-  <circle cx="16" cy="15" r="3" fill="#ffffff" />
-  <path d="M16 15 L24 7" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
-  <path d="M26 24 L29 24" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.6" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
+  <!-- Vibrant NetSentry Orange Background (Squircle) -->
+  <rect width="1024" height="1024" rx="220" fill="#f97316" />
+  
+  <!-- Gauge Track (Dotted background meter) -->
+  <path d="M192 768 A 384 384 0 1 1 832 768" stroke="#ffffff" stroke-width="88" stroke-linecap="round" stroke-dasharray="24 136" opacity="0.35" />
+  
+  <!-- Active Usage Gauge Arc -->
+  <path d="M192 768 A 384 384 0 0 1 704 192" stroke="#ffffff" stroke-width="88" stroke-linecap="round" opacity="1" />
+  
+  <!-- Center Dial Hub -->
+  <circle cx="512" cy="480" r="92" fill="#ffffff" />
+  
+  <!-- Needle pointing to live data usage -->
+  <path d="M512 480 L768 224" stroke="#ffffff" stroke-width="76" stroke-linecap="round" />
+  
+  <!-- Bandwidth Limit / Lock End Marker -->
+  <path d="M832 768 L928 768" stroke="#ffffff" stroke-width="88" stroke-linecap="round" opacity="0.6" />
 </svg>

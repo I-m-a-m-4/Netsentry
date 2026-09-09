@@ -38,12 +38,9 @@ export const metadata: Metadata = {
  title: 'NetSentry - Windows Data Saver & Bandwidth Monitor',
  description: 'Track live internet speeds, monitor app data usage, set daily limits, and save mobile data on Windows.',
  icons: {
- icon: [
- { url: '/icon.png', sizes: 'any' },
- { url: '/favicon.ico', sizes: 'any' },
- ],
- shortcut: '/favicon.ico',
- apple: '/icon.png',
+ icon: '/icon.svg',
+ shortcut: '/icon.svg',
+ apple: '/icon.svg',
  }
 };
 
