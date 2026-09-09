@@ -13,7 +13,7 @@ export interface ClientTelemetryPayload {
   activeProcesses: number;
   isMetered: boolean;
   isWwan: boolean;
-  isDataSaverMode: boolean;
+  isDataSaverMode?: boolean;
   isFocusMode?: boolean;
   osName?: string;
   osVersion?: string;
