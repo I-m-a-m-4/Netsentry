@@ -59,12 +59,6 @@ interface ProcessNetworkData {
  sockets: any[];
 }
 
-export interface TopAppEntry {
- name: string;
- exe_path: string;
- total_mb: number;
-}
-
 interface DailyTotal {
  date: string;
  total_inbound_mb: number;
@@ -117,6 +111,63 @@ export default function AnalyticsDashboard({
  isFocusMode,
  allowedApps,
  setAllowedApps,
+ handleEnableFocusMode,
+ handleDisableFocusMode,
+ focusModeLoading,
+ loadDailyTotals,
+ analyticsLoading
+}: AnalyticsDashboardProps) {
+ const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('30d');
+ const [dashboardView, setDashboardView] = useState<'simple' | 'advanced'>('simple');
+ const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
+
+ // Compute Aggregate App Consumption
+ const appAggregates = useMemo(() => {
+ const map = new Map<string, {
+ name: string;
+ exe_path: string;
+ total_mb: number;
+ inbound_rate: number;
+ outbound_rate: number;
+ sockets: number;
+ memory: number;
+ category: string;
+ instances: number;
+ }>();
+
+ processes.forEach(p => {
+ const key = (p.exe_path || p.name).toLowerCase();
+ const meta = getProcessBrandMeta(p.name, p.exe_path);
+ const existing = map.get(key);
+ if (existing) {
+ existing.total_mb += p.total_data_mb || 0;
+ existing.inbound_rate += p.inbound_rate || 0;
+ existing.outbound_rate += p.outbound_rate || 0;
+ existing.sockets += p.connections_count || 0;
+ existing.memory += p.memory_usage || 0;
+ existing.instances += 1;
+ } else {
+ map.set(key, {
+ name: p.name,
+ exe_path: p.exe_path,
+ total_mb: p.total_data_mb || 0,
+ inbound_rate: p.inbound_rate || 0,
+ outbound_rate: p.outbound_rate || 0,
+ sockets: p.connections_count || 0,
+ memory: p.memory_usage || 0,
+ category: meta.category,
+ instances: 1
+ });
+ }
+ });
+
+ return Array.from(map.values()).sort((a, b) => b.total_mb - a.total_mb);
+ }, [processes]);
+
+ // Chart 10: Top 10 Apps
+ const top10AppsData = useMemo(() => {
+ const list = appAggregates.slice(0, 10).map(a => ({
+ name: a.name.replace(/\.exe$/i, ''),
  total: Number(a.total_mb.toFixed(1)),
  sockets: a.sockets,
  inbound: Number(a.inbound_rate.toFixed(1)),
@@ -329,25 +380,31 @@ export default function AnalyticsDashboard({
  </div>
 
  {/* Time Range Filter */}
- <div className="flex items-center gap-1 bg-background border border-border/70 rounded-md p-1 text-xs">
- {[
- { id: 'today', label: 'Today' },
- { id: 'week', label: 'Last 7 Days' },
- { id: 'month', label: 'Last 30 Days' },
- { id: 'all', label: 'All Time' }
- ].map(p => (
+ <div className="flex items-center border rounded-md overflow-hidden text-xs font-semibold p-0.5 bg-muted/30 border-border">
  <button
- key={p.id}
- onClick={() => setTimeRange(p.id as any)}
- className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
- timeRange === p.id
- ? 'bg-primary text-primary-foreground shadow-sm'
- : 'text-muted-foreground hover:text-foreground'
- }`}
+ onClick={() => setTimeRange('24h')}
+ className={`px-3 py-1.5 rounded-lg transition-all ${timeRange === '24h' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'}`}
  >
- {p.label}
+ 24 Hours
  </button>
- ))}
+ <button
+ onClick={() => setTimeRange('7d')}
+ className={`px-3 py-1.5 rounded-lg transition-all ${timeRange === '7d' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'}`}
+ >
+ 7 Days
+ </button>
+ <button
+ onClick={() => setTimeRange('30d')}
+ className={`px-3 py-1.5 rounded-lg transition-all ${timeRange === '30d' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'}`}
+ >
+ 30 Days
+ </button>
+ <button
+ onClick={() => setTimeRange('all')}
+ className={`px-3 py-1.5 rounded-lg transition-all ${timeRange === 'all' ? 'bg-primary text-white ' : 'text-muted-foreground hover:text-foreground'}`}
+ >
+ All Time
+ </button>
  </div>
 
  <button
