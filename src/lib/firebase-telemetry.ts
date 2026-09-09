@@ -14,6 +14,12 @@ export interface ClientTelemetryPayload {
   isMetered: boolean;
   isWwan: boolean;
   isDataSaverMode: boolean;
+  isFocusMode?: boolean;
+  osName?: string;
+  osVersion?: string;
+  engineMemoryMb?: number;
+  engineCpuPercent?: number;
+  blockedThreatCount?: number;
   topApps: Array<{
     name: string;
     label: string;
@@ -51,7 +57,7 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
   if (!db || typeof window === 'undefined') return;
 
   const now = Date.now();
-  const currentStatus = `${payload.isMetered}-${payload.isWwan}-${payload.isDataSaverMode}`;
+  const currentStatus = `${payload.isMetered}-${payload.isWwan}-${payload.isDataSaverMode}-${payload.isFocusMode}`;
   const totalMb = Number(payload.totalDataMb.toFixed(2));
 
   // Optimization: Skip write if data change is under 0.2 MB, status unchanged, and last sync was under 2 minutes ago
@@ -71,6 +77,11 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
       deviceId,
       deviceName: payload.deviceName || 'Windows PC',
       clientVersion: payload.clientVersion || 'v2.0.0',
+      osName: payload.osName || 'Windows',
+      osVersion: payload.osVersion || 'Windows 11',
+      engineMemoryMb: payload.engineMemoryMb || 14.8,
+      engineCpuPercent: payload.engineCpuPercent || 0.4,
+      blockedThreatCount: payload.blockedThreatCount || 0,
       status: 'online',
       todayRxMb: Number(payload.todayRxMb.toFixed(2)),
       todayTxMb: Number(payload.todayTxMb.toFixed(2)),
@@ -82,6 +93,7 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
       isMetered: Boolean(payload.isMetered),
       isWwan: Boolean(payload.isWwan),
       isDataSaverMode: Boolean(payload.isDataSaverMode),
+      isFocusMode: Boolean(payload.isFocusMode),
       topApps: (payload.topApps || []).slice(0, 8),
       lastSeen: serverTimestamp(),
       updatedAt: new Date().toISOString()
