@@ -60,6 +60,7 @@ import { AppIcon, getProcessBrandMeta, SYSTEM_PROCESS_NAMES } from '@/components
 import AnalyticsDashboard from '@/components/desktop/analytics-dashboard';
 import AppDetailsDialog from '@/components/desktop/app-details-dialog';
 import AnnouncementPopup from '@/components/desktop/announcement-popup';
+import SmartDataSaverModal from '@/components/desktop/smart-data-saver-modal';
 import { syncClientTelemetryToFirebase, logSecurityEventToFirebase } from '@/lib/firebase-telemetry';
 
 interface ConnectionInfo {
@@ -209,6 +210,7 @@ export default function NetSentryDashboard() {
  // New features
  const [autoCutoffEnabled, setAutoCutoffEnabled] = useState<boolean>(false);
  const [smartProfilesEnabled, setSmartProfilesEnabled] = useState<boolean>(false);
+ const [isSmartDataSaverModalOpen, setIsSmartDataSaverModalOpen] = useState<boolean>(false);
 
  const toggleGroupExpand = (key: string) => {
  setExpandedGroups(prev => {
@@ -901,22 +903,32 @@ export default function NetSentryDashboard() {
   )}
   
   {/* Smart Profiles Toggle */}
-  <label 
-  className="flex items-center gap-2 cursor-pointer ml-2"
-  title="Smart Data Saver: Automatically pauses background apps when on a phone hotspot or limited mobile data, and restores them on Home Wi-Fi."
-  >
-  <div className="relative">
-  <input 
-  type="checkbox" 
-  className="sr-only" 
-  checked={smartProfilesEnabled}
-  onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
-  />
-  <div className={`block w-8 h-5 rounded-md transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
-  <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-md transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
+  <div className="flex items-center gap-1.5 ml-2">
+    <label 
+      className="flex items-center gap-2 cursor-pointer"
+      title="Smart Data Saver: Automatically pauses background apps when on a phone hotspot or limited mobile data, and restores them on Home Wi-Fi."
+    >
+      <div className="relative">
+        <input 
+          type="checkbox" 
+          className="sr-only" 
+          checked={smartProfilesEnabled}
+          onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
+        />
+        <div className={`block w-8 h-5 rounded-md transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
+        <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-md transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
+      </div>
+      <span className="text-[10px] font-semibold text-muted-foreground uppercase">Smart Data Saver</span>
+    </label>
+    <button
+      type="button"
+      onClick={() => setIsSmartDataSaverModalOpen(true)}
+      className="text-[11px] text-primary hover:underline font-bold px-1 rounded hover:bg-primary/10 transition-colors"
+      title="Click to learn what Smart Data Saver does"
+    >
+      ⓘ
+    </button>
   </div>
-  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Smart Data Saver</span>
-  </label>
   </div>
   </div>
 
@@ -1846,6 +1858,201 @@ export default function NetSentryDashboard() {
  onOpenFileLocation={handleOpenFileLocation}
  volumeUnit={volumeUnit}
  />
+ <span>{proc.connections_count} Active Connections</span>
+ </span>
+ <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : 'Running'}</span>
+ </div>
+ </div>
+
+ {/* Expanded Sub-Processes Drawer */}
+ {isExpanded && proc.instances.length > 1 && (
+ <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5 max-h-40 overflow-y-auto font-mono text-[10px]">
+ <div className="text-muted-foreground font-semibold uppercase text-[9px]">Sub-Tasks ({proc.instances.length})</div>
+ {proc.instances.map(inst => (
+ <div key={inst.pid} className="flex items-center justify-between p-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+ <span>Task #{inst.pid}</span>
+ <span className="text-primary">{formatVolume(inst.total_data_mb, volumeUnit)}</span>
+ <span className="text-emerald-500">{formatRate(inst.inbound_rate)}</span>
+ <button
+ onClick={(e) => {
+ e.stopPropagation();
+ handleKillProcess(inst);
+ }}
+ className="text-slate-400 hover:text-red-500 p-1"
+ title="Close Task"
+ >
+ <Trash2 className="w-3 h-3" />
+ </button>
+ </div>
+ ))}
+ </div>
+ )}
+
+ {/* Card Actions Footer */}
+ <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+ <div className="flex items-center space-x-1.5">
+ <button
+ onClick={(e) => {
+ e.stopPropagation();
+ handleOpenFileLocation(proc);
+ }}
+ className={`p-2 rounded-md border transition-all cursor-pointer ${
+ isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+ }`}
+ title="Open Executable Location"
+ >
+ <FolderOpen className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+ </button>
+ <button
+ onClick={(e) => {
+ e.stopPropagation();
+ openInspector(proc);
+ }}
+ className={`p-2 rounded-md border transition-all cursor-pointer ${
+ isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+ }`}
+ title="Inspect Connections & History"
+ >
+ <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+ </button>
+ <button
+ onClick={(e) => {
+ e.stopPropagation();
+ handleKillProcess(proc);
+ }}
+ disabled={isKillLoading || tauriStatus !== 'connected'}
+ className={`p-2 rounded-md border transition-all cursor-pointer ${
+ isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+ } disabled:opacity-50`}
+ title="Close App"
+ >
+ <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+ </button>
+ </div>
+
+ {!brand.isSystem ? (
+ <button
+ onClick={(e) => {
+ e.stopPropagation();
+ handleTogglePause(proc);
+ }}
+ disabled={isToggleLoading || tauriStatus !== 'connected'}
+ className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-md text-xs font-semibold cursor-pointer border transition-all ${
+ proc.is_paused
+ ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
+ : 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20'
+ } disabled:opacity-50`}
+ >
+ {isToggleLoading ? (
+ <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+ ) : proc.is_paused ? (
+ <Play className="w-3.5 h-3.5" />
+ ) : (
+ <Pause className="w-3.5 h-3.5" />
+ )}
+ <span>{proc.is_paused ? 'Resume' : 'Pause Data'}</span>
+ </button>
+ ) : (
+ <div title="System critical processes cannot be paused" className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-md text-xs font-semibold border bg-slate-500/10 text-slate-500 border-slate-500/30 cursor-not-allowed">
+ <Shield className="w-3.5 h-3.5" />
+ <span>Protected</span>
+ </div>
+ )}
+ </div>
+ </div>
+ );
+ })
+ ) : (
+ <div className="col-span-full py-12 text-center text-slate-500 text-sm">
+ {tauriStatus === 'connected' 
+ ? 'No active desktop applications match your current filters.' 
+ : 'Please run NetSentry as a Windows Desktop application to monitor connections.'}
+ </div>
+ )}
+ </div>
+ )}
+ </div>
+ </>
+ ) : (
+ /* Logs Panel */
+ <div className={`${cardClass} space-y-4`}>
+ <div className="flex items-center justify-between border-b border-border/40 pb-4">
+ <div>
+ <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
+ <Terminal className="w-5 h-5 text-primary" />
+ <span>Activity & Protection Logs</span>
+ </h2>
+ <p className={`text-xs ${textMutedClass}`}>Recent actions and network alerts</p>
+ </div>
+ <button 
+ onClick={() => setSecurityLogs([])}
+ className={`text-xs px-3 py-1.5 border rounded-lg hover:bg-slate-900 transition-all ${
+ isDark ? 'border-slate-850 bg-slate-900 text-slate-300' : 'border-slate-200 bg-white text-slate-700'
+ }`}
+ >
+ Clear History
+ </button>
+ </div>
+ 
+ <div className="space-y-2 max-h-[500px] overflow-y-auto font-mono text-xs">
+ {securityLogs.length > 0 ? (
+ securityLogs.map((log, index) => (
+ <div 
+ key={index}
+ className={`flex items-start space-x-3 p-3 rounded-lg border ${
+ log.type === 'alert' 
+ ? 'bg-red-500/10 border-red-500/20 text-red-400' 
+ : log.type === 'warning'
+ ? 'bg-primary/10 border-primary/20 text-primary'
+ : isDark ? 'bg-slate-900/40 border-slate-855 text-slate-300' : 'bg-slate-100/60 border-slate-200 text-slate-700'
+ }`}
+ >
+ <span className="text-[10px] text-slate-500 mt-0.5">[{log.timestamp}]</span>
+ <span className="flex-1">{log.message}</span>
+ </div>
+ ))
+ ) : (
+ <div className="text-center text-slate-500 py-10">No log entries recorded in this session.</div>
+ )}
+ </div>
+ </div>
+ )}
+
+ {/* 21-Chart Comprehensive Analytics Intelligence Dashboard */}
+ {currentTab === 'analytics' && (
+ <AnalyticsDashboard
+ processes={processes}
+ system={system}
+ dailyTotals={dailyTotals}
+ liveChartData={chartData}
+ isDark={isDark}
+ tauriStatus={tauriStatus}
+ isFocusMode={isFocusMode}
+ allowedApps={allowedApps}
+ setAllowedApps={setAllowedApps}
+ handleEnableFocusMode={handleEnableFocusMode}
+ handleDisableFocusMode={handleDisableFocusMode}
+ focusModeLoading={focusModeLoading}
+ loadDailyTotals={loadDailyTotals}
+ analyticsLoading={analyticsLoading}
+ />
+ )}
+
+ </main>
+
+ {/* App Details & Historical Telemetry Inspector Modal */}
+ <AppDetailsDialog
+ isOpen={isInspectorOpen}
+ onClose={() => setIsInspectorOpen(false)}
+ process={selectedProcess}
+ isDark={isDark}
+ tauriStatus={tauriStatus}
+ actionLoading={actionLoading}
+ onTogglePause={handleTogglePause}
+ onKillProcess={handleKillProcess}
+ onOpenFileLocation={handleOpenFileLocation}
+ volumeUnit={volumeUnit}
+ />
 
  <footer className={`mt-auto border-t px-6 py-6 text-center text-xs ${borderClass} ${textMutedClass} ${isDark ? 'bg-slate-950' : 'bg-white '}`}>
  <p>© 2026 NetSentry. All rights reserved. Administrator privileges required for firewall adjustments.</p>
@@ -1853,6 +2060,9 @@ export default function NetSentryDashboard() {
 
  {/* Buy Me a Coffee / Donation Modal */}
  <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} />
+
+ {/* Smart Data Saver Info Modal */}
+ <SmartDataSaverModal open={isSmartDataSaverModalOpen} onOpenChange={setIsSmartDataSaverModalOpen} />
 
  {/* Admin Screen Broadcast Popup Listener */}
  <AnnouncementPopup />
