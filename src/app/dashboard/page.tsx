@@ -1850,14 +1850,14 @@ export default function NetSentryDashboard() {
  isOpen={isInspectorOpen}
  onClose={() => setIsInspectorOpen(false)}
  process={selectedProcess}
- isDark={isDark}
- tauriStatus={tauriStatus}
- actionLoading={actionLoading}
- onTogglePause={handleTogglePause}
- onKillProcess={handleKillProcess}
- onOpenFileLocation={handleOpenFileLocation}
- volumeUnit={volumeUnit}
- />
+<span className="font-bold text-primary">{formatRate(proc.outbound_rate)}</span>
+ </div>
+ </div>
+
+ {/* Concurrency & Connections */}
+ <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+ <span className="flex items-center gap-1">
+ <Radio className="w-3 h-3 text-sky-400" />
  <span>{proc.connections_count} Active Connections</span>
  </span>
  <span className="font-mono">{proc.memory_usage ? `${proc.memory_usage} MB RAM` : 'Running'}</span>
