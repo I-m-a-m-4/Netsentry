@@ -71,6 +71,15 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    match /broadcast_announcements/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /broadcast_announcements_history/{docId} {
+      allow read, write: if isSuperAdmin();
+    }
+
     match /job_applications/{appId} {
       allow create: if true;
       allow read, write: if isSuperAdmin();
