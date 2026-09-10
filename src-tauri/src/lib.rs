@@ -502,6 +502,10 @@ fn pause_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
         return Err("Cannot block network: executable path is missing".to_string());
     }
 
+    if is_protected_system_process(&name, &exe_path) {
+        return Err("Cannot block protected system or runtime executable".to_string());
+    }
+
     let rule_out = format!("NetSentry - Block - Out - {}", name);
     let rule_in = format!("NetSentry - Block - In - {}", name);
     let legacy_rule = format!("NetSentry - Block - {}", name);
@@ -686,6 +690,18 @@ fn open_file_location(exe_path: String) -> Result<bool, String> {
     Ok(true)
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<bool, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Invalid URL protocol".to_string());
+    }
+    let _ = create_cmd("cmd")
+        .args(&["/c", "start", "", &url])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct ConnectionStatus {
     pub is_metered: bool,
@@ -847,7 +863,23 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
     let name_lower = name.to_lowercase();
     let path_lower = exe_path.to_lowercase();
 
-    if name_lower == "netsentry.exe" || name_lower.contains("netsentry") {
+    // Never block NetSentry itself, Tauri's WebView2 process, or development runtimes
+    if name_lower == "netsentry.exe"
+        || name_lower.contains("netsentry")
+        || name_lower == "msedgewebview2.exe"
+        || name_lower.contains("webview")
+        || name_lower == "node.exe"
+        || name_lower == "cargo.exe"
+        || name_lower == "rustc.exe"
+        || name_lower == "tauri.exe"
+        || name_lower == "code.exe"
+        || name_lower == "git.exe"
+        || name_lower == "powershell.exe"
+        || name_lower == "pwsh.exe"
+        || name_lower == "cmd.exe"
+        || path_lower.contains("edgewebview")
+        || path_lower.contains("netsentry")
+    {
         return true;
     }
 
@@ -916,14 +948,31 @@ fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String
         }
     }
 
-    // 3. Scan active processes with sysinfo
+    // Common browsers & essential tools are safe in whitelist by default
+    normalized_whitelist.insert("chrome.exe".to_string());
+    normalized_whitelist.insert("msedge.exe".to_string());
+    normalized_whitelist.insert("firefox.exe".to_string());
+    normalized_whitelist.insert("brave.exe".to_string());
+    normalized_whitelist.insert("opera.exe".to_string());
+
+    // 3. Scan active processes and active socket connections
+    let active_connections = get_active_connections();
+    let connected_pids: std::collections::HashSet<u32> = active_connections.iter().map(|c| c.pid).collect();
+
     let mut sys = sysinfo::System::new();
     sys.refresh_processes_specifics(
         sysinfo::ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
     );
 
     let mut to_pause = Vec::new();
-    for (_pid, proc) in sys.processes() {
+    for (pid, proc) in sys.processes() {
+        let pid_u32 = pid.as_u32();
+        // Only target processes that actually have active network sockets
+        // to avoid stalling or locking down hundreds of idle Windows processes
+        if !connected_pids.contains(&pid_u32) {
+            continue;
+        }
+
         let name = proc.name().to_string();
         let exe_path = proc
             .exe()
@@ -948,15 +997,72 @@ fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String
         to_pause.push((exe_path, name));
     }
 
-    // 4. Pause non-whitelisted apps and record in FOCUS_MODE_PAUSED
-    if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
-        for (exe, name) in to_pause {
-            if !paused_set.contains(&(exe.clone(), name.clone())) {
-                let _ = pause_app_traffic(exe.clone(), name.clone());
-                paused_set.insert((exe, name));
-            }
+    // Deduplicate to_pause by lowercase exe_path
+    let mut seen_exes = std::collections::HashSet::new();
+    let mut unique_to_pause = Vec::new();
+    for item in to_pause {
+        if seen_exes.insert(item.0.to_lowercase()) {
+            unique_to_pause.push(item);
         }
     }
+
+    // Limit to at most 20 active background consumers to keep system smooth
+    unique_to_pause.truncate(20);
+
+    // 4. Update in-memory FOCUS_MODE_PAUSED set immediately so UI reflects state
+    let items_to_apply: Vec<(String, String)> = {
+        if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
+            let new_items: Vec<_> = unique_to_pause
+                .into_iter()
+                .filter(|item| !paused_set.contains(item))
+                .collect();
+            for item in &new_items {
+                paused_set.insert(item.clone());
+            }
+            new_items
+        } else {
+            Vec::new()
+        }
+    };
+
+    // Update PAUSED_PROCESSES for UI tracking
+    if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
+        for (exe, _) in &items_to_apply {
+            paused.insert(exe.clone());
+        }
+    }
+
+    // 5. Apply firewall rules asynchronously in background thread so UI & IPC NEVER freeze!
+    std::thread::spawn(move || {
+        for (exe, name) in items_to_apply {
+            let rule_out = format!("NetSentry - Block - Out - {}", name);
+            let rule_in = format!("NetSentry - Block - In - {}", name);
+
+            // Add block rules
+            let _ = run_firewall_command(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                &format!("name={}", rule_out),
+                "dir=out",
+                "action=block",
+                &format!("program={}", exe),
+                "enable=yes",
+            ]);
+            let _ = run_firewall_command(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                &format!("name={}", rule_in),
+                "dir=in",
+                "action=block",
+                &format!("program={}", exe),
+                "enable=yes",
+            ]);
+        }
+    });
 
     Ok(true)
 }
@@ -972,18 +1078,33 @@ fn disable_data_saver_mode() -> Result<bool, String> {
         "name=NetSentry-DataSaver-BlockAll",
     ]);
 
-    // 2. Resume all apps paused by Focus Mode
-    if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
-        for (exe, name) in paused_set.drain() {
-            let _ = resume_app_traffic(exe, name);
+    // 2. Drain FOCUS_MODE_PAUSED in memory immediately
+    let items_to_resume: Vec<(String, String)> = {
+        if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
+            paused_set.drain().collect()
+        } else {
+            Vec::new()
+        }
+    };
+
+    if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
+        for (exe, _) in &items_to_resume {
+            paused.remove(exe);
         }
     }
 
-    // 3. Clean up any leftover NetSentry-DataSaver-* rules
-    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
-    let _ = create_cmd("powershell")
-        .args(&["-Command", ps_cmd])
-        .output();
+    // 3. Resume apps asynchronously in background thread so UI is never blocked
+    std::thread::spawn(move || {
+        for (exe, name) in items_to_resume {
+            let _ = resume_app_traffic(exe, name);
+        }
+
+        // Clean up any leftover NetSentry-DataSaver-* rules
+        let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
+        let _ = create_cmd("powershell")
+            .args(&["-Command", ps_cmd])
+            .output();
+    });
 
     Ok(true)
 }
@@ -1178,6 +1299,7 @@ pub fn run() {
             emergency_clear_all_firewall_rules,
             kill_process,
             open_file_location,
+            open_external_url,
             is_metered_connection,
             get_daily_totals,
             get_app_history,

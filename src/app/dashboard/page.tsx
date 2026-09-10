@@ -86,12 +86,6 @@ export interface ProcessNetworkData {
  sockets: ConnectionInfo[];
 }
 
-interface LogEntry {
- timestamp: string;
- message: string;
- type: 'info' | 'warning' | 'alert';
-}
-
 /// System-wide telemetry measured at the physical adapters by the Rust backend.
 /// Every total here is ABSOLUTE — assign it, never accumulate it. Accumulating is
 /// what allowed a duplicated listener to inflate "Total Data Used" to ~180 MB.
@@ -189,12 +183,7 @@ export default function NetSentryDashboard() {
  const quotaRef = useRef<number>(1000);
  // Latches the quota alert so it fires on crossing, not once per tick.
  const alertedRef = useRef<boolean>(false);
- // PIDs already reported as suspicious, so each one is logged on transition only.
- const flaggedPidsRef = useRef<Set<number>>(new Set());
- const [securityLogs, setSecurityLogs] = useState<LogEntry[]>([
- { timestamp: new Date().toLocaleTimeString(), message: "NetSentry security engine initialized.", type: "info" }
- ]);
- const [currentTab, setCurrentTab] = useState<'monitor' | 'logs' | 'analytics'>('monitor');
+ const [currentTab, setCurrentTab] = useState<'monitor' | 'analytics'>('monitor');
  const [timeRangeFilter, setTimeRangeFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
  const [filterCategory, setFilterCategory] = useState<'all' | 'user' | 'system' | 'active' | 'paused'>('all');
  const [hideSystemNoise, setHideSystemNoise] = useState<boolean>(true);
@@ -237,7 +226,7 @@ export default function NetSentryDashboard() {
  setAnalyticsLoading(true);
  try {
  const { invoke } = await import('@tauri-apps/api/core');
- const totals = await invoke<DailyTotal[]>('get_daily_totals', { days: 30 });
+ const totals = await invoke<DailyTotal[]>('get_daily_totals', { days: 0 });
  setDailyTotals(totals.reverse()); // ascending for chart
  } catch (e) {
  console.error('Failed to load analytics', e);
@@ -288,15 +277,14 @@ export default function NetSentryDashboard() {
  }
  };
 
- const addLog = (message: string, type: 'info' | 'warning' | 'alert' = 'info') => {
- setSecurityLogs(prev => [
- { timestamp: new Date().toLocaleTimeString(), message, type },
- ...prev
- ].slice(0, 500));
- if (type === 'warning' || type === 'alert') {
- logSecurityEventToFirebase(message, type).catch(() => {});
- }
- };
+	const addLog = (message: string, type: 'info' | 'warning' | 'alert' = 'info') => {
+		if (process.env.NODE_ENV === 'development') {
+			console.log(`[NetSentry ${type.toUpperCase()}]`, message);
+		}
+		if (type === 'alert') {
+			logSecurityEventToFirebase(message, type).catch(() => {});
+		}
+	};
 
  	// Keep the ref in sync so the telemetry listener can read the current quota
 	// without needing to be re-registered when the limit changes.
@@ -424,25 +412,6 @@ export default function NetSentryDashboard() {
  } else {
  alertedRef.current = false;
  }
-
- // Threat audit: log a PID when it *becomes* suspicious. The previous version
- // re-logged every offending process on every tick, flooding the list once a second.
- const previouslyFlagged = flaggedPidsRef.current;
- const nowFlagged = new Set<number>();
- procs.forEach(p => {
- const suspicious =
- p.connections_count > 25 &&
- (p.cpu_usage || 0) > 50 &&
- p.name !== 'chrome.exe' &&
- p.name !== 'msedge.exe' &&
- p.name !== 'firefox.exe';
- if (!suspicious) return;
- nowFlagged.add(p.pid);
- if (!previouslyFlagged.has(p.pid)) {
- 					addLog(`Warning: Process ${p.name} (Task #${p.pid}) shows suspicious socket counts (${p.connections_count}) and high CPU usage (${p.cpu_usage}%).`, 'warning');
- }
- });
- flaggedPidsRef.current = nowFlagged;
 
  setChartData(prev => {
  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -801,16 +770,6 @@ export default function NetSentryDashboard() {
  Monitor Dashboard
  </button>
  <button 
- onClick={() => { setCurrentTab('logs'); }}
- className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
- currentTab === 'logs' 
- ? 'bg-primary text-white ' 
- : textMutedClass
- }`}
- >
- Security Logs ({securityLogs.length})
- </button>
- <button 
  onClick={() => { setCurrentTab('analytics'); loadDailyTotals(); }}
  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
  currentTab === 'analytics' 
@@ -868,7 +827,7 @@ export default function NetSentryDashboard() {
   {/* Main Body */}
   <main className="flex-1 w-full p-6 space-y-6">
 
- {currentTab === 'monitor' ? (
+ {currentTab === 'monitor' && (
  <>
   <div className="bg-card border border-border rounded-lg p-6 space-y-6">
   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
@@ -1104,11 +1063,15 @@ export default function NetSentryDashboard() {
 
   <div className="p-3.5 rounded-md border border-border bg-muted/10 space-y-1">
   <div className="flex items-center justify-between text-muted-foreground text-xs">
-  <span>Activity Logs</span>
-  <Eye className="w-3.5 h-3.5" />
+  <span>Connection Status</span>
+  <Globe className="w-3.5 h-3.5 text-primary" />
   </div>
-  <div className="text-xl font-bold text-foreground">{securityLogs.length}</div>
-  <p className="text-[10px] text-muted-foreground">Recorded network events</p>
+  <div className={`text-base font-bold truncate ${isWwan ? 'text-amber-500' : isMetered ? 'text-orange-500' : 'text-emerald-500'}`}>
+  {isWwan ? 'Mobile Hotspot' : isMetered ? 'Metered Data' : 'Standard Wi-Fi'}
+  </div>
+  <p className="text-[10px] text-muted-foreground truncate">
+  {isMetered ? 'Focus Mode active/advised' : 'Normal unmetered link'}
+  </p>
   </div>
   </div>
   </div>
@@ -1779,49 +1742,6 @@ export default function NetSentryDashboard() {
  )}
  </div>
  </>
- ) : (
- /* Logs Panel */
- <div className={`${cardClass} space-y-4`}>
- <div className="flex items-center justify-between border-b border-border/40 pb-4">
- <div>
- <h2 className="font-bricolage text-lg font-bold flex items-center space-x-2">
- <Terminal className="w-5 h-5 text-primary" />
- <span>Activity & Protection Logs</span>
- </h2>
- <p className={`text-xs ${textMutedClass}`}>Recent actions and network alerts</p>
- </div>
- <button 
- onClick={() => setSecurityLogs([])}
- className={`text-xs px-3 py-1.5 border rounded-lg hover:bg-slate-900 transition-all ${
- isDark ? 'border-slate-850 bg-slate-900 text-slate-300' : 'border-slate-200 bg-white text-slate-700'
- }`}
- >
- Clear History
- </button>
- </div>
- 
- <div className="space-y-2 max-h-[500px] overflow-y-auto font-mono text-xs">
- {securityLogs.length > 0 ? (
- securityLogs.map((log, index) => (
- <div 
- key={index}
- className={`flex items-start space-x-3 p-3 rounded-lg border ${
- log.type === 'alert' 
- ? 'bg-red-500/10 border-red-500/20 text-red-400' 
- : log.type === 'warning'
- ? 'bg-primary/10 border-primary/20 text-primary'
- : isDark ? 'bg-slate-900/40 border-slate-855 text-slate-300' : 'bg-slate-100/60 border-slate-200 text-slate-700'
- }`}
- >
- <span className="text-[10px] text-slate-500 mt-0.5">[{log.timestamp}]</span>
- <span className="flex-1">{log.message}</span>
- </div>
- ))
- ) : (
- <div className="text-center text-slate-500 py-10">No log entries recorded in this session.</div>
- )}
- </div>
- </div>
  )}
 
  {/* 21-Chart Comprehensive Analytics Intelligence Dashboard */}
@@ -1865,7 +1785,7 @@ export default function NetSentryDashboard() {
  </footer>
 
  {/* Buy Me a Coffee / Donation Modal */}
- <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} />
+ <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} isDark={isDark} />
 
  {/* Smart Data Saver Info Modal */}
  <SmartDataSaverModal open={isSmartDataSaverModalOpen} onOpenChange={setIsSmartDataSaverModalOpen} />

@@ -14,9 +14,7 @@ import {
   Pause, 
   Play, 
   RefreshCw, 
-  Calendar, 
-  Radio, 
-  Layers 
+  Calendar
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -81,7 +79,6 @@ export default function AppDetailsDialog({
   const [preset, setPreset]           = useState<HistoryPreset>('7d');
   const [historyData, setHistoryData] = useState<AppHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [activeTab, setActiveTab]     = useState<'overview' | 'sockets'>('overview');
 
   const procName = process?.name || 'Unknown Application';
   const exePath  = process?.exe_path || '';
@@ -176,8 +173,6 @@ export default function AppDetailsDialog({
   );
 
   if (!isOpen || !process) return null;
-
-  const sockets = process.sockets || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-in fade-in duration-200">
@@ -276,35 +271,10 @@ export default function AppDetailsDialog({
             <Trash2 className="w-3.5 h-3.5" />
             <span>Close App</span>
           </button>
-
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-md border border-border/50 ml-auto">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                activeTab === 'overview' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Usage & Analytics
-            </button>
-            <button
-              onClick={() => setActiveTab('sockets')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === 'sockets' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <span>Active Connections</span>
-              <span className="px-1.5 py-0.2 bg-primary/20 text-primary text-[10px] rounded-md font-bold">
-                {sockets.length}
-              </span>
-            </button>
-          </div>
         </div>
 
         {/* Main Content Area */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
-          {activeTab === 'overview' ? (
-            <>
               {/* Telemetry Metric KPI Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <div className={`p-4 rounded-lg border space-y-1.5 ${isDark ? 'border-slate-850 bg-slate-900/30' : 'border-slate-200/80 bg-slate-50/70'}`}>
@@ -503,93 +473,6 @@ export default function AppDetailsDialog({
                   </div>
                 )}
               </div>
-
-              {/* Running Process Instances breakdown */}
-              {pidsList.length > 1 && (
-                <div className={`p-4 rounded-lg border space-y-2.5 ${isDark ? 'border-slate-850 bg-slate-900/20' : 'border-slate-200/80 bg-slate-50/50'}`}>
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-primary" />
-                      Active Running Tasks ({pidsList.length})
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {pidsList.map((pid: number) => (
-                      <span 
-                        key={pid} 
-                        className={`font-mono text-xs px-2.5 py-1 rounded-lg border font-semibold ${
-                          isDark ? 'border-slate-800 bg-slate-900 text-slate-300' : 'border-slate-200 bg-white text-slate-700'
-                        }`}
-                      >
-                        Task #{pid}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            /* Active Sockets Table View */
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-bricolage text-sm font-bold flex items-center gap-2">
-                    <Radio className="w-4 h-4 text-primary" />
-                    Open Network Connections & Ports
-                  </h3>
-                  <p className="text-xs text-muted-foreground">Live network connections and remote servers for this app</p>
-                </div>
-                <span className="text-xs font-mono text-muted-foreground">{sockets.length} Connections Open</span>
-              </div>
-
-              {sockets.length > 0 ? (
-                <div className="border border-border/80 rounded-lg overflow-hidden ">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className={`border-b border-border/80 ${isDark ? 'bg-slate-900/60' : 'bg-slate-100/70'} text-muted-foreground uppercase tracking-wider font-semibold text-[10px]`}>
-                        <th className="px-4 py-3">Protocol</th>
-                        <th className="px-4 py-3">Local Address</th>
-                        <th className="px-4 py-3">Foreign Address</th>
-                        <th className="px-4 py-3 text-right">State</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/50 font-mono">
-                      {sockets.map((s: any, idx: number) => (
-                        <tr 
-                          key={idx} 
-                          className={`transition-colors ${isDark ? 'hover:bg-slate-900/40' : 'hover:bg-slate-50'}`}
-                        >
-                          <td className="px-4 py-2.5 font-bold">
-                            <span className={s.protocol === 'TCP' ? 'text-cyan-500' : 'text-amber-500'}>
-                              {s.protocol}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 text-muted-foreground">{s.local_address}</td>
-                          <td className="px-4 py-2.5 font-semibold text-foreground">{s.foreign_address}</td>
-                          <td className="px-4 py-2.5 text-right">
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                              s.state === 'ESTABLISHED' 
-                                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
-                                : s.state === 'LISTEN'
-                                ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-                                : 'bg-muted text-muted-foreground'
-                            }`}>
-                              {s.state}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="py-12 text-center text-muted-foreground text-xs space-y-2">
-                  <Zap className="w-6 h-6 mx-auto text-muted-foreground/30" />
-                  <p>No active network sockets currently open by this application.</p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
