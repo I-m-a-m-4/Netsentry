@@ -602,9 +602,9 @@ export default function LandingPage() {
                 </div>
                 <div className="flex flex-col gap-4">
                   <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A] uppercase mb-1 font-nunito">Support</h4>
-                  {['Contact', 'Privacy Policy', 'Terms of Use', 'GitHub'].map(l => (
-                    <a key={l} href="#" className="text-slate-600 hover:text-[#1A1A1A] transition-colors" style={{ fontSize: '15px' }}>{l}</a>
-                  ))}
+                  <a href="mailto:belloimam431@gmail.com" className="text-slate-600 hover:text-[#1A1A1A] transition-colors" style={{ fontSize: '15px' }}>Contact</a>
+                  <Link href="/privacy" className="text-slate-600 hover:text-[#1A1A1A] transition-colors" style={{ fontSize: '15px' }}>Privacy Policy</Link>
+                  <a href="https://github.com/I-m-a-m-4/Netsentry" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-[#1A1A1A] transition-colors" style={{ fontSize: '15px' }}>GitHub</a>
                 </div>
               </div>
             </div>
