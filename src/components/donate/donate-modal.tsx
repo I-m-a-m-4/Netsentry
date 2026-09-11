@@ -23,11 +23,7 @@ interface DonateModalProps {
 	isDark?: boolean;
 }
 
-const PRESET_TIERS = [
-	{ count: 1, label: '1 Coffee', amount: 2000, emoji: '☕' },
-	{ count: 3, label: '3 Coffees', amount: 5000, emoji: '☕☕', popular: true },
-	{ count: 5, label: 'Supporter', amount: 10000, emoji: '🚀' },
-];
+
 
 export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: DonateModalProps) {
 	const { toast } = useToast();
@@ -35,11 +31,8 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 	const isDark = propIsDark !== undefined ? propIsDark : resolvedTheme === 'dark';
 	const { initializePayment, isScriptLoaded } = usePaystack();
 
-	const [amount, setAmount] = useState<number>(5000);
-	const [customMode, setCustomMode] = useState<boolean>(false);
-	const [name, setName] = useState<string>('');
+	const [amount, setAmount] = useState<number | ''>('');
 	const [email, setEmail] = useState<string>('');
-	const [message, setMessage] = useState<string>('');
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 
 	if (!open) return null;
@@ -60,23 +53,17 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 	};
 
 	const handleDonate = async () => {
-		if (!amount || amount <= 0) {
+		if (!amount || amount < 100) {
 			toast({
 				title: 'Invalid Amount',
-				description: 'Please select or enter a donation amount greater than ₦0.',
+				description: 'Please enter a donation amount of at least ₦100.',
 				variant: 'destructive',
 			});
 			return;
 		}
 
-		if (!email || !email.includes('@')) {
-			toast({
-				title: 'Email Required',
-				description: 'Please enter a valid email address for your donation receipt.',
-				variant: 'destructive',
-			});
-			return;
-		}
+		// Paystack requires an email. If user leaves it blank, we use a fallback anonymous email.
+		const finalEmail = (email && email.includes('@')) ? email.trim() : 'anonymous@netsentry.app';
 
 		setIsLoading(true);
 
@@ -96,13 +83,11 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 		try {
 			initializePayment({
 				key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_cb1d65dd8c8fae496d3aa59eec7f0bb6a4db46f0',
-				email: email.trim(),
-				amount: Math.round(amount * 100), // Paystack uses kobo
+				email: finalEmail,
+				amount: Math.round(Number(amount) * 100), // Paystack uses kobo
 				currency: 'NGN',
 				metadata: {
 					custom_fields: [
-						{ display_name: "Supporter Name", variable_name: "supporter_name", value: name.trim() || "Anonymous Supporter" },
-						{ display_name: "Message", variable_name: "message", value: message.trim() },
 						{ display_name: "Platform", variable_name: "platform", value: isTauri ? "Windows Desktop App" : "Web Client" }
 					]
 				},
@@ -121,7 +106,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 		} catch (error: any) {
 			console.error('Payment checkout error:', error);
 			// Fallback to browser checkout
-			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&amount=${amount}&email=${encodeURIComponent(email)}`;
+			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&amount=${amount}&email=${encodeURIComponent(finalEmail)}`;
 			await openInBrowser(webCheckoutUrl);
 			setIsLoading(false);
 		}
@@ -161,103 +146,40 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 
 				{/* Modal Body */}
 				<div className="p-6 space-y-5">
-					{/* Coffee Tiers */}
+					{/* Amount Input */}
 					<div className="space-y-2">
 						<label className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-							Select Support Amount
+							Enter Donation Amount (NGN)
 						</label>
-						<div className="grid grid-cols-3 gap-2.5">
-							{PRESET_TIERS.map(tier => {
-								const isSelected = !customMode && amount === tier.amount;
-								return (
-									<button
-										key={tier.count}
-										type="button"
-										onClick={() => {
-											setAmount(tier.amount);
-											setCustomMode(false);
-										}}
-										className={`relative p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-											isSelected
-												? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary'
-												: isDark 
-													? 'border-slate-800 bg-slate-900/40 hover:border-slate-700 text-slate-300' 
-													: 'border-slate-200 bg-slate-50 hover:border-slate-300 text-slate-700'
-										}`}
-									>
-										{tier.popular && (
-											<span className="absolute -top-2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black uppercase tracking-wider shadow">
-												Popular
-											</span>
-										)}
-										<span className="text-xl">{tier.emoji}</span>
-										<span className="text-xs font-bold">{tier.label}</span>
-										<span className="text-[11px] font-mono font-semibold opacity-80">₦{tier.amount.toLocaleString()}</span>
-									</button>
-								);
-							})}
-						</div>
-
-						{/* Custom Amount Toggle & Input */}
-						<div className="pt-1">
-							{!customMode ? (
-								<button
-									type="button"
-									onClick={() => setCustomMode(true)}
-									className={`text-xs font-medium hover:underline text-primary cursor-pointer flex items-center gap-1`}
-								>
-									<span>Custom amount?</span>
-								</button>
-							) : (
-								<div className="relative mt-2 animate-in fade-in duration-150">
-									<span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-										₦
-									</span>
-									<input
-										type="number"
-										min="500"
-										step="500"
-										placeholder="Enter custom amount in NGN"
-										value={amount}
-										onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
-										className={`w-full pl-8 pr-3 py-2 text-sm font-mono font-bold rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
-											isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-										}`}
-									/>
-								</div>
-							)}
+						<div className="relative mt-2">
+							<span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+								₦
+							</span>
+							<input
+								type="number"
+								min="100"
+								step="100"
+								placeholder="Amount (e.g. 5000)"
+								value={amount}
+								onChange={(e) => setAmount(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
+								className={`w-full pl-8 pr-3 py-3 text-lg font-mono font-bold rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
+									isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+								}`}
+							/>
 						</div>
 					</div>
 
 					{/* Supporter Details */}
-					<div className="space-y-2.5">
-						<div className="grid grid-cols-2 gap-2.5">
-							<input
-								type="text"
-								placeholder="Your Name (Optional)"
-								value={name}
-								onChange={(e) => setName(e.target.value)}
-								className={`px-3 py-2 text-xs rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
-									isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-								}`}
-							/>
-							<input
-								type="email"
-								placeholder="Email (for receipt) *"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
-								required
-								className={`px-3 py-2 text-xs rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
-									isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-								}`}
-							/>
-						</div>
-						<textarea
-							placeholder="Leave a message or feature wish (Optional)..."
-							value={message}
-							onChange={(e) => setMessage(e.target.value)}
-							rows={2}
-							className={`w-full px-3 py-2 text-xs rounded-xl border outline-none focus:ring-1 focus:ring-primary resize-none ${
+					<div className="space-y-2">
+						<label className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+							Email Address (Optional)
+						</label>
+						<input
+							type="email"
+							placeholder="Email (for receipt)"
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
+							className={`w-full px-3 py-3 text-sm rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
 								isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
 							}`}
 						/>
@@ -267,7 +189,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 					<div className="space-y-2 pt-1">
 						<button
 							onClick={handleDonate}
-							disabled={isLoading || amount <= 0}
+							disabled={isLoading || !amount || Number(amount) < 100}
 							className="w-full py-3.5 px-4 font-black text-sm bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-white rounded-xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-all cursor-pointer disabled:opacity-50"
 						>
 							{isLoading ? (
@@ -275,7 +197,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 							) : (
 								<>
 									<Coffee className="w-5 h-5 animate-bounce" />
-									<span>Support NetSentry with ₦{amount.toLocaleString()}</span>
+									<span>Support NetSentry with ₦{amount ? Number(amount).toLocaleString() : '0'}</span>
 									<ArrowRight className="w-4 h-4 ml-auto" />
 								</>
 							)}

@@ -925,141 +925,37 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
 }
 
 #[tauri::command]
-fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String> {
-    // 1. Immediately eliminate any legacy blanket outbound block rule
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        "name=NetSentry-DataSaver-BlockAll",
-    ]);
+fn enable_data_saver_mode() -> Result<bool, String> {
+    // 1. Forcefully stop Windows Update and background transfer services
+    let _ = create_cmd("net").args(&["stop", "wuauserv", "/y"]).output();
+    let _ = create_cmd("net").args(&["stop", "bits", "/y"]).output();
+    let _ = create_cmd("net").args(&["stop", "dosvc", "/y"]).output(); // Delivery Optimization
 
-    // 2. Prepare normalized whitelist
-    let mut normalized_whitelist: std::collections::HashSet<String> =
-        std::collections::HashSet::new();
-    for p in &allowed_exe_paths {
-        let trimmed = p.trim().to_lowercase();
-        if !trimmed.is_empty() {
-            if let Some(fname) = std::path::Path::new(&trimmed).file_name() {
-                normalized_whitelist.insert(fname.to_string_lossy().to_string());
-            }
-            normalized_whitelist.insert(trimmed);
-        }
-    }
+    // 2. Apply firewall rules asynchronously for known data hogs
+    std::thread::spawn(|| {
+        let blacklist = [
+            ("OneDrive.exe", "Microsoft OneDrive"),
+            ("Dropbox.exe", "Dropbox"),
+            ("GoogleDriveFS.exe", "Google Drive"),
+            ("msedgeupdate.exe", "Edge Auto Update"),
+            ("GoogleUpdate.exe", "Google Auto Update"),
+            ("Steam.exe", "Steam"),
+            ("EpicGamesLauncher.exe", "Epic Games Launcher"),
+        ];
 
-    // Common browsers & essential tools are safe in whitelist by default
-    normalized_whitelist.insert("chrome.exe".to_string());
-    normalized_whitelist.insert("msedge.exe".to_string());
-    normalized_whitelist.insert("firefox.exe".to_string());
-    normalized_whitelist.insert("brave.exe".to_string());
-    normalized_whitelist.insert("opera.exe".to_string());
-
-    // 3. Scan active processes and active socket connections
-    let active_connections = get_active_connections();
-    let connected_pids: std::collections::HashSet<u32> = active_connections.iter().map(|c| c.pid).collect();
-
-    let mut sys = sysinfo::System::new();
-    sys.refresh_processes_specifics(
-        sysinfo::ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
-    );
-
-    let mut to_pause = Vec::new();
-    for (pid, proc) in sys.processes() {
-        let pid_u32 = pid.as_u32();
-        // Only target processes that actually have active network sockets
-        // to avoid stalling or locking down hundreds of idle Windows processes
-        if !connected_pids.contains(&pid_u32) {
-            continue;
-        }
-
-        let name = proc.name().to_string();
-        let exe_path = proc
-            .exe()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if exe_path.is_empty() {
-            continue;
-        }
-
-        if is_protected_system_process(&name, &exe_path) {
-            continue;
-        }
-
-        let exe_lower = exe_path.to_lowercase();
-        let name_lower = name.to_lowercase();
-
-        // Skip whitelisted apps
-        if normalized_whitelist.contains(&exe_lower) || normalized_whitelist.contains(&name_lower) {
-            continue;
-        }
-
-        to_pause.push((exe_path, name));
-    }
-
-    // Deduplicate to_pause by lowercase exe_path
-    let mut seen_exes = std::collections::HashSet::new();
-    let mut unique_to_pause = Vec::new();
-    for item in to_pause {
-        if seen_exes.insert(item.0.to_lowercase()) {
-            unique_to_pause.push(item);
-        }
-    }
-
-    // Limit to at most 20 active background consumers to keep system smooth
-    unique_to_pause.truncate(20);
-
-    // 4. Update in-memory FOCUS_MODE_PAUSED set immediately so UI reflects state
-    let items_to_apply: Vec<(String, String)> = {
-        if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
-            let new_items: Vec<_> = unique_to_pause
-                .into_iter()
-                .filter(|item| !paused_set.contains(item))
-                .collect();
-            for item in &new_items {
-                paused_set.insert(item.clone());
-            }
-            new_items
-        } else {
-            Vec::new()
-        }
-    };
-
-    // Update PAUSED_PROCESSES for UI tracking
-    if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
-        for (exe, _) in &items_to_apply {
-            paused.insert(exe.clone());
-        }
-    }
-
-    // 5. Apply firewall rules asynchronously in background thread so UI & IPC NEVER freeze!
-    std::thread::spawn(move || {
-        for (exe, name) in items_to_apply {
+        for (exe, name) in blacklist.iter() {
             let rule_out = format!("NetSentry - Block - Out - {}", name);
             let rule_in = format!("NetSentry - Block - In - {}", name);
 
-            // Add block rules
             let _ = run_firewall_command(&[
-                "advfirewall",
-                "firewall",
-                "add",
-                "rule",
-                &format!("name={}", rule_out),
-                "dir=out",
-                "action=block",
-                &format!("program={}", exe),
-                "enable=yes",
+                "advfirewall", "firewall", "add", "rule",
+                &format!("name={}", rule_out), "dir=out", "action=block",
+                &format!("program={}", exe), "enable=yes",
             ]);
             let _ = run_firewall_command(&[
-                "advfirewall",
-                "firewall",
-                "add",
-                "rule",
-                &format!("name={}", rule_in),
-                "dir=in",
-                "action=block",
-                &format!("program={}", exe),
-                "enable=yes",
+                "advfirewall", "firewall", "add", "rule",
+                &format!("name={}", rule_in), "dir=in", "action=block",
+                &format!("program={}", exe), "enable=yes",
             ]);
         }
     });
@@ -1069,34 +965,25 @@ fn enable_data_saver_mode(allowed_exe_paths: Vec<String>) -> Result<bool, String
 
 #[tauri::command]
 fn disable_data_saver_mode() -> Result<bool, String> {
-    // 1. Ensure any legacy blanket block rule is deleted
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        "name=NetSentry-DataSaver-BlockAll",
-    ]);
+    // 1. Restart Windows Update and background transfer services
+    let _ = create_cmd("net").args(&["start", "wuauserv"]).output();
+    let _ = create_cmd("net").args(&["start", "bits"]).output();
+    let _ = create_cmd("net").args(&["start", "dosvc"]).output();
 
-    // 2. Drain FOCUS_MODE_PAUSED in memory immediately
-    let items_to_resume: Vec<(String, String)> = {
-        if let Ok(mut paused_set) = FOCUS_MODE_PAUSED.lock() {
-            paused_set.drain().collect()
-        } else {
-            Vec::new()
-        }
-    };
+    // 2. Remove firewall rules asynchronously
+    std::thread::spawn(|| {
+        let blacklist = [
+            ("Microsoft OneDrive", "Microsoft OneDrive"),
+            ("Dropbox", "Dropbox"),
+            ("Google Drive", "Google Drive"),
+            ("Edge Auto Update", "Edge Auto Update"),
+            ("Google Auto Update", "Google Auto Update"),
+            ("Steam", "Steam"),
+            ("Epic Games Launcher", "Epic Games Launcher"),
+        ];
 
-    if let Ok(mut paused) = PAUSED_PROCESSES.lock() {
-        for (exe, _) in &items_to_resume {
-            paused.remove(exe);
-        }
-    }
-
-    // 3. Resume apps asynchronously in background thread so UI is never blocked
-    std::thread::spawn(move || {
-        for (exe, name) in items_to_resume {
-            let _ = resume_app_traffic(exe, name);
+        for (_, name) in blacklist.iter() {
+            let _ = resume_app_traffic("", name);
         }
 
         // Clean up any leftover NetSentry-DataSaver-* rules

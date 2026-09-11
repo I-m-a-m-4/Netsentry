@@ -166,6 +166,7 @@ export default function NetSentryDashboard() {
  const [processes, setProcesses] = useState<ProcessNetworkData[]>([]);
  const [searchQuery, setSearchQuery] = useState('');
  const [chartData, setChartData] = useState<{ time: string; inbound: number; outbound: number }[]>([]);
+ const [peakSpeedRecord, setPeakSpeedRecord] = useState({ peakKbps: 0, appName: '' });
  const [actionLoading, setActionLoading] = useState<string | null>(null);
  const [tauriStatus, setTauriStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
  // next-themes wires this to the actual class on <html> so the whole page reacts
@@ -200,8 +201,7 @@ export default function NetSentryDashboard() {
 
  // New features
  const [autoCutoffEnabled, setAutoCutoffEnabled] = useState<boolean>(false);
- const [smartProfilesEnabled, setSmartProfilesEnabled] = useState<boolean>(false);
- const [isSmartDataSaverModalOpen, setIsSmartDataSaverModalOpen] = useState<boolean>(false);
+ const [autoFocusOnHotspot, setAutoFocusOnHotspot] = useState<boolean>(false);
 
  const toggleGroupExpand = (key: string) => {
  setExpandedGroups(prev => {
@@ -211,10 +211,7 @@ export default function NetSentryDashboard() {
  return next;
  });
  };
-  // Default whitelist: common browsers + dev tools
-  const [allowedApps, setAllowedApps] = useState<string>(
-    'chrome.exe\nmsedge.exe\nfirefox.exe\nbrave.exe\nopera.exe\ncode.exe\nC:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\nC:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\nC:\\Program Files\\Mozilla Firefox\\firefox.exe\nC:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'
-  );
+
 
  // Toggle Theme — setTheme from next-themes updates the <html class> directly
  const toggleTheme = () => {
@@ -239,8 +236,7 @@ export default function NetSentryDashboard() {
  setFocusModeLoading(true);
  try {
  const { invoke } = await import('@tauri-apps/api/core');
- const paths = allowedApps.split('\n').map(s => s.trim()).filter(Boolean);
- await invoke('enable_data_saver_mode', { allowedExePaths: paths });
+ await invoke('enable_data_saver_mode');
  setIsFocusMode(true);
  } catch (e) {
  console.error('Failed to enable focus mode', e);
@@ -311,22 +307,20 @@ export default function NetSentryDashboard() {
  const autoCutoffEnabledRef = useRef<boolean>(false);
  useEffect(() => { autoCutoffEnabledRef.current = autoCutoffEnabled; }, [autoCutoffEnabled]);
 
-  const smartProfilesEnabledRef = useRef<boolean>(false);
+  const autoFocusOnHotspotRef = useRef<boolean>(false);
   useEffect(() => { 
-    smartProfilesEnabledRef.current = smartProfilesEnabled;
-    if (tauriStatus === 'connected' && smartProfilesEnabled && isMetered && !isFocusModeRef.current) {
-      const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
+    autoFocusOnHotspotRef.current = autoFocusOnHotspot;
+    if (tauriStatus === 'connected' && autoFocusOnHotspot && isMetered && !isFocusModeRef.current) {
       import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
+        invoke('enable_data_saver_mode').then(() => {
           setIsFocusMode(true);
-          addLog(`Smart Switch: Metered network detected. Focus Mode engaged to conserve mobile data.`, 'warning');
+          addLog(`Auto-Focus: Metered network detected. Focus Mode engaged to conserve mobile data.`, 'warning');
         }).catch(console.error);
       });
     }
-  }, [smartProfilesEnabled, isMetered, tauriStatus]);
+  }, [autoFocusOnHotspot, isMetered, tauriStatus]);
 
- const allowedAppsRef = useRef<string>(allowedApps);
- useEffect(() => { allowedAppsRef.current = allowedApps; }, [allowedApps]);
+
 
  const isFocusModeRef = useRef<boolean>(isFocusMode);
  useEffect(() => { isFocusModeRef.current = isFocusMode; }, [isFocusMode]);
@@ -353,20 +347,19 @@ export default function NetSentryDashboard() {
  setIsMetered(status.is_metered);
  setIsWwan(status.is_wwan);
 
- // Smart Profiles Auto-Switching logic
- if (smartProfilesEnabledRef.current && status.is_metered !== previousIsMeteredRef.current) {
+ // Auto-Focus Switching logic
+ if (autoFocusOnHotspotRef.current && status.is_metered !== previousIsMeteredRef.current) {
  if (status.is_metered && !isFocusModeRef.current) {
  // Switched to a metered connection -> Enable Focus Mode automatically
- const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
- invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
+ invoke('enable_data_saver_mode').then(() => {
  setIsFocusMode(true);
- addLog(`Smart Profiles: Switched to Metered connection. Focus Mode ENABLED.`, 'warning');
+ addLog(`Auto-Focus: Switched to Metered connection. Focus Mode ENABLED.`, 'warning');
  }).catch(e => console.error(e));
  } else if (!status.is_metered && isFocusModeRef.current) {
  // Switched to a non-metered connection -> Disable Focus Mode automatically
  invoke('disable_data_saver_mode').then(() => {
  setIsFocusMode(false);
- addLog(`Smart Profiles: Switched to Home network. Focus Mode DISABLED.`, 'info');
+ addLog(`Auto-Focus: Switched to Home network. Focus Mode DISABLED.`, 'info');
  }).catch(e => console.error(e));
  }
  }
@@ -390,6 +383,18 @@ export default function NetSentryDashboard() {
  // than doubling the total.
  setSystem(sys);
 
+ // Track Peak Download Speed and Culprit App
+ setPeakSpeedRecord(prev => {
+	 if (sys.rx_rate_kbps > prev.peakKbps) {
+		 const culprit = procs.reduce((max, p) => (p.inbound_rate || 0) > (max.inbound_rate || 0) ? p : max, procs[0]);
+		 return {
+			 peakKbps: sys.rx_rate_kbps,
+			 appName: culprit ? (culprit.name.replace(/\.exe$/i, '')) : 'Unknown'
+		 };
+	 }
+	 return prev;
+ });
+
  // Quota alert on the crossing only.
  const usedMb = sys.today_rx_mb + sys.today_tx_mb;
  const limit = quotaRef.current;
@@ -401,8 +406,7 @@ export default function NetSentryDashboard() {
  // Auto-Cutoff Logic
  if (autoCutoffEnabledRef.current && !isFocusModeRef.current) {
  import('@tauri-apps/api/core').then(({ invoke }) => {
- const paths = allowedAppsRef.current.split('\n').map(s => s.trim()).filter(Boolean);
- invoke('enable_data_saver_mode', { allowedExePaths: paths }).then(() => {
+ invoke('enable_data_saver_mode').then(() => {
  setIsFocusMode(true);
  addLog(`Auto-Cutoff Activated: Quota exceeded. Focus Mode ENABLED.`, 'alert');
  }).catch(console.error);
@@ -1761,6 +1765,9 @@ export default function NetSentryDashboard() {
  focusModeLoading={focusModeLoading}
  loadDailyTotals={loadDailyTotals}
  analyticsLoading={analyticsLoading}
+ peakSpeedRecord={peakSpeedRecord}
+ autoFocusOnHotspot={autoFocusOnHotspot}
+ setAutoFocusOnHotspot={setAutoFocusOnHotspot}
  />
  )}
 
@@ -1786,9 +1793,6 @@ export default function NetSentryDashboard() {
 
  {/* Buy Me a Coffee / Donation Modal */}
  <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} isDark={isDark} />
-
- {/* Smart Data Saver Info Modal */}
- <SmartDataSaverModal open={isSmartDataSaverModalOpen} onOpenChange={setIsSmartDataSaverModalOpen} />
 
  {/* Admin Screen Broadcast Popup Listener */}
  <AnnouncementPopup />

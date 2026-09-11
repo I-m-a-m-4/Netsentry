@@ -10,7 +10,16 @@ import {
 	Cell,
 	XAxis,
 	YAxis,
-	Tooltip
+	Tooltip,
+	AreaChart,
+	Area,
+	ScatterChart,
+	Scatter,
+	ZAxis,
+	LineChart,
+	Line,
+	CartesianGrid,
+	Legend
 } from 'recharts';
 import {
 	BarChart2,
@@ -84,6 +93,9 @@ interface AnalyticsDashboardProps {
 	focusModeLoading: boolean;
 	loadDailyTotals: () => void;
 	analyticsLoading: boolean;
+	peakSpeedRecord: { peakKbps: number; appName: string };
+	autoFocusOnHotspot: boolean;
+	setAutoFocusOnHotspot: (val: boolean) => void;
 }
 
 type TimeRange = '24h' | '7d' | '30d' | 'all';
@@ -107,11 +119,15 @@ export default function AnalyticsDashboard({
 	handleDisableFocusMode,
 	focusModeLoading,
 	loadDailyTotals,
-	analyticsLoading
+	analyticsLoading,
+	peakSpeedRecord,
+	autoFocusOnHotspot,
+	setAutoFocusOnHotspot
 }: AnalyticsDashboardProps) {
 	const [timeRange, setTimeRange] = useState<TimeRange>('30d');
 	const [appSearchQuery, setAppSearchQuery] = useState('');
 	const [isAppSearchFocused, setIsAppSearchFocused] = useState(false);
+	const [showPeakSpeed, setShowPeakSpeed] = useState(false);
 
 	// Compute Aggregate App Consumption across all running processes
 	const appAggregates = useMemo(() => {
@@ -132,7 +148,7 @@ export default function AnalyticsDashboard({
 			const meta = getProcessBrandMeta(p.name, p.exe_path);
 			const existing = map.get(key);
 			if (existing) {
-				existing.total_mb += p.total_data_mb || 0;
+				existing.total_mb = Math.max(existing.total_mb, p.total_data_mb || 0);
 				existing.inbound_rate += p.inbound_rate || 0;
 				existing.outbound_rate += p.outbound_rate || 0;
 				existing.sockets += p.connections_count || 0;
@@ -252,6 +268,48 @@ export default function AnalyticsDashboard({
 			daysCount
 		};
 	}, [timeRange, dailyTotals, system]);
+
+	// --- NEW CHART DATA PIPELINES ---
+
+	// 1. Download vs Upload Ratio by Category
+	const categorySpeedData = useMemo(() => {
+		const cats: Record<string, { inbound: number; outbound: number }> = {};
+		appAggregates.forEach(a => {
+			if (!cats[a.category]) cats[a.category] = { inbound: 0, outbound: 0 };
+			cats[a.category].inbound += (a.inbound_rate || 0);
+			cats[a.category].outbound += (a.outbound_rate || 0);
+		});
+		return Object.entries(cats).map(([name, data]) => ({
+			name,
+			inbound: Number(data.inbound.toFixed(1)),
+			outbound: Number(data.outbound.toFixed(1))
+		})).sort((a, b) => (b.inbound + b.outbound) - (a.inbound + a.outbound));
+	}, [appAggregates]);
+
+	// 2. Top Apps by Connections (Sockets)
+	const connectionDensityData = useMemo(() => {
+		return [...appAggregates]
+			.sort((a, b) => b.sockets - a.sockets)
+			.slice(0, 5)
+			.map(a => ({
+				name: a.name.replace(/\.exe$/i, ''),
+				connections: a.sockets
+			}));
+	}, [appAggregates]);
+
+	// 3. Bandwidth vs RAM Scatter
+	const bloatwareScatterData = useMemo(() => {
+		return appAggregates
+			.filter(a => a.memory > 0 || a.total_mb > 0)
+			.map(a => ({
+				name: a.name.replace(/\.exe$/i, ''),
+				memory: Number((a.memory / (1024 * 1024)).toFixed(1)), // Convert bytes to MB
+				data: Number(a.total_mb.toFixed(1)),
+				z: a.sockets + 1 // Bubble size based on active connections
+			}));
+	}, [appAggregates]);
+
+	// ---------------------------------
 
 	const formatMbOrGb = (mb: number) => {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
@@ -393,18 +451,39 @@ export default function AnalyticsDashboard({
 					</div>
 				</div>
 
-				{/* KPI 3: Live Throughput Speed */}
-				<div className={cardBase}>
+				{/* KPI 3: Live / Peak Speed Toggle */}
+				<div 
+					className={`${cardBase} cursor-pointer hover:ring-2 hover:ring-amber-500/20 transition-all`}
+					onClick={() => setShowPeakSpeed(!showPeakSpeed)}
+					title="Click to toggle between Live Speed and Peak Speed"
+				>
 					<div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-						<span>Live Speed</span>
-						<Flame className="w-3.5 h-3.5 text-amber-500" />
+						<span>{showPeakSpeed ? 'Peak Download Speed' : 'Live Speed'}</span>
+						<Flame className={`w-3.5 h-3.5 ${showPeakSpeed ? 'text-red-500' : 'text-amber-500'}`} />
 					</div>
-					<div className="text-xl font-extrabold font-mono text-amber-500 mt-2">
-						{((system?.rx_rate_kbps || 0) + (system?.tx_rate_kbps || 0)).toFixed(1)} KB/s
-					</div>
-					<div className="text-[10px] text-muted-foreground mt-1">
-						↓ {(system?.rx_rate_kbps || 0).toFixed(1)} | ↑ {(system?.tx_rate_kbps || 0).toFixed(1)} KB/s
-					</div>
+					
+					{showPeakSpeed ? (
+						<div className="animate-in fade-in duration-300">
+							<div className="text-xl font-extrabold font-mono text-red-500 mt-2">
+								{peakSpeedRecord.peakKbps >= 1024 
+									? `${(peakSpeedRecord.peakKbps / 1024).toFixed(1)} MB/s` 
+									: `${peakSpeedRecord.peakKbps.toFixed(1)} KB/s`
+								}
+							</div>
+							<div className="text-[10px] text-muted-foreground mt-1 font-bold truncate">
+								Culprit: {peakSpeedRecord.appName || 'Unknown'}
+							</div>
+						</div>
+					) : (
+						<div className="animate-in fade-in duration-300">
+							<div className="text-xl font-extrabold font-mono text-amber-500 mt-2">
+								{((system?.rx_rate_kbps || 0) + (system?.tx_rate_kbps || 0)).toFixed(1)} KB/s
+							</div>
+							<div className="text-[10px] text-muted-foreground mt-1">
+								↓ {(system?.rx_rate_kbps || 0).toFixed(1)} | ↑ {(system?.tx_rate_kbps || 0).toFixed(1)} KB/s
+							</div>
+						</div>
+					)}
 				</div>
 
 				{/* KPI 4: Active Network Apps */}
@@ -467,89 +546,10 @@ export default function AnalyticsDashboard({
 										</span>
 									)}
 								</h2>
-								<p className="text-xs text-muted-foreground">Block stealth background updates, downloads, and cloud sync except for whitelisted apps</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									NetSentry will safely target and kill notorious background data hogs like Windows Update, Delivery Optimization, and cloud syncs (OneDrive, Dropbox) to preserve your data.
+								</p>
 							</div>
-						</div>
-
-						<div className="space-y-3">
-							<label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Whitelisted Applications</label>
-							
-							<div className="flex flex-wrap gap-2">
-								{allowedApps.split('\n').map(p => p.trim()).filter(Boolean).map((appPath, idx) => {
-									const appName = appPath.split('\\').pop() || appPath;
-									const displayName = appName.replace(/\.exe$/i, '');
-									
-									return (
-										<div key={idx} className="flex items-center gap-2 bg-background border border-border/60 rounded-full py-1.5 pl-2 pr-3 shadow-sm group transition-all hover:border-primary/40">
-											<AppIcon name={appName} exePath={appPath} className="w-5 h-5" />
-											<span className="text-xs font-semibold text-foreground">{displayName}</span>
-											{!isFocusMode && (
-												<button 
-													onClick={() => {
-														const newList = allowedApps.split('\n').map(p => p.trim()).filter(Boolean).filter((_, i) => i !== idx).join('\n');
-														setAllowedApps(newList);
-													}}
-													className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer"
-													title={`Remove ${displayName} from whitelist`}
-												>
-													<X className="w-3.5 h-3.5" />
-												</button>
-											)}
-										</div>
-									);
-								})}
-								{allowedApps.split('\n').map(p => p.trim()).filter(Boolean).length === 0 && (
-									<div className="text-xs text-muted-foreground italic py-1">No apps whitelisted. All apps will be blocked in Focus Mode.</div>
-								)}
-							</div>
-
-							{!isFocusMode && (
-								<div className="pt-2 relative">
-									<input 
-										type="text"
-										placeholder="Search and select running apps to add to whitelist..."
-										value={appSearchQuery}
-										onChange={(e) => setAppSearchQuery(e.target.value)}
-										onFocus={() => setIsAppSearchFocused(true)}
-										onBlur={() => setTimeout(() => setIsAppSearchFocused(false), 200)}
-										className={`w-full text-xs p-3 pr-10 rounded-lg border bg-background outline-none focus:ring-1 focus:ring-primary transition-all ${
-											isDark ? 'border-slate-800 text-slate-100' : 'border-slate-200 text-slate-900'
-										}`}
-									/>
-									<div className="absolute right-3 top-[18px] text-muted-foreground">
-										<Plus className="w-4 h-4" />
-									</div>
-									
-									{isAppSearchFocused && appSearchQuery.length > 0 && (
-										<div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-64 overflow-y-auto ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-											{appAggregates.filter(a => a.name.toLowerCase().includes(appSearchQuery.toLowerCase())).map((app, idx) => (
-												<div 
-													key={idx}
-													onMouseDown={(e) => {
-														e.preventDefault();
-														const currentList = allowedApps.split('\n').map(p => p.trim()).filter(Boolean);
-														if (!currentList.includes(app.exe_path)) {
-															setAllowedApps([...currentList, app.exe_path].join('\n'));
-														}
-														setAppSearchQuery('');
-														setIsAppSearchFocused(false);
-													}}
-													className={`flex items-center gap-3 p-2.5 cursor-pointer hover:bg-muted/50 border-b last:border-0 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}
-												>
-													<AppIcon name={app.name} exePath={app.exe_path} className="w-6 h-6 shrink-0" />
-													<div className="min-w-0">
-														<div className="text-xs font-bold text-foreground truncate">{app.name.replace(/\.exe$/i, '')}</div>
-														<div className="text-[10px] text-muted-foreground font-mono truncate" style={{ maxWidth: '300px' }}>{app.exe_path}</div>
-													</div>
-												</div>
-											))}
-											{appAggregates.filter(a => a.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
-												<div className="p-3 text-xs text-muted-foreground text-center">No matching apps found.</div>
-											)}
-										</div>
-									)}
-								</div>
-							)}
 						</div>
 					</div>
 
@@ -576,6 +576,18 @@ export default function AnalyticsDashboard({
 						<p className="text-[10px] text-muted-foreground text-center">
 							Requires Administrator Privileges for Windows Firewall
 						</p>
+
+						<div className="mt-2 pt-3 border-t border-border/60">
+							<label className="flex items-start gap-2 text-xs font-medium text-muted-foreground cursor-pointer select-none" title="Automatically turns on Focus Mode when you connect to a metered network (like a mobile hotspot) to save data.">
+								<input
+									type="checkbox"
+									checked={autoFocusOnHotspot}
+									onChange={(e) => setAutoFocusOnHotspot(e.target.checked)}
+									className="w-3.5 h-3.5 mt-0.5 rounded border-border text-amber-500 focus:ring-amber-500 cursor-pointer"
+								/>
+								<span className={`leading-tight ${autoFocusOnHotspot ? 'text-amber-500 font-bold' : ''}`}>Auto-Enable on Hotspot</span>
+							</label>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -746,6 +758,148 @@ export default function AnalyticsDashboard({
 					</ResponsiveContainer>
 				</div>
 			</div>
+
+			{/* NEW CONSUMER CHARTS GRID */}
+			
+			{/* 1. Real-Time Network Speed (Live Area Chart) */}
+			<div className={cardBase}>
+				<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+					<div>
+						<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+							<Activity className="w-4 h-4 text-primary" />
+							Real-Time Network Speed
+						</h3>
+						<p className="text-xs text-muted-foreground">Live bandwidth throughput (KB/s)</p>
+					</div>
+					<div className="flex items-center gap-4 text-xs font-mono">
+						<span className="flex items-center gap-1 text-primary">● Download</span>
+						<span className="flex items-center gap-1 text-emerald-500">● Upload</span>
+					</div>
+				</div>
+				<div className="h-48 w-full">
+					<ResponsiveContainer width="100%" height="100%">
+						<AreaChart data={liveChartData.length > 0 ? liveChartData : [{ time: '00:00:00', inbound: 0, outbound: 0 }]}>
+							<defs>
+								<linearGradient id="colorInbound" x1="0" y1="0" x2="0" y2="1">
+									<stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+									<stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+								</linearGradient>
+								<linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
+									<stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+									<stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+								</linearGradient>
+							</defs>
+							<XAxis dataKey="time" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} minTickGap={30} />
+							<YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} unit=" KB/s" />
+							<Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} />
+							<Area type="monotone" dataKey="inbound" name="Download (KB/s)" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorInbound)" isAnimationActive={false} />
+							<Area type="monotone" dataKey="outbound" name="Upload (KB/s)" stroke="#10b981" fillOpacity={1} fill="url(#colorOutbound)" isAnimationActive={false} />
+						</AreaChart>
+					</ResponsiveContainer>
+				</div>
+			</div>
+
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+				{/* 2. Cumulative Quota Tracker (Line Chart) */}
+				<div className={cardBase}>
+					<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+						<div>
+							<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+								<Target className="w-4 h-4 text-rose-500" />
+								Cumulative Quota Tracker
+							</h3>
+							<p className="text-xs text-muted-foreground">Accumulated data usage over the selected period</p>
+						</div>
+					</div>
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<LineChart data={filteredHistoricalData.length > 0 ? filteredHistoricalData : [{ date: 'Today', cumulative: 1550 }]}>
+								<CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
+								<XAxis dataKey="date" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} />
+								<YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} unit=" MB" />
+								<Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} formatter={(val: any) => [`${Number(val).toLocaleString()} MB`]} />
+								<Line type="monotone" dataKey="cumulative" name="Total Used (MB)" stroke="#f43f5e" strokeWidth={3} dot={{ r: 4, fill: '#f43f5e', strokeWidth: 0 }} />
+							</LineChart>
+						</ResponsiveContainer>
+					</div>
+				</div>
+
+				{/* 3. Connection Density by App (Bar Chart) */}
+				<div className={cardBase}>
+					<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+						<div>
+							<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+								<Share2 className="w-4 h-4 text-violet-500" />
+								Highest Connection Density
+							</h3>
+							<p className="text-xs text-muted-foreground">Apps maintaining the most active network sockets</p>
+						</div>
+					</div>
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart data={connectionDensityData} layout="vertical" margin={{ left: 20 }}>
+								<XAxis type="number" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} />
+								<YAxis dataKey="name" type="category" stroke="currentColor" className="text-muted-foreground" fontSize={11} tickLine={false} />
+								<Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} cursor={{ fill: 'hsl(var(--muted))' }} />
+								<Bar dataKey="connections" name="Active Connections" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
+				</div>
+			</div>
+
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+				{/* 4. Download vs Upload Ratio by Category */}
+				<div className={cardBase}>
+					<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+						<div>
+							<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+								<ArrowUp className="w-4 h-4 text-sky-500" />
+								Category Throughput Split
+							</h3>
+							<p className="text-xs text-muted-foreground">Live Download vs Upload by category</p>
+						</div>
+					</div>
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart data={categorySpeedData}>
+								<XAxis dataKey="name" stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} />
+								<YAxis stroke="currentColor" className="text-muted-foreground" fontSize={10} tickLine={false} unit=" KB/s" />
+								<Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} />
+								<Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+								<Bar dataKey="inbound" name="Download (KB/s)" stackId="a" fill="#0ea5e9" radius={[0, 0, 4, 4]} />
+								<Bar dataKey="outbound" name="Upload (KB/s)" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
+				</div>
+
+				{/* 5. Bandwidth vs RAM Footprint (Scatter Chart) */}
+				<div className={cardBase}>
+					<div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+						<div>
+							<h3 className="font-bricolage text-base font-bold flex items-center gap-2">
+								<Activity className="w-4 h-4 text-amber-500" />
+								Bandwidth vs RAM Footprint
+							</h3>
+							<p className="text-xs text-muted-foreground">Identify bloatware: Heavy memory AND heavy network usage</p>
+						</div>
+					</div>
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+								<CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+								<XAxis type="number" dataKey="memory" name="Memory" unit=" MB" stroke="currentColor" className="text-muted-foreground" fontSize={10} />
+								<YAxis type="number" dataKey="data" name="Data Usage" unit=" MB" stroke="currentColor" className="text-muted-foreground" fontSize={10} />
+								<ZAxis type="number" dataKey="z" range={[50, 400]} />
+								<Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} formatter={(val: any, name: any) => [`${val} MB`, name]} labelFormatter={() => ''} />
+								<Scatter name="Apps" data={bloatwareScatterData} fill="#f59e0b" opacity={0.8} />
+							</ScatterChart>
+						</ResponsiveContainer>
+					</div>
+				</div>
+			</div>
+
 
 			{/* Consumer Actionable Data-Saving Tips */}
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
