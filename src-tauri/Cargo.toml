@@ -1,6 +1,6 @@
 [package]
 name = "netsentry"
-version = "0.0.1"
+version = "0.0.2"
 description = "NetSentry Bandwidth Monitor & Data Saver"
 authors = ["NetSentry"]
 license = ""

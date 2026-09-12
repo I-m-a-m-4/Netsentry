@@ -196,6 +196,8 @@ export default function NetSentryDashboard() {
  const [isWwan, setIsWwan] = useState<boolean>(false);
  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
  const [focusModeLoading, setFocusModeLoading] = useState<boolean>(false);
+ const [smartProfilesEnabled, setSmartProfilesEnabled] = useState<boolean>(false);
+ const [allowedApps, setAllowedApps] = useState<string>('');
  const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
 

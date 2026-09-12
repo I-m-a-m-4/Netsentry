@@ -122,7 +122,8 @@ export default function AnalyticsDashboard({
 	analyticsLoading,
 	peakSpeedRecord,
 	autoFocusOnHotspot,
-	setAutoFocusOnHotspot
+	setAutoFocusOnHotspot,
+	liveChartData
 }: AnalyticsDashboardProps) {
 	const [timeRange, setTimeRange] = useState<TimeRange>('30d');
 	const [appSearchQuery, setAppSearchQuery] = useState('');
