@@ -2,15 +2,12 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
-use std::os::windows::process::CommandExt;
-const CREATE_NO_WINDOW: u32 = 0x08000000;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use sysinfo::{Networks, ProcessRefreshKind, RefreshKind, System};
 use tauri::Emitter;
 #[cfg(desktop)]
 use tauri::Manager;
-use windows::Networking::Connectivity::NetworkInformation;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProcessNetworkData {
@@ -716,11 +713,16 @@ fn is_metered_connection() -> Result<ConnectionStatus, String> {
 
     // Use WinRT to detect actual mobile/cellular interface.
     // Runs in an Option-returning closure so any failure silently returns false.
+    #[cfg(target_os = "windows")]
     let is_wwan = (|| -> Option<bool> {
+        use windows::Networking::Connectivity::NetworkInformation;
         let profile = NetworkInformation::GetInternetConnectionProfile().ok()?;
         profile.IsWwanConnectionProfile().ok()
     })()
     .unwrap_or(false);
+
+    #[cfg(not(target_os = "windows"))]
+    let is_wwan = false;
 
     Ok(ConnectionStatus {
         is_metered,
@@ -835,9 +837,8 @@ fn get_top_apps_history(days: u32) -> Vec<TopAppEntry> {
 
 #[tauri::command]
 fn reset_firewall_rules() -> Result<bool, String> {
-    let output = Command::new("netsh")
+    let output = create_cmd("netsh")
         .args(&["advfirewall", "reset"])
-        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| e.to_string())?;
 
