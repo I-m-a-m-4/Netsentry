@@ -983,7 +983,7 @@ fn disable_data_saver_mode() -> Result<bool, String> {
         ];
 
         for (_, name) in blacklist.iter() {
-            let _ = resume_app_traffic("", name);
+            let _ = resume_app_traffic(String::new(), name.to_string());
         }
 
         // Clean up any leftover NetSentry-DataSaver-* rules
