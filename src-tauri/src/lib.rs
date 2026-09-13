@@ -1545,9 +1545,9 @@ pub fn run() {
 
                             let proc_name = process.name().to_string();
                             let proc_key = if !exe_path.is_empty() {
-                                exe_path.clone()
+                                exe_path.to_lowercase()
                             } else {
-                                proc_name.clone()
+                                proc_name.to_lowercase()
                             };
 
                             // Accumulate MB for this process based on throughput & tick duration

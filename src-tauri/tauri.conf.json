@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "NetSentry v0.0.1",
+        "title": "NetSentry",
         "width": 1024,
         "height": 768,
         "resizable": true,

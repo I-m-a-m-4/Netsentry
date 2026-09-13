@@ -9,7 +9,7 @@ const ICONS = path.join(ROOT, 'src-tauri', 'icons');
 const DOWNLOADS = 'C:\\Users\\Bello Imam\\Downloads';
 const EXTRACT_DIR = path.join(DOWNLOADS, 'NetSentryExtract');
 const PACK_DIR = path.join(DOWNLOADS, 'NetSentryPack');
-const OUTPUT_MSIX = path.join(DOWNLOADS, 'NetSentry_0.0.1_x64.msix');
+const OUTPUT_MSIX = path.join(DOWNLOADS, 'NetSentry_0.0.2_x64.msix');
 
 const IDENTITY = {
     name: 'Zeneva.NetSentry',
@@ -17,7 +17,7 @@ const IDENTITY = {
     publisherDisplayName: 'Bimex',
     displayName: 'NetSentry',
     description: 'NetSentry - Internet Data Saver and Network Traffic Monitor for Windows.',
-    version: '0.0.1.0',
+    version: '0.0.2.0',
 };
 
 console.log('=== NetSentry MSI to MSIX Converter ===');
@@ -68,7 +68,9 @@ console.log('[3/5] Copied Store logo assets');
 const manifestXml = `<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         xmlns:uap17="http://schemas.microsoft.com/appx/manifest/uap/windows10/17"
+         IgnorableNamespaces="uap uap17 rescap">
   <Identity Name="${IDENTITY.name}"
             Version="${IDENTITY.version}"
             Publisher="${IDENTITY.publisher}"
@@ -88,7 +90,8 @@ const manifestXml = `<?xml version="1.0" encoding="utf-8"?>
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
   <Applications>
-    <Application Id="App" Executable="netsentry.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="App" Executable="netsentry.exe" EntryPoint="Windows.FullTrustApplication"
+                 uap17:AllowElevation="true">
       <uap:VisualElements DisplayName="${IDENTITY.displayName}"
                           Description="${IDENTITY.description}"
                           Square150x150Logo="Assets\\Square150x150Logo.png"
