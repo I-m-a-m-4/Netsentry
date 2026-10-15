@@ -12,10 +12,13 @@ import {
 	Loader2, 
 	X, 
 	ExternalLink,
-	CreditCard
+	CreditCard,
+	Zap
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import usePaystack from '@/hooks/use-paystack';
+import useFlutterwave from '@/hooks/use-flutterwave';
+import { logCoffeeAttemptToFirebase, updateCoffeeAttemptStatus } from '@/lib/firebase-telemetry';
 
 interface DonateModalProps {
 	open: boolean;
@@ -23,16 +26,18 @@ interface DonateModalProps {
 	isDark?: boolean;
 }
 
-
-
 export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: DonateModalProps) {
 	const { toast } = useToast();
 	const { resolvedTheme } = useTheme();
 	const isDark = propIsDark !== undefined ? propIsDark : resolvedTheme === 'dark';
-	const { initializePayment, isScriptLoaded } = usePaystack();
 
-	const [amount, setAmount] = useState<number | ''>('');
+	const { initializePayment: initializePaystack, isScriptLoaded: isPaystackLoaded } = usePaystack();
+	const { initializePayment: initializeFlutterwave, isScriptLoaded: isFlutterwaveLoaded } = useFlutterwave();
+
+	const [amount, setAmount] = useState<number | ''>(1000);
 	const [email, setEmail] = useState<string>('');
+	const [name, setName] = useState<string>('');
+	const [gateway, setGateway] = useState<'flutterwave' | 'paystack'>('flutterwave');
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 
 	if (!open) return null;
@@ -53,7 +58,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 	};
 
 	const handleDonate = async () => {
-		if (!amount || amount < 100) {
+		if (!amount || Number(amount) < 100) {
 			toast({
 				title: 'Invalid Amount',
 				description: 'Please enter a donation amount of at least ₦100.',
@@ -62,51 +67,107 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 			return;
 		}
 
-		// Paystack requires an email. If user leaves it blank, we use a fallback anonymous email.
-		const finalEmail = (email && email.includes('@')) ? email.trim() : 'anonymous@nethelm.app';
+		const numAmount = Number(amount);
+		const finalEmail = (email && email.includes('@')) ? email.trim() : 'supporter@nethelm.app';
+		const finalName = name.trim() || 'Generous Supporter';
+		const reference = `coffee_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 		setIsLoading(true);
 
-		// If running in Tauri and script not ready, offer direct web checkout
-		if (isTauri && !isScriptLoaded) {
-			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&amount=${amount}&email=${encodeURIComponent(email)}&name=Supporter`;
-			await openInBrowser(webCheckoutUrl);
-			toast({
-				title: 'Opening Secure Checkout',
-				description: 'Redirecting to your default browser for safe bank/card payment...',
-			});
-			setIsLoading(false);
-			onOpenChange(false);
+		// Record the attempt in Firestore so the admin can see who attempted to buy coffee!
+		const attemptId = await logCoffeeAttemptToFirebase({
+			supporterName: finalName,
+			email: finalEmail,
+			amount: numAmount,
+			currency: 'NGN',
+			gateway,
+			status: 'initiated',
+			reference,
+			platform: isTauri ? 'Windows Desktop App' : 'Web Client'
+		});
+
+		// 1. FLUTTERWAVE GATEWAY
+		if (gateway === 'flutterwave') {
+			try {
+				initializeFlutterwave({
+					public_key: process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X',
+					tx_ref: reference,
+					amount: numAmount,
+					currency: 'NGN',
+					payment_options: 'card,banktransfer,ussd,mobilemoney',
+					customer: {
+						email: finalEmail,
+						name: finalName,
+					},
+					customizations: {
+						title: 'Buy Us a Coffee',
+						description: 'NetHelm Developer Support',
+						logo: 'https://netsentry-psi.vercel.app/app-icon.svg',
+					},
+					onSuccess: async (response: any) => {
+						if (attemptId) {
+							await updateCoffeeAttemptStatus(attemptId, 'completed', { response });
+						}
+						toast({
+							title: 'Thank You for Your Coffee! ☕🧡',
+							description: `We appreciate your support of ₦${numAmount.toLocaleString()}.`,
+						});
+						setIsLoading(false);
+						onOpenChange(false);
+					},
+					onClose: async (incomplete?: boolean) => {
+						if (attemptId && incomplete) {
+							await updateCoffeeAttemptStatus(attemptId, 'cancelled');
+						}
+						setIsLoading(false);
+					}
+				});
+			} catch (err: any) {
+				console.error('Flutterwave payment error:', err);
+				if (attemptId) await updateCoffeeAttemptStatus(attemptId, 'failed');
+				const webUrl = `https://netsentry-psi.vercel.app/?donate=true&gateway=flutterwave&amount=${numAmount}&email=${encodeURIComponent(finalEmail)}`;
+				await openInBrowser(webUrl);
+				setIsLoading(false);
+			}
 			return;
 		}
 
+		// 2. PAYSTACK GATEWAY
 		try {
-			initializePayment({
+			initializePaystack({
 				key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_cb1d65dd8c8fae496d3aa59eec7f0bb6a4db46f0',
 				email: finalEmail,
-				amount: Math.round(Number(amount) * 100), // Paystack uses kobo
+				amount: Math.round(numAmount * 100), // kobo
 				currency: 'NGN',
+				ref: reference,
 				metadata: {
 					custom_fields: [
+						{ display_name: "Supporter Name", variable_name: "supporter_name", value: finalName },
 						{ display_name: "Platform", variable_name: "platform", value: isTauri ? "Windows Desktop App" : "Web Client" }
 					]
 				},
-				onSuccess: (_transaction: any) => {
+				onSuccess: async (transaction: any) => {
+					if (attemptId) {
+						await updateCoffeeAttemptStatus(attemptId, 'completed', { transaction });
+					}
 					toast({
-						title: 'Thank You for Your Support! 🧡',
-						description: `Your contribution helps keep NetHelm fast, independent, and free.`,
+						title: 'Thank You for Your Coffee! ☕🧡',
+						description: `We appreciate your support of ₦${numAmount.toLocaleString()}.`,
 					});
-					onOpenChange(false);
 					setIsLoading(false);
+					onOpenChange(false);
 				},
-				onClose: () => {
+				onClose: async () => {
+					if (attemptId) {
+						await updateCoffeeAttemptStatus(attemptId, 'cancelled');
+					}
 					setIsLoading(false);
 				}
 			});
 		} catch (error: any) {
-			console.error('Payment checkout error:', error);
-			// Fallback to browser checkout
-			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&amount=${amount}&email=${encodeURIComponent(finalEmail)}`;
+			console.error('Paystack checkout error:', error);
+			if (attemptId) await updateCoffeeAttemptStatus(attemptId, 'failed');
+			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&gateway=paystack&amount=${numAmount}&email=${encodeURIComponent(finalEmail)}`;
 			await openInBrowser(webCheckoutUrl);
 			setIsLoading(false);
 		}
@@ -131,7 +192,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 								<Heart className="w-4 h-4 text-primary fill-primary animate-pulse" />
 							</h3>
 							<p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-								Support NetHelm development & maintenance
+								Support NetHelm development & high-performance server network
 							</p>
 						</div>
 					</div>
@@ -145,13 +206,78 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 				</div>
 
 				{/* Modal Body */}
-				<div className="p-6 space-y-5">
-					{/* Amount Input */}
-					<div className="space-y-2">
-						<label className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-							Enter Donation Amount (NGN)
+				<div className="p-6 space-y-4">
+					{/* Payment Gateway Toggle */}
+					<div className="space-y-1.5">
+						<label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+							Select Payment Gateway
 						</label>
-						<div className="relative mt-2">
+						<div className="grid grid-cols-2 gap-2">
+							<button
+								type="button"
+								onClick={() => setGateway('flutterwave')}
+								className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+									gateway === 'flutterwave'
+										? 'border-amber-500 bg-amber-500/10 text-amber-500 shadow-sm'
+										: isDark
+											? 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+											: 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+								}`}
+							>
+								<Zap className="w-3.5 h-3.5" />
+								<span>Flutterwave</span>
+								{gateway === 'flutterwave' && <Check className="w-3.5 h-3.5 ml-auto text-amber-500" />}
+							</button>
+
+							<button
+								type="button"
+								onClick={() => setGateway('paystack')}
+								className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+									gateway === 'paystack'
+										? 'border-emerald-500 bg-emerald-500/10 text-emerald-500 shadow-sm'
+										: isDark
+											? 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+											: 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+								}`}
+							>
+								<CreditCard className="w-3.5 h-3.5" />
+								<span>Paystack</span>
+								{gateway === 'paystack' && <Check className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
+							</button>
+						</div>
+					</div>
+
+					{/* Preset Amounts */}
+					<div className="space-y-1.5">
+						<label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+							Quick Coffee Amounts (NGN)
+						</label>
+						<div className="grid grid-cols-4 gap-2">
+							{[500, 1000, 2500, 5000].map(val => (
+								<button
+									key={val}
+									type="button"
+									onClick={() => setAmount(val)}
+									className={`py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+										amount === val
+											? 'border-primary bg-primary/10 text-primary'
+											: isDark
+												? 'border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700'
+												: 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+									}`}
+								>
+									₦{val.toLocaleString()}
+								</button>
+							))}
+						</div>
+					</div>
+
+					{/* Custom Amount Input */}
+					<div className="space-y-1.5">
+						<label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+							Or Enter Custom Amount (NGN)
+						</label>
+						<div className="relative">
 							<span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
 								₦
 							</span>
@@ -159,10 +285,10 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 								type="number"
 								min="100"
 								step="100"
-								placeholder="Amount (e.g. 5000)"
+								placeholder="e.g. 5000"
 								value={amount}
 								onChange={(e) => setAmount(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
-								className={`w-full pl-8 pr-3 py-3 text-lg font-mono font-bold rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
+								className={`w-full pl-8 pr-3 py-2.5 text-base font-mono font-bold rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
 									isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
 								}`}
 							/>
@@ -170,19 +296,35 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 					</div>
 
 					{/* Supporter Details */}
-					<div className="space-y-2">
-						<label className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-							Email Address (Optional)
-						</label>
-						<input
-							type="email"
-							placeholder="Email (for receipt)"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							className={`w-full px-3 py-3 text-sm rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
-								isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-							}`}
-						/>
+					<div className="grid grid-cols-2 gap-2.5">
+						<div className="space-y-1">
+							<label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+								Your Name
+							</label>
+							<input
+								type="text"
+								placeholder="e.g. John"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								className={`w-full px-3 py-2 text-xs rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
+									isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+								}`}
+							/>
+						</div>
+						<div className="space-y-1">
+							<label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+								Email (Receipt)
+							</label>
+							<input
+								type="email"
+								placeholder="name@example.com"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								className={`w-full px-3 py-2 text-xs rounded-xl border outline-none focus:ring-1 focus:ring-primary ${
+									isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+								}`}
+							/>
+						</div>
 					</div>
 
 					{/* Action Buttons */}
@@ -190,14 +332,16 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 						<button
 							onClick={handleDonate}
 							disabled={isLoading || !amount || Number(amount) < 100}
-							className="w-full py-3.5 px-4 font-black text-sm bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-white rounded-xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-all cursor-pointer disabled:opacity-50"
+							className="w-full py-3 px-4 font-black text-sm bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-white rounded-xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-all cursor-pointer disabled:opacity-50"
 						>
 							{isLoading ? (
 								<Loader2 className="w-5 h-5 animate-spin" />
 							) : (
 								<>
 									<Coffee className="w-5 h-5 animate-bounce" />
-									<span>Support NetSentry with ₦{amount ? Number(amount).toLocaleString() : '0'}</span>
+									<span>
+										Buy Coffee with {gateway === 'flutterwave' ? 'Flutterwave' : 'Paystack'} (₦{amount ? Number(amount).toLocaleString() : '0'})
+									</span>
 									<ArrowRight className="w-4 h-4 ml-auto" />
 								</>
 							)}
@@ -206,7 +350,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 						{isTauri && (
 							<button
 								type="button"
-								onClick={() => openInBrowser(`https://netsentry-psi.vercel.app/?donate=true&amount=${amount}`)}
+								onClick={() => openInBrowser(`https://netsentry-psi.vercel.app/?donate=true&gateway=${gateway}&amount=${amount}`)}
 								className={`w-full py-2 text-center text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
 									isDark 
 										? 'border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900' 
@@ -222,7 +366,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 					{/* Footer Security Badge */}
 					<div className={`flex items-center justify-center gap-2 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
 						<Shield className="w-3 h-3 text-emerald-500" />
-						<span>Bank-grade 256-bit encryption via Paystack · Direct contribution to NetSentry</span>
+						<span>256-bit encrypted checkout via {gateway === 'flutterwave' ? 'Flutterwave' : 'Paystack'} · Direct developer support</span>
 					</div>
 				</div>
 			</div>

@@ -1,4 +1,4 @@
-import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebase/instance';
 
 export interface ClientTelemetryPayload {
@@ -20,6 +20,9 @@ export interface ClientTelemetryPayload {
   engineMemoryMb?: number;
   engineCpuPercent?: number;
   blockedThreatCount?: number;
+  visitCount?: number;
+  firstSeenAt?: string;
+  lastVisitAt?: string;
   topApps: Array<{
     name: string;
     label: string;
@@ -47,12 +50,52 @@ export function getOrCreateDeviceId(): string {
   }
 }
 
+// Track and retrieve visit/session count for retention insight
+export function getDeviceVisitStats(): { visitCount: number; firstSeenAt: string; lastVisitAt: string } {
+  if (typeof window === 'undefined') {
+    return { visitCount: 1, firstSeenAt: new Date().toISOString(), lastVisitAt: new Date().toISOString() };
+  }
+
+  try {
+    const countKey = 'nethelm_visit_count';
+    const firstSeenKey = 'nethelm_first_seen';
+    const sessionKey = 'nethelm_session_tracked';
+
+    let firstSeen = localStorage.getItem(firstSeenKey);
+    if (!firstSeen) {
+      firstSeen = new Date().toISOString();
+      localStorage.setItem(firstSeenKey, firstSeen);
+    }
+
+    let visitCount = parseInt(localStorage.getItem(countKey) || '0', 10);
+
+    // Only increment once per browser / desktop launch session
+    if (!sessionStorage.getItem(sessionKey)) {
+      sessionStorage.setItem(sessionKey, 'true');
+      visitCount = visitCount + 1;
+      localStorage.setItem(countKey, String(visitCount));
+    }
+
+    if (visitCount <= 0) {
+      visitCount = 1;
+      localStorage.setItem(countKey, '1');
+    }
+
+    return {
+      visitCount,
+      firstSeenAt: firstSeen,
+      lastVisitAt: new Date().toISOString()
+    };
+  } catch (e) {
+    return { visitCount: 1, firstSeenAt: new Date().toISOString(), lastVisitAt: new Date().toISOString() };
+  }
+}
+
 let lastSyncedTotalMb = -1;
 let lastSyncedTime = 0;
 let lastSyncedStatus = '';
 
 // Push live telemetry snapshot to Firestore collection `client_devices`
-// Optimized to only write when data changes significantly or on heartbeat (saves ~80% writes)
 export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayload): Promise<void> {
   if (!db || typeof window === 'undefined') return;
 
@@ -71,6 +114,7 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
 
   try {
     const deviceId = getOrCreateDeviceId();
+    const visitStats = getDeviceVisitStats();
     const deviceRef = doc(db, 'client_devices', deviceId);
 
     await setDoc(deviceRef, {
@@ -94,6 +138,9 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
       isWwan: Boolean(payload.isWwan),
       isDataSaverMode: Boolean(payload.isDataSaverMode),
       isFocusMode: Boolean(payload.isFocusMode),
+      visitCount: payload.visitCount ?? visitStats.visitCount,
+      firstSeenAt: payload.firstSeenAt ?? visitStats.firstSeenAt,
+      lastVisitAt: payload.lastVisitAt ?? visitStats.lastVisitAt,
       topApps: (payload.topApps || []).slice(0, 8),
       lastSeen: serverTimestamp(),
       updatedAt: new Date().toISOString()
@@ -124,5 +171,59 @@ export async function logSecurityEventToFirebase(message: string, type: 'info' |
     });
   } catch (error) {
     console.warn('NetSentry: Security log push failed:', error);
+  }
+}
+
+export interface CoffeeAttemptPayload {
+  supporterName?: string;
+  email: string;
+  amount: number;
+  currency: string;
+  gateway: 'flutterwave' | 'paystack';
+  status: 'initiated' | 'completed' | 'cancelled' | 'failed';
+  reference: string;
+  platform: string;
+  deviceId?: string;
+  metadata?: Record<string, any>;
+}
+
+// Log coffee / donation attempt to Firestore `coffee_attempts`
+export async function logCoffeeAttemptToFirebase(payload: CoffeeAttemptPayload): Promise<string | null> {
+  if (!db || typeof window === 'undefined') return null;
+
+  try {
+    const deviceId = payload.deviceId || getOrCreateDeviceId();
+    const docRef = await addDoc(collection(db, 'coffee_attempts'), {
+      ...payload,
+      deviceId,
+      timestamp: serverTimestamp(),
+      isoTime: new Date().toISOString(),
+      createdAt: serverTimestamp()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.warn('NetHelm: Failed to log coffee attempt:', error);
+    return null;
+  }
+}
+
+// Update coffee attempt status
+export async function updateCoffeeAttemptStatus(
+  attemptId: string, 
+  status: 'completed' | 'cancelled' | 'failed',
+  additionalData?: Record<string, any>
+): Promise<void> {
+  if (!db || !attemptId || typeof window === 'undefined') return;
+
+  try {
+    const attemptRef = doc(db, 'coffee_attempts', attemptId);
+    await updateDoc(attemptRef, {
+      status,
+      updatedAt: serverTimestamp(),
+      isoUpdatedAt: new Date().toISOString(),
+      ...(additionalData || {})
+    });
+  } catch (error) {
+    console.warn('NetHelm: Failed to update coffee attempt status:', error);
   }
 }

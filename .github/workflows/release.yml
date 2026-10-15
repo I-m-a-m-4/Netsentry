@@ -53,6 +53,7 @@ jobs:
         env:
           IS_TAURI: true
           NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY }}
+          NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY }}
         run: |
           node scripts/prepare-tauri.mjs
           npm run build
@@ -119,6 +120,7 @@ jobs:
         env:
           IS_TAURI: true
           NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY }}
+          NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY }}
         run: |
           node scripts/prepare-tauri.mjs
           npm run build

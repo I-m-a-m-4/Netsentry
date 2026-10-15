@@ -199,6 +199,15 @@ export default function NetSentryDashboard() {
  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
  const [focusModeLoading, setFocusModeLoading] = useState<boolean>(false);
  const [smartProfilesEnabled, setSmartProfilesEnabled] = useState<boolean>(false);
+
+ const handleToggleSmartDataSaver = (enabled: boolean) => {
+   setSmartProfilesEnabled(enabled);
+   if (enabled) {
+     handleEnableFocusMode();
+   } else {
+     handleDisableFocusMode();
+   }
+ };
  const [allowedApps, setAllowedApps] = useState<string>('');
  const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
