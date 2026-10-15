@@ -350,10 +350,10 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 						{isTauri && (
 							<button
 								type="button"
-								onClick={() => openInBrowser(`https://netsentry-psi.vercel.app/?donate=true&gateway=${gateway}&amount=${amount}`)}
+								onClick={() => openInBrowser(`https://netsentry-psi.vercel.app/donate?gateway=${gateway}&amount=${amount || 1000}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`)}
 								className={`w-full py-2 text-center text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
 									isDark 
-										? 'border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900' 
+										? 'border-[#18181C] text-muted-foreground hover:text-foreground hover:bg-[#0E0E12]' 
 										: 'border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
 								}`}
 							>
@@ -364,7 +364,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 					</div>
 
 					{/* Footer Security Badge */}
-					<div className={`flex items-center justify-center gap-2 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+					<div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
 						<Shield className="w-3 h-3 text-emerald-500" />
 						<span>256-bit encrypted checkout via {gateway === 'flutterwave' ? 'Flutterwave' : 'Paystack'} · Direct developer support</span>
 					</div>

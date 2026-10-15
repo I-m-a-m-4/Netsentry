@@ -350,7 +350,7 @@ export default function AnalyticsDashboard({
 	};
 
 	const cardBase = `border rounded-xl p-5 transition-all ${
-		isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
+		isDark ? 'bg-[#08080A] border-[#18181C] hover:border-[#27272E]' : 'bg-white border-slate-200'
 	}`;
 
 	return (
@@ -396,7 +396,7 @@ export default function AnalyticsDashboard({
 						onClick={loadDailyTotals}
 						disabled={analyticsLoading}
 						className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-							isDark ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700'
+							isDark ? 'border-[#18181C] bg-[#0E0E12] hover:bg-[#18181C] text-foreground' : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700'
 						}`}
 						title="Reload local SQLite daily usage statistics"
 					>
@@ -613,7 +613,7 @@ export default function AnalyticsDashboard({
 							const totalAll = appAggregates.reduce((sum, a) => sum + (a.total_mb || 0), 0) || 1;
 							const pct = Math.min(100, Math.round(((app.total_mb || 0) / totalAll) * 100));
 							return (
-								<div key={app.name} className="p-3 rounded-lg border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors">
+								<div key={app.name} className="p-3 rounded-lg border border-border/40 bg-[#08080A] hover:bg-[#0E0E12] border-[#18181C] transition-colors">
 									<div className="flex items-center justify-between gap-3">
 										<div className="flex items-center gap-3 min-w-0">
 											<div className="font-mono text-xs font-bold text-muted-foreground w-4 text-center">
