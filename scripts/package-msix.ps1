@@ -1,5 +1,6 @@
 param(
-    [string]$DownloadsDir = "C:\Users\Bello Imam\Downloads"
+    [string]$DownloadsDir = "C:\Users\Bello Imam\Downloads",
+    [string]$DisplayName = "NetSentry"
 )
 
 $ErrorActionPreference = "Stop"
@@ -154,7 +155,7 @@ $manifestXml = @"
             Publisher="CN=FB9C471D-AB12-4486-AC75-1AA3579E4073"
             ProcessorArchitecture="x64" />
   <Properties>
-    <DisplayName>NetHelm</DisplayName>
+    <DisplayName>$DisplayName</DisplayName>
     <PublisherDisplayName>Bimex</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -183,7 +184,8 @@ $manifestXml = @"
 "@
 
 $manifestPath = Join-Path $pkgDir "AppxManifest.xml"
-Set-Content -Path $manifestPath -Value $manifestXml -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($manifestPath, $manifestXml, $utf8NoBom)
 Write-Host "AppxManifest.xml created successfully."
 
 Write-Host "Step 4: Copying icon assets..."
