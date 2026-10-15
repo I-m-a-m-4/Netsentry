@@ -350,7 +350,14 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 						{isTauri && (
 							<button
 								type="button"
-								onClick={() => openInBrowser(`https://netsentry-psi.vercel.app/donate?gateway=${gateway}&amount=${amount || 1000}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`)}
+								onClick={() => {
+									const params = new URLSearchParams();
+									params.set('gateway', 'flutterwave');
+									if (amount) params.set('amount', String(amount));
+									if (email) params.set('email', email.trim());
+									if (name) params.set('name', name.trim());
+									openInBrowser(`https://netsentry-psi.vercel.app/donate?${params.toString()}`);
+								}}
 								className={`w-full py-2 text-center text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
 									isDark 
 										? 'border-[#18181C] text-muted-foreground hover:text-foreground hover:bg-[#0E0E12]' 
