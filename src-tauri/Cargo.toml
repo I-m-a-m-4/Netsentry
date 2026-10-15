@@ -1,6 +1,6 @@
 [package]
 name = "nethelm"
-version = "0.0.2"
+version = "0.0.3"
 description = "NetHelm Bandwidth Monitor & Data Saver"
 authors = ["Bimex"]
 license = ""
