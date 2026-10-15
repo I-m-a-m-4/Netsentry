@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "NetSentry",
+  "productName": "NetHelm",
   "version": "0.0.2",
-  "identifier": "com.netsentry.app",
+  "identifier": "com.nethelm.app",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:9005",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "NetSentry",
+        "title": "NetHelm",
         "width": 1024,
         "height": 768,
         "resizable": true,

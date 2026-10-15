@@ -506,32 +506,23 @@ fn pause_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
         return Err("Cannot block protected system or runtime executable".to_string());
     }
 
-    let rule_out = format!("NetSentry - Block - Out - {}", name);
-    let rule_in = format!("NetSentry - Block - In - {}", name);
-    let legacy_rule = format!("NetSentry - Block - {}", name);
+    let rule_out = format!("NetHelm - Block - Out - {}", name);
+    let rule_in = format!("NetHelm - Block - In - {}", name);
+    let legacy_rule = format!("NetHelm - Block - {}", name);
+    let old_rule_out = format!("NetSentry - Block - Out - {}", name);
+    let old_rule_in = format!("NetSentry - Block - In - {}", name);
+    let old_legacy_rule = format!("NetSentry - Block - {}", name);
 
-    // Clean up any existing rules for this app
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        &format!("name={}", rule_out),
-    ]);
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        &format!("name={}", rule_in),
-    ]);
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        &format!("name={}", legacy_rule),
-    ]);
+    // Clean up any existing rules for this app (both NetHelm and legacy NetSentry)
+    for rule in &[&rule_out, &rule_in, &legacy_rule, &old_rule_out, &old_rule_in, &old_legacy_rule] {
+        let _ = run_firewall_command(&[
+            "advfirewall",
+            "firewall",
+            "delete",
+            "rule",
+            &format!("name={}", rule),
+        ]);
+    }
 
     // 1. Block OUTBOUND traffic (crucial: prevents browsers and apps from initiating network requests)
     let out_res = run_firewall_command(&[
@@ -580,37 +571,31 @@ fn pause_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
 
 #[tauri::command]
 fn resume_app_traffic(exe_path: String, name: String) -> Result<bool, String> {
-    let rule_out = format!("NetSentry - Block - Out - {}", name);
-    let rule_in = format!("NetSentry - Block - In - {}", name);
-    let legacy_rule = format!("NetSentry - Block - {}", name);
+    let rule_out = format!("NetHelm - Block - Out - {}", name);
+    let rule_in = format!("NetHelm - Block - In - {}", name);
+    let legacy_rule = format!("NetHelm - Block - {}", name);
+    let old_rule_out = format!("NetSentry - Block - Out - {}", name);
+    let old_rule_in = format!("NetSentry - Block - In - {}", name);
+    let old_legacy_rule = format!("NetSentry - Block - {}", name);
 
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        &format!("name={}", rule_out),
-    ]);
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        &format!("name={}", rule_in),
-    ]);
-    let _ = run_firewall_command(&[
-        "advfirewall",
-        "firewall",
-        "delete",
-        "rule",
-        &format!("name={}", legacy_rule),
-    ]);
+    for rule in &[&rule_out, &rule_in, &legacy_rule, &old_rule_out, &old_rule_in, &old_legacy_rule] {
+        let _ = run_firewall_command(&[
+            "advfirewall",
+            "firewall",
+            "delete",
+            "rule",
+            &format!("name={}", rule),
+        ]);
+    }
 
     let ps_cmd = format!(
         "Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
          Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
+         Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
+         Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
+         Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue; \
          Remove-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue",
-        rule_out, rule_in, legacy_rule
+        rule_out, rule_in, legacy_rule, old_rule_out, old_rule_in, old_legacy_rule
     );
     let _ = create_cmd("powershell")
         .args(&["-Command", &ps_cmd])
@@ -641,11 +626,18 @@ fn emergency_clear_all_firewall_rules() -> Result<bool, String> {
         "firewall",
         "delete",
         "rule",
+        "name=NetHelm-DataSaver-BlockAll",
+    ]);
+    let _ = run_firewall_command(&[
+        "advfirewall",
+        "firewall",
+        "delete",
+        "rule",
         "name=NetSentry-DataSaver-BlockAll",
     ]);
 
-    // 2. Remove all rules created by NetSentry (both netsh and PowerShell rules)
-    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry*' -or $_.Name -like 'NetSentry*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
+    // 2. Remove all rules created by NetHelm or NetSentry (both netsh and PowerShell rules)
+    let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetHelm*' -or $_.Name -like 'NetHelm*' -or $_.DisplayName -like 'NetSentry*' -or $_.Name -like 'NetSentry*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
     let _ = create_cmd("powershell")
         .args(&["-Command", ps_cmd])
         .output();
@@ -926,12 +918,13 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
 
 #[tauri::command]
 fn enable_data_saver_mode() -> Result<bool, String> {
-    // 1. Forcefully stop Windows Update and background transfer services
+    // 1. Forcefully stop Windows Update, Delivery Optimization, and background transfer services
     let _ = create_cmd("net").args(&["stop", "wuauserv", "/y"]).output();
     let _ = create_cmd("net").args(&["stop", "bits", "/y"]).output();
-    let _ = create_cmd("net").args(&["stop", "dosvc", "/y"]).output(); // Delivery Optimization
+    let _ = create_cmd("net").args(&["stop", "dosvc", "/y"]).output(); // Delivery Optimization P2P upload
+    let _ = create_cmd("net").args(&["stop", "WaaSMedicSvc", "/y"]).output(); // Windows Update Medic
 
-    // 2. Apply firewall rules asynchronously for known data hogs
+    // 2. Apply firewall rules asynchronously for known aggressive third-party data hogs & updaters
     std::thread::spawn(|| {
         let blacklist = [
             ("OneDrive.exe", "Microsoft OneDrive"),
@@ -944,8 +937,8 @@ fn enable_data_saver_mode() -> Result<bool, String> {
         ];
 
         for (exe, name) in blacklist.iter() {
-            let rule_out = format!("NetSentry - Block - Out - {}", name);
-            let rule_in = format!("NetSentry - Block - In - {}", name);
+            let rule_out = format!("NetHelm - Block - Out - {}", name);
+            let rule_in = format!("NetHelm - Block - In - {}", name);
 
             let _ = run_firewall_command(&[
                 "advfirewall", "firewall", "add", "rule",
@@ -969,6 +962,7 @@ fn disable_data_saver_mode() -> Result<bool, String> {
     let _ = create_cmd("net").args(&["start", "wuauserv"]).output();
     let _ = create_cmd("net").args(&["start", "bits"]).output();
     let _ = create_cmd("net").args(&["start", "dosvc"]).output();
+    let _ = create_cmd("net").args(&["start", "WaaSMedicSvc"]).output();
 
     // 2. Remove firewall rules asynchronously
     std::thread::spawn(|| {
@@ -986,8 +980,8 @@ fn disable_data_saver_mode() -> Result<bool, String> {
             let _ = resume_app_traffic(String::new(), name.to_string());
         }
 
-        // Clean up any leftover NetSentry-DataSaver-* rules
-        let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetSentry-DataSaver-*' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
+        // Clean up any leftover NetHelm-DataSaver-* or NetSentry-DataSaver-* rules
+        let ps_cmd = "Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NetHelm-DataSaver-*' -or $_.DisplayName -like 'NetSentry-DataSaver-*' -or $_.DisplayName -like 'NetHelm - Block - *' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue";
         let _ = create_cmd("powershell")
             .args(&["-Command", ps_cmd])
             .output();
@@ -1489,6 +1483,17 @@ pub fn run() {
                         // Group candidate processes and calculate weights for estimated share
                         for (pid, process) in sys.processes() {
                             let pid_u32 = pid.as_u32();
+                            let proc_name = process.name();
+                            let proc_name_lower = proc_name.to_lowercase();
+
+                            // Never attribute network data to System Idle Process or PID 0
+                            if pid_u32 == 0 
+                                || proc_name_lower == "idle" 
+                                || proc_name_lower == "system idle process" 
+                                || proc_name_lower.starts_with("system idle") 
+                            {
+                                continue;
+                            }
                             let process_sockets =
                                 pid_connections.get(&pid_u32).cloned().unwrap_or_default();
                             let conn_count = process_sockets.len() as u32;
@@ -1633,7 +1638,7 @@ pub fn run() {
                 });
             }
 
-            println!("NetSentry: Setup completed successfully.");
+            println!("NetHelm: Setup completed successfully.");
             Ok(())
         })
         .run(tauri::generate_context!())

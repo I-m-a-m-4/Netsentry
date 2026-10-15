@@ -176,6 +176,7 @@ export default function NetSentryDashboard() {
  const [selectedProcess, setSelectedProcess] = useState<ProcessNetworkData | GroupedProcess | null>(null);
  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
  const [isDonateOpen, setIsDonateOpen] = useState(false);
+	const [isSmartDataSaverModalOpen, setIsSmartDataSaverModalOpen] = useState(false);
  const [quotaLimit, setQuotaLimit] = useState<number>(1000); // MB
  // Absolute telemetry from Rust. Assigned wholesale each tick, never accumulated.
  const [system, setSystem] = useState<SystemTelemetry | null>(null);
@@ -186,6 +187,7 @@ export default function NetSentryDashboard() {
  const alertedRef = useRef<boolean>(false);
  const [currentTab, setCurrentTab] = useState<'monitor' | 'analytics'>('monitor');
  const [timeRangeFilter, setTimeRangeFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+	const [showDataBreakdown, setShowDataBreakdown] = useState<boolean>(false);
  const [filterCategory, setFilterCategory] = useState<'all' | 'user' | 'system' | 'active' | 'paused'>('all');
  const [hideSystemNoise, setHideSystemNoise] = useState<boolean>(true);
  const [sortBy, setSortBy] = useState<'data_usage' | 'inbound' | 'outbound' | 'name' | 'pid'>('data_usage');
@@ -442,7 +444,7 @@ export default function NetSentryDashboard() {
  if (cancelled) cb?.();
  else cleanup = cb;
  }).catch(e => {
- console.error('NetSentry: telemetry subscription failed', e);
+ console.error('NetHelm: telemetry subscription failed', e);
  setTauriStatus('disconnected');
  });
 
@@ -635,6 +637,22 @@ export default function NetSentryDashboard() {
   return 0;
   }, [system, timeRangeFilter]);
 
+	const rxMb = useMemo(() => {
+		if (timeRangeFilter === 'today') return system?.today_rx_mb ?? 0;
+		if (timeRangeFilter === 'week') return system?.week_rx_mb ?? 0;
+		if (timeRangeFilter === 'month') return system?.month_rx_mb ?? 0;
+		if (timeRangeFilter === 'all') return system?.all_rx_mb ?? 0;
+		return 0;
+	}, [system, timeRangeFilter]);
+
+	const txMb = useMemo(() => {
+		if (timeRangeFilter === 'today') return system?.today_tx_mb ?? 0;
+		if (timeRangeFilter === 'week') return system?.week_tx_mb ?? 0;
+		if (timeRangeFilter === 'month') return system?.month_tx_mb ?? 0;
+		if (timeRangeFilter === 'all') return system?.all_tx_mb ?? 0;
+		return 0;
+	}, [system, timeRangeFilter]);
+
  const handleTogglePause = async (proc: ProcessNetworkData | GroupedProcess) => {
  const primaryPid = 'pids' in proc ? proc.pids[0] : proc.pid;
  const key = `pause-${primaryPid}-${proc.exe_path}`;
@@ -754,7 +772,7 @@ export default function NetSentryDashboard() {
  <NetSentryLogo className="w-10 h-10 rounded-md" />
  <div>
  <h1 className="font-bricolage text-xl font-black tracking-tight text-primary">
- NetSentry
+							NetHelm
  </h1>
  <p className="text-[10px] text-muted-foreground tracking-wider uppercase font-semibold">
  Focus Mode & Windows Bandwidth Monitor
@@ -879,7 +897,7 @@ export default function NetSentryDashboard() {
           type="checkbox" 
           className="sr-only" 
           checked={smartProfilesEnabled}
-          onChange={(e) => setSmartProfilesEnabled(e.target.checked)}
+          onChange={(e) => handleToggleSmartDataSaver(e.target.checked)}
         />
         <div className={`block w-8 h-5 rounded-md transition-colors ${smartProfilesEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}></div>
         <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-md transition-transform ${smartProfilesEnabled ? 'translate-x-3' : ''}`}></div>
@@ -900,58 +918,99 @@ export default function NetSentryDashboard() {
 
   {/* Row 1: Primary Data Usage & Speeds Cards */}
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-  {/* Card 1: Total Data Used */}
-  <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
-  <div className="flex items-center justify-between text-muted-foreground gap-2">
-  <span 
-  className="text-xs font-semibold cursor-help underline decoration-dotted underline-offset-2" 
-  title="Total network data (downloads + uploads) recorded across your Wi-Fi and network adapters."
-  >Total Data Used ⓘ</span>
-  <div className="flex items-center gap-1 bg-background border border-border/70 rounded-md p-1 text-xs">
-    {[
-      { id: 'today', label: 'Today' },
-      { id: 'week', label: 'Last 7 Days' },
-      { id: 'month', label: 'Last 30 Days' },
-      { id: 'all', label: 'All Time' }
-    ].map(p => (
-      <button
-        key={p.id}
-        onClick={() => setTimeRangeFilter(p.id as any)}
-        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all ${
-          timeRangeFilter === p.id
-            ? 'bg-primary text-primary-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        }`}
-      >
-        {p.label}
-      </button>
-    ))}
-  </div>
-  </div>
-  <div>
-  <div className="text-2xl font-black text-foreground">
-  {formatVolume(usedMb, volumeUnit)}
-  </div>
-  <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
-  {timeRangeFilter === 'today' && 'Today · since 00:00'}
-  {timeRangeFilter === 'week' && 'Total past 7 days aggregate'}
-  {timeRangeFilter === 'month' && 'Total past 30 days aggregate'}
-  {timeRangeFilter === 'all' && 'All recorded history'}
-  </p>
-  </div>
-  <div className="space-y-1.5 pt-1">
-  <div className="flex justify-between text-[10px] text-muted-foreground">
-  <span>Daily Limit Used</span>
-  <span className="font-semibold">{Math.min(Math.round((usedMb / quotaLimit) * 100), 100)}%</span>
-  </div>
-  <div className="w-full bg-muted rounded-md h-1.5 overflow-hidden">
-  <div
-  className={`h-full rounded-md transition-all duration-300 ${usedMb >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
-  style={{ width: `${Math.min((usedMb / quotaLimit) * 100, 100)}%` }}
-  />
-  </div>
-  </div>
-  </div>
+			{/* Card 1: Total Data Used */}
+			<div 
+				onClick={() => setShowDataBreakdown(prev => !prev)}
+				className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3 cursor-pointer select-none group relative overflow-hidden"
+				title="Click to toggle Download and Upload details"
+			>
+				<div className="flex items-center justify-between text-muted-foreground gap-2">
+					<div className="flex items-center gap-1.5">
+						<span 
+							className="text-xs font-semibold cursor-pointer underline decoration-dotted underline-offset-2 flex items-center gap-1" 
+						>
+							Total Data Used ⓘ
+						</span>
+						<span className="text-[10px] text-primary font-medium opacity-70 group-hover:opacity-100 transition-opacity">
+							{showDataBreakdown ? '▲ Hide' : '▼ Details'}
+						</span>
+					</div>
+					<div 
+						className="flex items-center gap-1 bg-background border border-border/70 rounded-md p-1 text-xs z-10"
+						onClick={(e) => e.stopPropagation()}
+					>
+						{[
+							{ id: 'today', label: 'Today' },
+							{ id: 'week', label: 'Last 7 Days' },
+							{ id: 'month', label: 'Last 30 Days' },
+							{ id: 'all', label: 'All Time' }
+						].map(p => (
+							<button
+								key={p.id}
+								onClick={() => setTimeRangeFilter(p.id as any)}
+								className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all ${
+									timeRangeFilter === p.id
+										? 'bg-primary text-primary-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'
+								}`}
+							>
+								{p.label}
+							</button>
+						))}
+					</div>
+				</div>
+
+				<div>
+					<div className="flex items-baseline justify-between">
+						<div className="text-2xl font-black text-foreground">
+							{formatVolume(usedMb, volumeUnit)}
+						</div>
+						<span className="text-[10px] text-muted-foreground font-mono">
+							{showDataBreakdown ? 'Click to collapse' : 'Click to see ⬇/⬆'}
+						</span>
+					</div>
+
+					{/* Downloaded & Uploaded breakdown */}
+					{showDataBreakdown && (
+						<div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border/60 text-xs animate-in fade-in duration-200">
+							<div className="flex items-center gap-1.5 bg-background/80 p-2 rounded-md border border-border/60">
+								<ArrowDown className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+								<div className="min-w-0">
+									<p className="text-[10px] text-muted-foreground font-semibold leading-none">Downloaded</p>
+									<p className="font-extrabold text-foreground text-xs mt-0.5 truncate">{formatVolume(rxMb, volumeUnit)}</p>
+								</div>
+							</div>
+							<div className="flex items-center gap-1.5 bg-background/80 p-2 rounded-md border border-border/60">
+								<ArrowUp className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+								<div className="min-w-0">
+									<p className="text-[10px] text-muted-foreground font-semibold leading-none">Uploaded</p>
+									<p className="font-extrabold text-foreground text-xs mt-0.5 truncate">{formatVolume(txMb, volumeUnit)}</p>
+								</div>
+							</div>
+						</div>
+					)}
+
+					<p className="text-[11px] text-muted-foreground mt-1 font-medium">
+						{timeRangeFilter === 'today' && 'Today · since 00:00'}
+						{timeRangeFilter === 'week' && 'Total past 7 days aggregate'}
+						{timeRangeFilter === 'month' && 'Total past 30 days aggregate'}
+						{timeRangeFilter === 'all' && 'All recorded history'}
+					</p>
+				</div>
+
+				<div className="space-y-1.5 pt-1">
+					<div className="flex justify-between text-[10px] text-muted-foreground">
+						<span>Daily Limit Used</span>
+						<span className="font-semibold">{Math.min(Math.round((usedMb / quotaLimit) * 100), 100)}%</span>
+					</div>
+					<div className="w-full bg-muted rounded-md h-1.5 overflow-hidden">
+						<div
+							className={`h-full rounded-md transition-all duration-300 ${usedMb >= quotaLimit ? 'bg-red-500' : 'bg-primary'}`}
+							style={{ width: `${Math.min((usedMb / quotaLimit) * 100, 100)}%` }}
+						/>
+					</div>
+				</div>
+			</div>
 
   {/* Card 2: Daily Data Limit Control */}
   <div className="p-4 rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3">
@@ -1790,11 +1849,14 @@ export default function NetSentryDashboard() {
  />
 
  <footer className={`mt-auto border-t px-6 py-6 text-center text-xs ${borderClass} ${textMutedClass} ${isDark ? 'bg-slate-950' : 'bg-white '}`}>
- <p>© 2026 NetSentry. All rights reserved. Administrator privileges required for firewall adjustments.</p>
+ <p>© 2026 NetHelm. All rights reserved. Administrator privileges required for firewall adjustments.</p>
  </footer>
 
  {/* Buy Me a Coffee / Donation Modal */}
  <DonateModal open={isDonateOpen} onOpenChange={setIsDonateOpen} isDark={isDark} />
+
+	{/* Smart Data Saver Modal */}
+	<SmartDataSaverModal open={isSmartDataSaverModalOpen} onOpenChange={setIsSmartDataSaverModalOpen} />
 
  {/* Admin Screen Broadcast Popup Listener */}
  <AnnouncementPopup />

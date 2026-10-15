@@ -5,8 +5,8 @@ import { Shield, Lock, EyeOff, Database, ArrowLeft, Mail, Globe, CheckCircle2 } 
 import { NetSentryLogo } from '@/components/ui/netsentry-logo';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy - NetSentry',
-  description: 'Privacy Policy for NetSentry Windows Application and Website. Learn how we respect and protect your data.',
+  title: 'Privacy Policy - NetHelm',
+  description: 'Privacy Policy for NetHelm Windows Application and Website. Learn how we respect and protect your data.',
 };
 
 export default function PrivacyPolicyPage() {
@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
           </Link>
           <div className="flex items-center gap-2">
             <NetSentryLogo className="w-8 h-8 rounded-lg shadow-md" />
-            <span className="text-xl font-bold text-slate-900 tracking-tight font-nunito">NetSentry</span>
+            <span className="text-xl font-bold text-slate-900 tracking-tight font-nunito">NetHelm</span>
           </div>
         </nav>
 
@@ -55,7 +55,7 @@ export default function PrivacyPolicyPage() {
               Privacy Policy
             </h1>
             <p className="leading-relaxed font-medium text-slate-600 max-w-2xl mx-auto mb-6" style={{ fontSize: '19px' }}>
-              NetSentry is designed from the ground up to respect your digital privacy. We believe your network data belongs solely to you.
+              NetHelm is designed from the ground up to respect your digital privacy. We believe your network data belongs solely to you.
             </p>
             <div className="text-xs text-slate-500 font-mono font-bold tracking-widest uppercase">
               Last Updated: {lastUpdated}
@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
                     Overview & Developer Identity
                   </h2>
                   <p className="text-slate-600">
-                    This Privacy Policy applies to the <strong>NetSentry</strong> desktop application (distributed via Microsoft Store and direct installer) and the official website hosted at <a href="https://netsentry-psi.vercel.app/" className="text-orange-600 underline hover:text-orange-800">https://netsentry-psi.vercel.app/</a>. NetSentry is developed and published by <strong>Bimex</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;).
+                    This Privacy Policy applies to the <strong>NetHelm</strong> desktop application (distributed via Microsoft Store and direct installer) and the official website hosted at <a href="https://netsentry-psi.vercel.app/" className="text-orange-600 underline hover:text-orange-800">https://netsentry-psi.vercel.app/</a>. NetHelm is developed and published by <strong>Bimex</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;).
                   </p>
                 </section>
 
@@ -104,7 +104,7 @@ export default function PrivacyPolicyPage() {
                     Information Processed by the Application
                   </h2>
                   <p className="text-slate-600">
-                    To provide live bandwidth monitoring, app data usage graphs, and data saver protection, NetSentry queries standard Windows system APIs (such as the Windows Networking and IP Helper APIs) for:
+                    To provide live bandwidth monitoring, app data usage graphs, and data saver protection, NetHelm queries standard Windows system APIs (such as the Windows Networking and IP Helper APIs) for:
                   </p>
                   <div className="grid gap-3 pt-2">
                     {[
@@ -127,7 +127,7 @@ export default function PrivacyPolicyPage() {
                     </div>
                     <div>
                       <strong className="text-slate-900 block mb-1 text-lg font-nunito">Strict Privacy Guarantee</strong>
-                      <span className="text-slate-600 text-sm">NetSentry operates as an administrative telemetry monitor. It does not possess, intercept, or log passwords, keystrokes, DNS history, visited web pages, or email contents.</span>
+                      <span className="text-slate-600 text-sm">NetHelm operates as a local bandwidth monitor and data manager. It does not possess, intercept, or log passwords, keystrokes, DNS history, visited web pages, or private communications.</span>
                     </div>
                   </div>
                 </section>
@@ -140,7 +140,7 @@ export default function PrivacyPolicyPage() {
                       Local Storage
                     </h2>
                     <p className="text-slate-600 text-sm">
-                      All historical data usage metrics are saved locally on your physical machine inside the local application data directory (SQLite database). You have total control over this data. Uninstalling the NetSentry application removes all stored local databases and configuration files.
+                      All historical data usage metrics are saved locally on your physical machine inside the local application data directory (SQLite database). You have total control over this data. Uninstalling the NetHelm application removes all stored local databases and configuration files.
                     </p>
                   </section>
 
@@ -162,7 +162,7 @@ export default function PrivacyPolicyPage() {
                     Windows Firewall Operations
                   </h2>
                   <p className="text-slate-600">
-                    When you activate <em>Focus Mode</em> or pause high-bandwidth background applications, NetSentry executes local Windows Firewall rules using the native Windows <code>netsh advfirewall</code> subsystem. These rules apply exclusively on your local PC and are never broadcast externally.
+                    When you activate <em>Focus Mode</em> or pause high-bandwidth background applications, NetHelm executes local Windows Firewall rules using the native Windows <code>netsh advfirewall</code> subsystem. These rules apply exclusively on your local PC and are never broadcast externally.
                   </p>
                 </section>
 
@@ -173,7 +173,7 @@ export default function PrivacyPolicyPage() {
                     Contact Us
                   </h2>
                   <p className="text-slate-600">
-                    If you have any questions, suggestions, or concerns regarding this Privacy Policy or NetSentry&apos;s data practices, please reach out to us:
+                    If you have any questions, suggestions, or concerns regarding this Privacy Policy or NetHelm&apos;s data practices, please reach out to us:
                   </p>
                   <div className="grid sm:grid-cols-2 gap-4 pt-4">
                     <a 
@@ -218,7 +218,7 @@ export default function PrivacyPolicyPage() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-2">
                 <NetSentryLogo className="w-6 h-6 rounded-md" />
-                <span className="text-lg font-semibold text-[#1A1A1A] tracking-tight font-nunito">NetSentry</span>
+                <span className="text-lg font-semibold text-[#1A1A1A] tracking-tight font-nunito">NetHelm</span>
               </div>
               
               <div className="flex items-center gap-6">
@@ -231,7 +231,7 @@ export default function PrivacyPolicyPage() {
             <div className="w-full h-px my-8" style={{ background: 'rgba(15,23,42,0.05)' }} />
             
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-slate-500" style={{ fontSize: '13px' }}>
-              <div className="font-medium">© {new Date().getFullYear()} NetSentry by Bimex. All rights reserved.</div>
+              <div className="font-medium">© {new Date().getFullYear()} NetHelm by Bimex. All rights reserved.</div>
               <div className="font-medium">Built with ❤️ for Windows users everywhere</div>
             </div>
           </div>

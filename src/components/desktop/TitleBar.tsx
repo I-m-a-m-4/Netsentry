@@ -71,7 +71,7 @@ export function DesktopTitleBar() {
  <Shield className="h-4 w-4 text-primary" />
  </div>
  <div className="flex flex-col" data-tauri-drag-region>
- <span className="text-[10px] font-black tracking-[0.25em] text-primary leading-none">NETSENTRY</span>
+ <span className="text-[10px] font-black tracking-[0.25em] text-primary leading-none">NETHELM</span>
  <div className="flex items-center gap-1.5 mt-0.5">
  <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest leading-none">Desktop v{AppConfig.version || '0.1.0'}</span>
  <div className="h-1 w-1 rounded-md bg-emerald-500 animate-pulse"></div>

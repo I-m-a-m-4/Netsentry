@@ -129,7 +129,7 @@ export default function LandingPage() {
         <nav className="w-full px-6 py-6 md:px-12 flex items-center justify-between max-w-7xl mx-auto animate-fade-in">
           <div className="flex items-center gap-2">
             <NetSentryLogo className="w-8 h-8 rounded-lg shadow-md" />
-            <span className="text-xl font-bold text-slate-900 tracking-tight font-nunito">NetSentry</span>
+            <span className="text-xl font-bold text-slate-900 tracking-tight font-nunito">NetHelm</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700" style={{ fontSize: '15px' }}>
             <a href="#features" className="hover:text-black transition-colors">Features</a>
@@ -169,7 +169,7 @@ export default function LandingPage() {
             <aside className="hidden md:flex flex-col w-64 p-6" style={{ borderRight: '1px solid #f1f5f9', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(8px)' }}>
               <div className="flex items-center gap-2 mb-8 px-2">
                 <NetSentryLogo className="w-5 h-5 rounded-md" />
-                <span className="text-lg font-bold text-slate-900 font-nunito">NetSentry</span>
+                <span className="text-lg font-bold text-slate-900 font-nunito">NetHelm</span>
               </div>
               <nav className="space-y-1 mb-8">
                 {[
@@ -521,7 +521,7 @@ export default function LandingPage() {
               <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-5 block">Pricing</span>
               <h2 className="font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6" style={{ fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: '1.1' }}>Simple, honest pricing</h2>
               <p className="leading-relaxed text-slate-600 font-medium max-w-xl mx-auto" style={{ fontSize: '17px' }}>
-                NetSentry is free for personal use. No hidden fees, no subscriptions. Just download and go.
+                NetHelm is free for personal use. No hidden fees, no subscriptions. Just download and go.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start mb-20">
@@ -587,7 +587,7 @@ export default function LandingPage() {
               <div className="max-w-sm">
                 <div className="flex items-center gap-2 mb-6">
                   <NetSentryLogo className="w-7 h-7 rounded-md" />
-                  <span className="text-xl font-semibold text-[#1A1A1A] tracking-tight font-nunito">NetSentry</span>
+                  <span className="text-xl font-semibold text-[#1A1A1A] tracking-tight font-nunito">NetHelm</span>
                 </div>
                 <p className="leading-relaxed text-slate-600 font-medium mb-8" style={{ fontSize: '15px' }}>
                   Your beautiful, simple internet monitor for Windows. Stop wasting data. Start owning your connection.
@@ -610,7 +610,7 @@ export default function LandingPage() {
             </div>
             <div className="w-full h-px mb-8" style={{ background: 'rgba(15,23,42,0.05)' }} />
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-slate-500" style={{ fontSize: '13px' }}>
-              <div>© 2026 NetSentry. All rights reserved.</div>
+              <div>© 2026 NetHelm. All rights reserved.</div>
               <div>Built with ❤️ for Windows users everywhere</div>
             </div>
           </div>

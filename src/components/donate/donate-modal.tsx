@@ -63,13 +63,13 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 		}
 
 		// Paystack requires an email. If user leaves it blank, we use a fallback anonymous email.
-		const finalEmail = (email && email.includes('@')) ? email.trim() : 'anonymous@netsentry.app';
+		const finalEmail = (email && email.includes('@')) ? email.trim() : 'anonymous@nethelm.app';
 
 		setIsLoading(true);
 
 		// If running in Tauri and script not ready, offer direct web checkout
 		if (isTauri && !isScriptLoaded) {
-			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&amount=${amount}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name || 'Supporter')}`;
+			const webCheckoutUrl = `https://netsentry-psi.vercel.app/?donate=true&amount=${amount}&email=${encodeURIComponent(email)}&name=Supporter`;
 			await openInBrowser(webCheckoutUrl);
 			toast({
 				title: 'Opening Secure Checkout',
@@ -94,7 +94,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 				onSuccess: (_transaction: any) => {
 					toast({
 						title: 'Thank You for Your Support! 🧡',
-						description: `Your contribution helps keep NetSentry fast, independent, and free.`,
+						description: `Your contribution helps keep NetHelm fast, independent, and free.`,
 					});
 					onOpenChange(false);
 					setIsLoading(false);
@@ -131,7 +131,7 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 								<Heart className="w-4 h-4 text-primary fill-primary animate-pulse" />
 							</h3>
 							<p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-								Support NetSentry development & server maintenance
+								Support NetHelm development & maintenance
 							</p>
 						</div>
 					</div>

@@ -37,7 +37,7 @@ export default function SmartDataSaverModal({ open, onOpenChange }: SmartDataSav
               <Smartphone className="w-4 h-4 text-amber-500" /> Auto-Detects Metered Connections
             </h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              When you connect your computer to a mobile phone hotspot or a capped data plan, NetSentry automatically detects that it is a <strong>Metered Connection</strong>.
+              When you connect your computer to a mobile phone hotspot or a capped data plan, NetHelm automatically detects that it is a <strong>Metered Connection</strong>.
             </p>
           </div>
 
@@ -55,7 +55,7 @@ export default function SmartDataSaverModal({ open, onOpenChange }: SmartDataSav
               <Wifi className="w-4 h-4 text-emerald-500" /> Seamless Home Wi-Fi Restoration
             </h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              When you reconnect to your Home or Office Wi-Fi, NetSentry automatically restores full connectivity for all background apps without you having to click anything!
+              When you reconnect to your Home or Office Wi-Fi, NetHelm automatically restores full connectivity for all background apps without you having to click anything!
             </p>
           </div>
         </div>

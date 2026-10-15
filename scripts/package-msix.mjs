@@ -7,25 +7,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const ICONS = path.join(ROOT, 'src-tauri', 'icons');
 const DOWNLOADS = 'C:\\Users\\Bello Imam\\Downloads';
-const EXTRACT_DIR = path.join(DOWNLOADS, 'NetSentryExtract');
-const PACK_DIR = path.join(DOWNLOADS, 'NetSentryPack');
-const OUTPUT_MSIX = path.join(DOWNLOADS, 'NetSentry_0.0.2_x64.msix');
+const EXTRACT_DIR = path.join(DOWNLOADS, 'NetHelmExtract');
+const PACK_DIR = path.join(DOWNLOADS, 'NetHelmPack');
+const OUTPUT_MSIX = path.join(DOWNLOADS, 'NetHelm_0.0.2_x64.msix');
 
 const IDENTITY = {
-    name: 'Zeneva.NetSentry',
+    name: 'Zeneva.NetSentry', // Keeps Microsoft Partner Center package identity
     publisher: 'CN=FB9C471D-AB12-4486-AC75-1AA3579E4073',
     publisherDisplayName: 'Bimex',
-    displayName: 'NetSentry',
-    description: 'NetSentry - Internet Data Saver and Network Traffic Monitor for Windows.',
+    displayName: 'NetHelm',
+    description: 'NetHelm - Real-time Network Traffic Monitor & Bandwidth Guardian for Windows.',
     version: '0.0.2.0',
 };
 
-console.log('=== NetSentry MSI to MSIX Converter ===');
+console.log('=== NetHelm MSI to MSIX Converter ===');
 
 // 1. Check extracted binary
-const exePath = path.join(EXTRACT_DIR, 'PFiles', 'NetSentry', 'netsentry.exe');
-if (!fs.existsSync(exePath)) {
-    console.error(`Binary not found at ${exePath}. Please extract the MSI first.`);
+const exePath = path.join(EXTRACT_DIR, 'PFiles', 'NetHelm', 'nethelm.exe');
+const fallbackExePath = path.join(EXTRACT_DIR, 'PFiles', 'NetSentry', 'netsentry.exe');
+const finalExePath = fs.existsSync(exePath) ? exePath : fallbackExePath;
+if (!fs.existsSync(finalExePath)) {
+    console.error(`Binary not found at ${exePath} or ${fallbackExePath}. Please extract the MSI first.`);
     process.exit(1);
 }
 console.log(`[1/5] Found binary: ${exePath}`);
@@ -37,8 +39,8 @@ if (fs.existsSync(PACK_DIR)) {
 fs.mkdirSync(path.join(PACK_DIR, 'Assets'), { recursive: true });
 
 // Copy executable
-fs.copyFileSync(exePath, path.join(PACK_DIR, 'netsentry.exe'));
-console.log('[2/5] Copied netsentry.exe to package directory');
+fs.copyFileSync(finalExePath, path.join(PACK_DIR, 'nethelm.exe'));
+console.log('[2/5] Copied nethelm.exe to package directory');
 
 // 3. Copy Assets
 const assets = [
@@ -90,7 +92,7 @@ const manifestXml = `<?xml version="1.0" encoding="utf-8"?>
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
   <Applications>
-    <Application Id="App" Executable="netsentry.exe" EntryPoint="Windows.FullTrustApplication"
+    <Application Id="App" Executable="nethelm.exe" EntryPoint="Windows.FullTrustApplication"
                  uap17:AllowElevation="true">
       <uap:VisualElements DisplayName="${IDENTITY.displayName}"
                           Description="${IDENTITY.description}"

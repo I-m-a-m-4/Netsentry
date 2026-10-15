@@ -35,8 +35,8 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
- title: 'NetSentry - Windows Data Saver & Bandwidth Monitor',
- description: 'Track live internet speeds, monitor app data usage, set daily limits, and save mobile data on Windows.',
+ title: 'NetHelm - Windows Data Saver & Bandwidth Monitor',
+ description: 'Track live internet speeds, monitor app data usage, set daily limits, and save mobile data on Windows with NetHelm.',
  icons: {
  icon: '/icon.svg',
  shortcut: '/icon.svg',

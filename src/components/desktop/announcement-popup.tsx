@@ -45,7 +45,7 @@ export default function AnnouncementPopup() {
           const data = snap.data() as BroadcastPopupData;
           if (data.active && data.title && data.message) {
             // Check if user has already dismissed this specific popup ID
-            const dismissedId = typeof window !== 'undefined' ? localStorage.getItem('netsentry_dismissed_popup_id') : null;
+            const dismissedId = typeof window !== 'undefined' ? localStorage.getItem('nethelm_dismissed_popup_id') : null;
             if (dismissedId !== data.id) {
               setPopupData(data);
               setIsOpen(true);
@@ -67,7 +67,7 @@ export default function AnnouncementPopup() {
 
   const handleDismiss = () => {
     if (popupData?.id && typeof window !== 'undefined') {
-      localStorage.setItem('netsentry_dismissed_popup_id', popupData.id);
+      localStorage.setItem('nethelm_dismissed_popup_id', popupData.id);
     }
     setIsOpen(false);
   };

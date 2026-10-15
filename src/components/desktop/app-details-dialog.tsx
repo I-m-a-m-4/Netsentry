@@ -316,9 +316,9 @@ export default function AppDetailsDialog({
                     <Cpu className="w-3.5 h-3.5 text-amber-500" />
                   </div>
                   <div className="text-2xl font-black text-amber-500 font-mono">
-                    {process.cpu_usage.toFixed(1)}<span className="text-xs font-normal">%</span>
+                    {(process.cpu_usage ?? 0).toFixed(1)}<span className="text-xs font-normal">%</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">{process.memory_usage.toLocaleString()} MB RAM used</p>
+                  <p className="text-[10px] text-muted-foreground">{(process.memory_usage ?? 0).toLocaleString()} MB RAM used</p>
                 </div>
               </div>
 

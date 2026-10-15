@@ -104,7 +104,7 @@ export async function syncClientTelemetryToFirebase(payload: ClientTelemetryPayl
     lastSyncedStatus = currentStatus;
   } catch (error) {
     // Fail silently in telemetry loop so offline client works without interruption
-    console.warn('NetSentry: Telemetry sync to Firebase skipped:', error);
+    console.warn('NetHelm: Telemetry sync to Firebase skipped:', error);
   }
 }
 
