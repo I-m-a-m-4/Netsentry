@@ -135,7 +135,9 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-black transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-black transition-colors">How it Works</a>
             <a href="#pricing" className="hover:text-black transition-colors">Pricing</a>
-            <a href="#" className="hover:text-black transition-colors">Support</a>
+            <Link href="/donate" className="hover:text-orange-700 transition-colors font-bold text-orange-600 flex items-center gap-1">
+              <span>☕</span> Buy Coffee
+            </Link>
           </div>
           <DownloadButton size="sm" />
         </nav>

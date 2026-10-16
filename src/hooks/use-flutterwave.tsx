@@ -100,23 +100,14 @@ export const useFlutterwave = () => {
   }, [toast]);
 
   const initializePayment = useCallback((config: FlutterwaveHookConfig) => {
-    if (!window.FlutterwaveCheckout) {
-      toast({
-        variant: 'destructive',
-        title: 'Payment Gateway Loading',
-        description: 'Flutterwave gateway is still initializing. Please wait a second and try again.'
-      });
-      return;
-    }
+    const launchCheckout = () => {
+      const publicKey = config.public_key || 
+        process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || 
+        'FLWPUBK_TEST-SANDBOXDEMOKEY-X';
 
-    const publicKey = config.public_key || 
-      process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || 
-      'FLWPUBK_TEST-SANDBOXDEMOKEY-X';
+      const txRef = config.tx_ref || `nethelm_coffee_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
-    const txRef = config.tx_ref || `nethelm_coffee_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
-
-    try {
-      window.FlutterwaveCheckout({
+      window.FlutterwaveCheckout!({
         public_key: publicKey,
         tx_ref: txRef,
         amount: config.amount,
@@ -139,14 +130,38 @@ export const useFlutterwave = () => {
           }
         }
       });
-    } catch (err: any) {
-      console.error('Flutterwave payment initialization error:', err);
-      toast({
-        variant: 'destructive',
-        title: 'Checkout Error',
-        description: 'Failed to launch Flutterwave payment modal. Please try again.'
-      });
+    };
+
+    if (typeof window !== 'undefined' && window.FlutterwaveCheckout) {
+      try {
+        launchCheckout();
+      } catch (err: any) {
+        console.error('Flutterwave payment initialization error:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Checkout Error',
+          description: 'Failed to launch Flutterwave payment modal. Please try again.'
+        });
+      }
+      return;
     }
+
+    // Quick retry after short interval if script was loading
+    setTimeout(() => {
+      if (typeof window !== 'undefined' && window.FlutterwaveCheckout) {
+        try {
+          launchCheckout();
+        } catch (err: any) {
+          console.error('Flutterwave payment error on retry:', err);
+        }
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Payment Gateway Loading',
+          description: 'Flutterwave gateway is still initializing. Please wait a second or switch to Paystack.'
+        });
+      }
+    }, 600);
   }, [toast]);
 
   return { initializePayment, isScriptLoaded: isSdkReady };
