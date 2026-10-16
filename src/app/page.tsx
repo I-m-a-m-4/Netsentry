@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { NetSentryLogo } from '@/components/ui/netsentry-logo';
+import { NetHelmLogo } from '@/components/ui/nethelm-logo';
 
 // ─── Platform icons ──────────────────────────────────────────────────────────
 function WindowsIcon({ size = 18 }: { size?: number }) {
@@ -128,7 +128,7 @@ export default function LandingPage() {
         {/* Navigation */}
         <nav className="w-full px-6 py-6 md:px-12 flex items-center justify-between max-w-7xl mx-auto animate-fade-in">
           <div className="flex items-center gap-2">
-            <NetSentryLogo className="w-8 h-8 rounded-lg shadow-md" />
+            <NetHelmLogo className="w-8 h-8 rounded-lg shadow-md" />
             <span className="text-xl font-bold text-slate-900 tracking-tight font-nunito">NetHelm</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700" style={{ fontSize: '15px' }}>
@@ -170,7 +170,7 @@ export default function LandingPage() {
             {/* Sidebar */}
             <aside className="hidden md:flex flex-col w-64 p-6" style={{ borderRight: '1px solid #f1f5f9', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(8px)' }}>
               <div className="flex items-center gap-2 mb-8 px-2">
-                <NetSentryLogo className="w-5 h-5 rounded-md" />
+                <NetHelmLogo className="w-5 h-5 rounded-md" />
                 <span className="text-lg font-bold text-slate-900 font-nunito">NetHelm</span>
               </div>
               <nav className="space-y-1 mb-8">
@@ -298,7 +298,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               { title: 'Live Bandwidth Monitor', desc: 'See real-time download and upload speeds for every app on your PC. Know exactly who is consuming your connection, second by second.', icon: '📡' },
-              { title: 'Data Limit & Alerts', desc: 'Set a daily or monthly data cap. NetSentry automatically alerts you before you hit the limit and can cut off traffic to protect your quota.', icon: '🛡️' },
+              { title: 'Data Limit & Alerts', desc: 'Set a daily or monthly data cap. NetHelm automatically alerts you before you hit the limit and can cut off traffic to protect your quota.', icon: '🛡️' },
               { title: 'Focus Mode & App Blocker', desc: 'Block distracting or data-hungry apps with a single click. Stay in the zone without background apps wasting your connection.', icon: '🎯' },
             ].map(card => (
               <div key={card.title} className="bg-white/80 backdrop-blur-md rounded-[32px] p-8 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
@@ -362,10 +362,10 @@ export default function LandingPage() {
               <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-4 block">App Manager</span>
               <h2 className="text-4xl font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6" style={{ fontSize: 'clamp(32px, 4vw, 46px)', lineHeight: '1.15' }}>See every app using your internet</h2>
               <p className="leading-relaxed font-medium text-slate-600 mb-10" style={{ fontSize: '18px' }}>
-                NetSentry tracks every process on your Windows PC in real time. Know which apps are eating your data, pause or block them instantly, and take back full control of your bandwidth.
+                NetHelm tracks every process on your Windows PC in real time. Know which apps are eating your data, pause or block them instantly, and take back full control of your bandwidth.
               </p>
               <Link href="/dashboard" className="inline-block text-white px-8 py-3.5 rounded-full font-semibold shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all mb-12" style={{ background: '#1A1A1A', fontSize: '15px' }}>
-                Open NetSentry
+                Open NetHelm
               </Link>
               <div className="grid grid-cols-2 gap-4">
                 {['Per-app tracking', 'Real-time speeds', 'Block instantly', 'Usage history'].map(f => (
@@ -384,7 +384,7 @@ export default function LandingPage() {
               <span className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-4 block">Data Protection</span>
               <h2 className="text-4xl font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-6" style={{ fontSize: 'clamp(32px, 4vw, 46px)', lineHeight: '1.15' }}>Set limits. Stay safe. Never overpay again.</h2>
               <p className="text-slate-600 font-medium mb-10 leading-relaxed" style={{ fontSize: '18px' }}>
-                Whether you are on a mobile hotspot or a capped broadband plan, NetSentry ensures you never accidentally blow your data allowance. Set a limit, walk away, and let NetSentry handle the rest.
+                Whether you are on a mobile hotspot or a capped broadband plan, NetHelm ensures you never accidentally blow your data allowance. Set a limit, walk away, and let NetHelm handle the rest.
               </p>
               <Link href="/dashboard" className="inline-block text-white px-8 py-3.5 rounded-full font-semibold shadow-lg hover:bg-black hover:shadow-xl hover:-translate-y-0.5 transition-all mb-12" style={{ background: '#1A1A1A', fontSize: '15px' }}>
                 Try it now
@@ -453,7 +453,7 @@ export default function LandingPage() {
             {[
               { icon: '🔥', title: 'Emergency Firewall Reset', desc: 'If something goes wrong with your connection, tap one button to restore Windows Firewall back to factory defaults. No technical knowledge required.' },
               { icon: '🌍', title: 'Metered Connection Smart Mode', desc: 'Automatically detects mobile hotspots and capped plans, switching to a conservative low-data profile without you lifting a finger.' },
-              { icon: '📱', title: 'Simple & Consumer-Friendly', desc: 'No confusing firewall rules or technical jargon. NetSentry uses plain English so anyone can understand and control their internet from day one.' },
+              { icon: '📱', title: 'Simple & Consumer-Friendly', desc: 'No confusing firewall rules or technical jargon. NetHelm uses plain English so anyone can understand and control their internet from day one.' },
             ].map(f => (
               <div key={f.title} className="rounded-[32px] p-8 md:p-10 flex flex-col items-start gap-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group" style={{ background: '#F2EBE5' }}>
                 <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform text-2xl">{f.icon}</div>
@@ -479,7 +479,7 @@ export default function LandingPage() {
         <section className="w-full relative py-24 z-10" style={{ background: '#F6F4F0', borderTop: '1px solid rgba(255,255,255,0.4)' }}>
           <div className="max-w-4xl mx-auto px-6 text-center mb-20">
             <h2 className="leading-tight font-semibold text-[#1A1A1A] tracking-tight font-nunito mb-10 drop-shadow-sm" style={{ fontSize: 'clamp(28px, 5vw, 48px)' }}>
-              &ldquo;NetSentry completely transformed how I manage my laptop on mobile data. It just works.&rdquo;
+              &ldquo;NetHelm completely transformed how I manage my laptop on mobile data. It just works.&rdquo;
             </h2>
             <div className="flex flex-col items-center justify-center gap-4">
               <div className="p-1 rounded-full bg-white shadow-sm" style={{ border: '1px solid #e2e8f0' }}>
@@ -496,9 +496,9 @@ export default function LandingPage() {
             <div className="absolute inset-y-0 right-0 z-20 pointer-events-none" style={{ width: '8rem', background: 'linear-gradient(to left, #F6F4F0, transparent)' }} />
             <div className="flex animate-scroll-testimonials gap-8 px-4" style={{ width: 'max-content' }}>
               {[
-                { quote: 'I was burning through my hotspot every month. NetSentry showed Chrome was the culprit. I blocked it when not needed and my data bill dropped significantly.', name: 'Amara K.', role: 'Graphic Designer' },
+                { quote: 'I was burning through my hotspot every month. NetHelm showed Chrome was the culprit. I blocked it when not needed and my data bill dropped significantly.', name: 'Amara K.', role: 'Graphic Designer' },
                 { quote: 'The Focus Mode is incredible. I block social media apps during work hours and my productivity has gone through the roof. Highly recommend to anyone working from home.', name: 'David M.', role: 'Remote Developer' },
-                { quote: 'Finally a Windows tool that speaks plain English. I have tried other firewalls and gave up after 10 minutes. NetSentry was up and running in seconds.', name: 'Sophie L.', role: 'Content Creator' },
+                { quote: 'Finally a Windows tool that speaks plain English. I have tried other firewalls and gave up after 10 minutes. NetHelm was up and running in seconds.', name: 'Sophie L.', role: 'Content Creator' },
                 { quote: 'The Emergency Firewall Reset saved me when my connection broke. One click and everything was back to normal. Absolute lifesaver.', name: 'Emeka O.', role: 'IT Support Tech' },
               ].flatMap((t, i) => [0, 1].map(j => (
                 <div key={`${i}-${j}`} className="bg-white rounded-[32px] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-300" style={{ width: '420px', padding: '40px', border: '1px solid #f1f5f9' }}>
@@ -588,7 +588,7 @@ export default function LandingPage() {
             <div className="flex flex-col lg:flex-row gap-12 lg:gap-24 mb-16 justify-between">
               <div className="max-w-sm">
                 <div className="flex items-center gap-2 mb-6">
-                  <NetSentryLogo className="w-7 h-7 rounded-md" />
+                  <NetHelmLogo className="w-7 h-7 rounded-md" />
                   <span className="text-xl font-semibold text-[#1A1A1A] tracking-tight font-nunito">NetHelm</span>
                 </div>
                 <p className="leading-relaxed text-slate-600 font-medium mb-8" style={{ fontSize: '15px' }}>

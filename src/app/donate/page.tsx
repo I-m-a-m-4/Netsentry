@@ -20,7 +20,7 @@ import {
   Copy,
   CheckCheck
 } from 'lucide-react';
-import { NetSentryLogo } from '@/components/ui/netsentry-logo';
+import { NetHelmLogo } from '@/components/ui/nethelm-logo';
 import { useToast } from '@/hooks/use-toast';
 import usePaystack from '@/hooks/use-paystack';
 import useFlutterwave from '@/hooks/use-flutterwave';
@@ -122,9 +122,19 @@ function DonatePageContent() {
 
     // 1. FLUTTERWAVE GATEWAY
     if (gateway === 'flutterwave') {
+      const flwPublicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
+      if (!flwPublicKey) {
+        if (attemptId) await updateCoffeeAttemptStatus(attemptId, 'failed');
+        toast({
+          title: 'Gateway Not Configured',
+          description: 'Flutterwave public key is not configured. Please set NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY in your environment.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const flwPublicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X';
-        
         initializeFlutterwave({
           public_key: flwPublicKey,
           tx_ref: reference,
@@ -137,7 +147,7 @@ function DonatePageContent() {
           },
           customizations: {
             title: 'Buy Us a Coffee',
-            description: 'Support NetHelm / NetSentry Development',
+            description: 'Support NetHelm Development',
             logo: 'https://netsentry-psi.vercel.app/app-icon.svg',
           },
           onSuccess: async (response: any) => {
@@ -169,9 +179,19 @@ function DonatePageContent() {
     }
 
     // 2. PAYSTACK GATEWAY
+    const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+    if (!paystackKey) {
+      if (attemptId) await updateCoffeeAttemptStatus(attemptId, 'failed');
+      toast({
+        title: 'Gateway Not Configured',
+        description: 'Paystack public key is not configured. Please set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in your environment.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_cb1d65dd8c8fae496d3aa59eec7f0bb6a4db46f0';
-      
       initializePaystack({
         key: paystackKey,
         email: finalEmail,
@@ -238,7 +258,7 @@ function DonatePageContent() {
             <span>Back to NetHelm</span>
           </Link>
           <div className="flex items-center gap-2">
-            <NetSentryLogo className="w-7 h-7 rounded-md shadow-md" />
+            <NetHelmLogo className="w-7 h-7 rounded-md shadow-md" />
             <span className="font-bricolage text-sm font-black text-primary tracking-tight">NetHelm</span>
           </div>
         </div>
@@ -256,7 +276,7 @@ function DonatePageContent() {
                   Buy Us a Coffee
                 </h1>
                 <p className="text-xs md:text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-                  Support NetHelm &amp; NetSentry engineering. Direct support keeps our software fast, independent, and 100% ad-free.
+                  Support NetHelm engineering. Direct support keeps our software fast, independent, and 100% ad-free.
                 </p>
               </div>
 
@@ -429,7 +449,7 @@ function DonatePageContent() {
                   Thank You for Your Coffee! ☕🧡
                 </h2>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                  Your contribution of <strong className="text-white">₦{Number(amount).toLocaleString()}</strong> was received successfully. It directly fuels NetHelm &amp; NetSentry performance and updates.
+                  Your contribution of <strong className="text-white">₦{Number(amount).toLocaleString()}</strong> was received successfully. It directly fuels NetHelm performance and updates.
                 </p>
               </div>
 
