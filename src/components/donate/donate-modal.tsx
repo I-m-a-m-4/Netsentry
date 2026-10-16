@@ -88,9 +88,21 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 
 		// 1. FLUTTERWAVE GATEWAY
 		if (gateway === 'flutterwave') {
+			const flwPublicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
+			if (!flwPublicKey) {
+				if (attemptId) await updateCoffeeAttemptStatus(attemptId, 'failed');
+				toast({
+					title: 'Gateway Not Configured',
+					description: 'Flutterwave public key is not configured. Please set NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY in your environment.',
+					variant: 'destructive',
+				});
+				setIsLoading(false);
+				return;
+			}
+
 			try {
 				initializeFlutterwave({
-					public_key: process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X',
+					public_key: flwPublicKey,
 					tx_ref: reference,
 					amount: numAmount,
 					currency: 'NGN',
@@ -133,9 +145,21 @@ export default function DonateModal({ open, onOpenChange, isDark: propIsDark }: 
 		}
 
 		// 2. PAYSTACK GATEWAY
+		const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+		if (!paystackKey) {
+			if (attemptId) await updateCoffeeAttemptStatus(attemptId, 'failed');
+			toast({
+				title: 'Gateway Not Configured',
+				description: 'Paystack public key is not configured. Please set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in your environment.',
+				variant: 'destructive',
+			});
+			setIsLoading(false);
+			return;
+		}
+
 		try {
 			initializePaystack({
-				key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_cb1d65dd8c8fae496d3aa59eec7f0bb6a4db46f0',
+				key: paystackKey,
 				email: finalEmail,
 				amount: Math.round(numAmount * 100), // kobo
 				currency: 'NGN',

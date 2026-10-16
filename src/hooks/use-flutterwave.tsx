@@ -101,9 +101,15 @@ export const useFlutterwave = () => {
 
   const initializePayment = useCallback((config: FlutterwaveHookConfig) => {
     const launchCheckout = () => {
-      const publicKey = config.public_key || 
-        process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || 
-        'FLWPUBK_TEST-SANDBOXDEMOKEY-X';
+      const publicKey = config.public_key || process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
+      if (!publicKey) {
+        toast({
+          title: 'Configuration Error',
+          description: 'Flutterwave public key is not configured. Please set NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY in your environment.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       const txRef = config.tx_ref || `nethelm_coffee_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
@@ -116,7 +122,7 @@ export const useFlutterwave = () => {
         customer: config.customer,
         customizations: config.customizations || {
           title: 'Buy Us a Coffee',
-          description: 'Support NetHelm / NetSentry Development',
+          description: 'Support NetHelm Development',
           logo: 'https://netsentry-psi.vercel.app/app-icon.svg',
         },
         callback: (response: any) => {
