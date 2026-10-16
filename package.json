@@ -3,9 +3,9 @@
   "version": "0.0.4",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 9008",
-    "build": "next build",
-    "start": "next start",
+    "dev": "node api.js && next dev --turbopack -p 9008",
+    "build": "node api.js && next build",
+    "start": "node api.js && next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package",
