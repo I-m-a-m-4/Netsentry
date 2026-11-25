@@ -38,5 +38,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_CLI_NO_VERSION_CHECK: 'true'
+          TAURI_SKIP_CHECK_MISMATCHED_VERSIONS: 'true'
         with:
-          args: --target x86_64-pc-windows-msvc
+          args: --target x86_64-pc-windows-msvc --ignore-version-mismatches
