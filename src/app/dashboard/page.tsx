@@ -57,7 +57,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import DonateModal from '@/components/donate/donate-modal';
 import { AppIcon, getProcessBrandMeta, SYSTEM_PROCESS_NAMES } from '@/components/desktop/app-icons';
-import AnalyticsDashboard from '@/components/desktop/analytics-dashboard';
+import AnalyticsDashboard, { DailyAppUsageEntry } from '@/components/desktop/analytics-dashboard';
 import AppDetailsDialog from '@/components/desktop/app-details-dialog';
 import AnnouncementPopup from '@/components/desktop/announcement-popup';
 import SmartDataSaverModal from '@/components/desktop/smart-data-saver-modal';
@@ -210,7 +210,10 @@ export default function NetSentryDashboard() {
  };
  const [allowedApps, setAllowedApps] = useState<string>('');
  const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
+ const [dailyAppBreakdown, setDailyAppBreakdown] = useState<DailyAppUsageEntry[]>([]);
  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+ const [autostartEnabled, setAutostartEnabled] = useState<boolean>(true);
+ const [autostartLoading, setAutostartLoading] = useState<boolean>(false);
 
  // New features
  const [autoCutoffEnabled, setAutoCutoffEnabled] = useState<boolean>(false);
@@ -236,12 +239,30 @@ export default function NetSentryDashboard() {
  setAnalyticsLoading(true);
  try {
  const { invoke } = await import('@tauri-apps/api/core');
- const totals = await invoke<DailyTotal[]>('get_daily_totals', { days: 0 });
+ const [totals, appBreakdown] = await Promise.all([
+  invoke<DailyTotal[]>('get_daily_totals', { days: 0 }),
+  invoke<DailyAppUsageEntry[]>('get_daily_app_breakdown', { days: 0 }),
+ ]);
  setDailyTotals(totals.reverse()); // ascending for chart
+ setDailyAppBreakdown(appBreakdown || []);
  } catch (e) {
  console.error('Failed to load analytics', e);
  } finally {
  setAnalyticsLoading(false);
+ }
+ };
+
+ const handleToggleAutostart = async (enabled: boolean) => {
+ if (tauriStatus !== 'connected') return;
+ setAutostartLoading(true);
+ try {
+ const { invoke } = await import('@tauri-apps/api/core');
+ const result = await invoke<boolean>('set_autostart_enabled', { enabled });
+ setAutostartEnabled(Boolean(result));
+ } catch (e) {
+ console.error('Failed to toggle background auto-start', e);
+ } finally {
+ setAutostartLoading(false);
  }
  };
 
@@ -383,6 +404,14 @@ export default function NetSentryDashboard() {
  };
 
  await checkConnectionStatus();
+
+ // Check whether Windows background auto-start is currently enabled
+ try {
+  const enabled = await invoke<boolean>('get_autostart_enabled');
+  setAutostartEnabled(Boolean(enabled));
+ } catch (e) {
+  console.warn('Failed to query autostart state', e);
+ }
 
  // Poll every 2.5s for connection type changes (e.g. switching from Wi-Fi to hotspot)
  const costInterval = setInterval(checkConnectionStatus, 2500);
@@ -1789,6 +1818,7 @@ export default function NetSentryDashboard() {
  processes={processes}
  system={system}
  dailyTotals={dailyTotals}
+ dailyAppBreakdown={dailyAppBreakdown}
  liveChartData={chartData}
  isDark={isDark}
  tauriStatus={tauriStatus}
@@ -1803,6 +1833,9 @@ export default function NetSentryDashboard() {
  peakSpeedRecord={peakSpeedRecord}
  autoFocusOnHotspot={autoFocusOnHotspot}
  setAutoFocusOnHotspot={setAutoFocusOnHotspot}
+ autostartEnabled={autostartEnabled}
+ autostartLoading={autostartLoading}
+ onToggleAutostart={handleToggleAutostart}
  />
  )}
 

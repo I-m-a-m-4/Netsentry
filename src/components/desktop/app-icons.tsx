@@ -46,6 +46,49 @@ export const SYSTEM_PROCESS_NAMES = new Set([
  'qkactivedefense.exe', 'tagsrv.exe',
 ]);
 
+// Known background updaters, sync daemons, telemetry & OS services that consume data silently
+const BACKGROUND_DAEMON_PATTERNS = [
+ 'wuauclt', 'usoclient', 'tiworker', 'trustedinstaller', 'mousocoreworker',
+ 'compattelrunner', 'diagtrack', 'waasmedic', 'msedgeupdate', 'microsoftedgeupdate',
+ 'googleupdate', 'onedrive', 'dropboxupdate', 'crashpad', 'backgroundtransferhost',
+ 'deliveryoptimization', 'dosvc', 'wuapihost', 'wuauserv', 'msmpeng', 'mpcmdrun',
+ 'nissrv', 'wermgr', 'werfault', 'sppsvc', 'sihclient', 'sedlauncher',
+ 'phoneexperiencehost', 'widgets', 'widgetservice', 'gamingservices',
+ 'telemetry', 'updater', 'update.exe', 'adobeipcbroker', 'ccxprocess',
+ 'armsvc', 'gupdate', 'nvcontainer', 'nvtelemetry', 'igfx', 'rtkaud',
+ 'spoolsv', 'svchost', 'searchhost', 'runtimebroker', 'backgroundtaskhost',
+ 'dashost', 'wmiprvse', 'wudfhost', 'msiexec', 'smartscreen', 'securityhealth',
+ 'system', 'idle', 'services.exe', 'lsass.exe', 'csrss.exe', 'smss.exe',
+ 'taskhostw', 'sihost', 'ctfmon', 'conhost', 'dllhost', 'rundll32',
+];
+
+/**
+ * Determines whether a process should be grouped under "Background Processes"
+ * in daily consumption reports (OS core services, silent updaters, telemetry, sync daemons).
+ */
+export function isBackgroundProcess(name: string, exePath: string = ''): boolean {
+ const n = (name || '').toLowerCase().trim();
+ const p = (exePath || '').toLowerCase().trim();
+
+ if (!n) return true;
+
+ if (
+  SYSTEM_PROCESS_NAMES.has(n) ||
+  p.includes('windows\\system32') ||
+  p.includes('windows\\syswow64') ||
+  p.includes('windows\\systemapps') ||
+  p.includes('windows\\servicing') ||
+  p.includes('windows\\softwaredistribution') ||
+  p.includes('windows defender') ||
+  p.includes('national instruments') ||
+  p.includes('rabbitmq')
+ ) {
+  return true;
+ }
+
+ return BACKGROUND_DAEMON_PATTERNS.some((pattern) => n.includes(pattern));
+}
+
 // Official Brave Lion Logo SVG
 export function BraveIcon({ className = "w-6 h-6" }: { className?: string }) {
  return (

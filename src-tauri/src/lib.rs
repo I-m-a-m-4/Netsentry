@@ -52,6 +52,16 @@ pub struct TopAppEntry {
     pub total_mb: f64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DailyAppUsageEntry {
+    pub date: String,
+    pub app_name: String,
+    pub exe_path: String,
+    pub inbound_mb: f64,
+    pub outbound_mb: f64,
+    pub total_mb: f64,
+}
+
 // Track active firewall block rules by program path and cached app icons
 lazy_static::lazy_static! {
     static ref PAUSED_PROCESSES: Arc<Mutex<std::collections::HashSet<String>>> = Arc::new(Mutex::new(std::collections::HashSet::new()));
@@ -340,6 +350,10 @@ fn init_analytics_db(db_path: PathBuf) {
                 );
                 CREATE INDEX IF NOT EXISTS idx_app_daily_date ON app_daily_totals(date);
                 CREATE INDEX IF NOT EXISTS idx_app_daily_key ON app_daily_totals(app_key, date);
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
             ",
             );
             if let Ok(mut db) = ANALYTICS_DB.lock() {
@@ -826,6 +840,180 @@ fn get_top_apps_history(days: u32) -> Vec<TopAppEntry> {
 }
 
 #[tauri::command]
+fn get_daily_app_breakdown(days: u32) -> Vec<DailyAppUsageEntry> {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let date_filter = match days {
+                0 => "1=1".to_string(),
+                _ => format!(
+                    "date >= date('now', 'localtime', '-{} days')",
+                    days.max(1).min(3650)
+                ),
+            };
+
+            let query = format!(
+                "SELECT date,
+                        MAX(app_name) as app_name,
+                        MAX(exe_path) as exe_path,
+                        SUM(inbound_mb) as inbound_mb,
+                        SUM(outbound_mb) as outbound_mb,
+                        SUM(inbound_mb + outbound_mb) as total_mb
+                 FROM app_daily_totals
+                 WHERE {}
+                 GROUP BY date, LOWER(CASE WHEN exe_path != '' THEN exe_path ELSE app_name END)
+                 HAVING SUM(inbound_mb + outbound_mb) > 0.001
+                 ORDER BY date DESC, total_mb DESC
+                 LIMIT 1500",
+                date_filter
+            );
+
+            let mut stmt = match conn.prepare(&query) {
+                Ok(s) => s,
+                Err(_) => return vec![],
+            };
+
+            let rows = match stmt.query_map([], |row| {
+                let in_mb: f64 = row.get(3)?;
+                let out_mb: f64 = row.get(4)?;
+                let tot_mb: f64 = row.get(5)?;
+                Ok(DailyAppUsageEntry {
+                    date: row.get(0)?,
+                    app_name: row.get(1)?,
+                    exe_path: row.get(2)?,
+                    inbound_mb: (in_mb * 100.0).round() / 100.0,
+                    outbound_mb: (out_mb * 100.0).round() / 100.0,
+                    total_mb: (tot_mb * 100.0).round() / 100.0,
+                })
+            }) {
+                Ok(iter) => iter,
+                Err(_) => return vec![],
+            };
+
+            return rows.filter_map(|r| r.ok()).collect();
+        }
+    }
+    vec![]
+}
+
+fn get_app_setting(key: &str) -> Option<String> {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            if let Ok(val) = conn.query_row(
+                "SELECT value FROM app_settings WHERE key = ?1",
+                params![key],
+                |row| row.get::<_, String>(0),
+            ) {
+                return Some(val);
+            }
+        }
+    }
+    None
+}
+
+fn set_app_setting(key: &str, value: &str) {
+    if let Ok(db) = ANALYTICS_DB.lock() {
+        if let Some(conn) = db.as_ref() {
+            let _ = conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            );
+        }
+    }
+}
+
+#[tauri::command]
+fn get_autostart_enabled() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = create_cmd("reg")
+            .args(&[
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                "/v",
+                "NetHelm",
+            ])
+            .output()
+            .map_err(|e| e.to_string())?;
+        Ok(output.status.success())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+fn set_autostart_enabled(enabled: bool) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if enabled {
+            let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+            let exe_str = exe_path.to_string_lossy().to_string();
+            let launch_cmd = format!("\"{}\" --background", exe_str);
+            let output = create_cmd("reg")
+                .args(&[
+                    "add",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    "NetHelm",
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    &launch_cmd,
+                    "/f",
+                ])
+                .output()
+                .map_err(|e| e.to_string())?;
+
+            // Remove any legacy NetSentry Run key so it doesn't double-launch
+            let _ = create_cmd("reg")
+                .args(&[
+                    "delete",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    "NetSentry",
+                    "/f",
+                ])
+                .output();
+
+            if output.status.success() {
+                set_app_setting("autostart_enabled", "1");
+                Ok(true)
+            } else {
+                Err(String::from_utf8_lossy(&output.stderr).to_string())
+            }
+        } else {
+            let _ = create_cmd("reg")
+                .args(&[
+                    "delete",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    "NetHelm",
+                    "/f",
+                ])
+                .output();
+            let _ = create_cmd("reg")
+                .args(&[
+                    "delete",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    "NetSentry",
+                    "/f",
+                ])
+                .output();
+            set_app_setting("autostart_enabled", "0");
+            Ok(false)
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = enabled;
+        Ok(false)
+    }
+}
+
+#[tauri::command]
 fn reset_firewall_rules() -> Result<bool, String> {
     let output = Command::new("netsh")
         .args(&["advfirewall", "reset"])
@@ -855,8 +1043,10 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
     let name_lower = name.to_lowercase();
     let path_lower = exe_path.to_lowercase();
 
-    // Never block NetSentry itself, Tauri's WebView2 process, or development runtimes
-    if name_lower == "netsentry.exe"
+    // Never block NetHelm/NetSentry itself, Tauri's WebView2 process, or development runtimes
+    if name_lower == "nethelm.exe"
+        || name_lower.contains("nethelm")
+        || name_lower == "netsentry.exe"
         || name_lower.contains("netsentry")
         || name_lower == "msedgewebview2.exe"
         || name_lower.contains("webview")
@@ -870,6 +1060,7 @@ fn is_protected_system_process(name: &str, exe_path: &str) -> bool {
         || name_lower == "pwsh.exe"
         || name_lower == "cmd.exe"
         || path_lower.contains("edgewebview")
+        || path_lower.contains("nethelm")
         || path_lower.contains("netsentry")
     {
         return true;
@@ -1185,6 +1376,9 @@ pub fn run() {
             get_daily_totals,
             get_app_history,
             get_top_apps_history,
+            get_daily_app_breakdown,
+            get_autostart_enabled,
+            set_autostart_enabled,
             get_app_icon,
             enable_data_saver_mode,
             disable_data_saver_mode,
@@ -1230,31 +1424,56 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 use tauri::menu::{Menu, MenuItem};
-                use tauri::tray::TrayIconBuilder;
+                use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-                // Automatically clean up any orphaned NetSentry firewall rules from previous sessions
+                let start_in_background = std::env::args().any(|arg| {
+                    arg == "--background" || arg == "--autostart" || arg == "--minimized"
+                });
+
+                // Automatically clean up any orphaned NetHelm/NetSentry firewall rules from previous sessions
                 let _ = emergency_clear_all_firewall_rules();
 
-                // Explicitly show and focus main window
+                // Show and focus main window unless launched silently in background at Windows startup
                 if let Some(window) = app.get_webview_window("main") {
-                    println!("NetSentry: Showing and focusing main window...");
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
+                    if start_in_background {
+                        println!("NetHelm: Starting silently in background (system tray)...");
+                        let _ = window.hide();
+                    } else {
+                        println!("NetHelm: Showing and focusing main window...");
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
                 }
 
                 // Build tray menu
-                let quit_i = MenuItem::with_id(app, "quit", "Quit NetSentry", true, None::<&str>)?;
-                let show_i = MenuItem::with_id(app, "show", "Show NetSentry", true, None::<&str>)?;
+                let quit_i = MenuItem::with_id(app, "quit", "Quit NetHelm", true, None::<&str>)?;
+                let show_i = MenuItem::with_id(app, "show", "Open NetHelm", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
                 if let Some(tray_icon) = app.default_window_icon().cloned() {
                     let _ = TrayIconBuilder::new()
                         .icon(tray_icon)
+                        .tooltip("NetHelm — Tracking data in background")
                         .menu(&menu)
+                        .on_tray_icon_event(|tray, event| {
+                            if let TrayIconEvent::Click {
+                                button: MouseButton::Left,
+                                button_state: MouseButtonState::Up,
+                                ..
+                            } = event
+                            {
+                                let app = tray.app_handle();
+                                if let Some(win) = app.get_webview_window("main") {
+                                    let _ = win.show();
+                                    let _ = win.unminimize();
+                                    let _ = win.set_focus();
+                                }
+                            }
+                        })
                         .on_menu_event(|app, event| match event.id.as_ref() {
                             "quit" => {
-                                println!("NetSentry: Quit requested from tray.");
+                                println!("NetHelm: Quit requested from tray.");
                                 let _ = emergency_clear_all_firewall_rules();
                                 std::process::exit(0);
                             }
@@ -1277,6 +1496,13 @@ pub fn run() {
                     .unwrap_or_else(|_| PathBuf::from("."))
                     .join("netsentry.db");
                 init_analytics_db(db_path);
+
+                // Ensure NetHelm auto-starts in background on Windows login by default
+                // (respects user's choice if they later disable it in settings)
+                if get_app_setting("autostart_initialized").is_none() {
+                    let _ = set_autostart_enabled(true);
+                    set_app_setting("autostart_initialized", "1");
+                }
 
                 // Start background event loop for streaming process network data
                 let app_handle = app.handle().clone();
